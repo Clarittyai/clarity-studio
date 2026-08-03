@@ -1,4 +1,4 @@
-# Claritty automation — see CLAUDE.md for the full authoring contract.
+# Clarity automation — see CLAUDE.md for the full authoring contract.
 
 - intelligence.yaml is the source of truth; the runtime validates it at boot.
 - Tools act (@tool, no model calls); agents decide (promptFile, no execute()).

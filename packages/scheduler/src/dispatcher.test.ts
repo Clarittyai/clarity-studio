@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Store } from '@claritty-studio/db';
+import { Store } from '@clarity-studio/db';
 
 import { Dispatcher, countMissedWindows, MISSED_THRESHOLD_MS } from './dispatcher.js';
 import type { Schedule } from './schedule.js';

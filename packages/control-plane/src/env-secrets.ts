@@ -2,7 +2,7 @@
  * Environment-backed {@link SecretSource} for the CLI and for tests.
  *
  * The desktop app uses the OS keychain instead. This one exists so a headless
- * run — CI, a server, `claritty-studio run` over SSH — has a way to supply keys
+ * run — CI, a server, `clarity-studio run` over SSH — has a way to supply keys
  * without a keyring, and it is deliberately the *only* place in Studio that
  * reads a provider key out of the environment.
  *

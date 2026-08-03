@@ -1,8 +1,8 @@
 ---
-description: Convert an existing agent (LangChain, CrewAI, cron script, MCP server) into a Claritty automation
+description: Convert an existing agent (LangChain, CrewAI, cron script, MCP server) into a Clarity automation
 ---
 
-You are converting an existing codebase into a Claritty automation. **Wrap the
+You are converting an existing codebase into a Clarity automation. **Wrap the
 user's code; do not rewrite it.** A conversion that reimplements their logic has
 failed, however clean the result looks.
 

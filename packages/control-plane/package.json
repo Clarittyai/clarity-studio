@@ -1,5 +1,5 @@
 {
-  "name": "@claritty-studio/control-plane",
+  "name": "@clarity-studio/control-plane",
   "version": "0.1.0",
   "license": "MIT",
   "type": "module",
@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "fastify": "^5.2.0",
-    "@claritty-studio/connectors": "workspace:*"
+    "@clarity-studio/connectors": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

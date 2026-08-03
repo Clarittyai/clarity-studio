@@ -40,8 +40,8 @@ function makeAdapter(id: string, defaultBase: string, matches: (m: string) => bo
       // is worse than sending none.
       if (ctx.apiKey) headers.authorization = `Bearer ${ctx.apiKey}`;
       if (id === 'openrouter') {
-        headers['HTTP-Referer'] = 'https://github.com/Clarittyai/claritty-studio';
-        headers['X-Title'] = 'Claritty Studio';
+        headers['HTTP-Referer'] = 'https://github.com/Clarittyai/clarity-studio';
+        headers['X-Title'] = 'Clarity Studio';
       }
 
       const res = await fetch(`${base}/chat/completions`, {

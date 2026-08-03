@@ -1,7 +1,7 @@
 /* @import must come first — CSS says so. postcss-import inlines both before
    Tailwind runs, which is what lets glass.css use @apply. */
-@import '@claritty-studio/design/tokens.css';
-@import '@claritty-studio/design/glass.css';
+@import '@clarity-studio/design/tokens.css';
+@import '@clarity-studio/design/glass.css';
 
 @tailwind base;
 @tailwind components;

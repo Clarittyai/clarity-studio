@@ -13,7 +13,7 @@
  * deliver the bytes faithfully and remember them.
  */
 
-import type { Store } from '@claritty-studio/db';
+import type { Store } from '@clarity-studio/db';
 
 import type { DispatchTarget } from './dispatcher.js';
 

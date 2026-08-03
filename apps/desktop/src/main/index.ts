@@ -18,7 +18,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { Store } from '@claritty-studio/db';
+import { Store } from '@clarity-studio/db';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEV_SERVER = process.env.STUDIO_DEV_SERVER;
@@ -88,7 +88,7 @@ function registerIpc(): void {
   for (const channel of ['project:start', 'project:stop', 'workflow:run']) {
     ipcMain.handle(channel, () => {
       throw new Error(
-        `${channel} is not wired to the desktop app yet — use the CLI: claritty-studio serve`,
+        `${channel} is not wired to the desktop app yet — use the CLI: clarity-studio serve`,
       );
     });
   }
@@ -147,7 +147,7 @@ function createWindow(): void {
   } else {
     const html = join(HERE, '../renderer/index.html');
     if (!existsSync(html)) {
-      throw new Error(`Renderer not built. Run: pnpm --filter @claritty-studio/desktop build`);
+      throw new Error(`Renderer not built. Run: pnpm --filter @clarity-studio/desktop build`);
     }
     void window.loadFile(html);
   }

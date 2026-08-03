@@ -99,7 +99,7 @@ describe('executing a connector tool', () => {
 
     // Point the Slack spec at the fake provider by overriding its host through
     // the same catalog machinery a real call uses.
-    const { CATALOG } = await import('@claritty-studio/connectors');
+    const { CATALOG } = await import('@clarity-studio/connectors');
     const slack = CATALOG.find((i) => i.id === 'slack')!;
     const original = slack.tools[0]!.url;
     slack.tools[0]!.url = `http://127.0.0.1:${fakePort}/api/chat.postMessage`;

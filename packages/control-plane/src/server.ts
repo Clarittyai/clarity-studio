@@ -1,5 +1,5 @@
 /**
- * The local control plane — the thing that makes an unmodified Claritty
+ * The local control plane — the thing that makes an unmodified Clarity
  * automation run on your laptop.
  *
  * A deployed automation expects a platform behind `CLARITTY_PLATFORM_URL` that
@@ -12,7 +12,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
-import { ConnectorError, executeTool, resolveTool } from '@claritty-studio/connectors';
+import { ConnectorError, executeTool, resolveTool } from '@clarity-studio/connectors';
 
 import { EnvSecretSource } from './env-secrets.js';
 import { MemoryRunStore } from './memory-store.js';
@@ -242,7 +242,7 @@ export class ControlPlane {
         if (constantTimeEqual(internal, p.internalSecret)) return p;
       }
     }
-    throw new HttpError(401, 'unauthenticated: bad or missing Claritty internal headers');
+    throw new HttpError(401, 'unauthenticated: bad or missing Clarity internal headers');
   }
 
   private authenticateBearer(req: FastifyRequest): ProjectIdentity {
@@ -275,7 +275,7 @@ export class ControlPlane {
 
     app.get('/health', async () => ({
       status: 'healthy',
-      service: 'claritty-studio-control-plane',
+      service: 'clarity-studio-control-plane',
       projects: this.projects.size,
     }));
 
@@ -525,7 +525,7 @@ export class ControlPlane {
       // served. Say so rather than claiming the endpoint does not exist.
       return reply.status(503).send({
         error: 'Studio is not serving any automation right now',
-        hint: 'run `claritty-studio serve` in the automation directory',
+        hint: 'run `clarity-studio serve` in the automation directory',
         instanceId,
       });
     });

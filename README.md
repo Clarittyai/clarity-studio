@@ -1,8 +1,8 @@
-# Claritty Studio
+# Clarity Studio
 
 **Build, run, schedule and observe AI automations on your own machine, with your own keys.**
 
-Claritty Studio is an open-source desktop app for agentic automations — the ones that keep working
+Clarity Studio is an open-source desktop app for agentic automations — the ones that keep working
 after you close the laptop lid. Write them with the coding agent you already use, run them in Docker,
 give them real schedules and webhooks, connect them to real services, and watch every step, token and
 dollar they spend.
@@ -53,8 +53,8 @@ node ../apps/cli/dist/index.js run --native
 
 Now open the folder in Claude Code or Codex and tell it what you actually want
 the automation to do. `CLAUDE.md`, `AGENTS.md` and `.cursorrules` are already
-there, so the agent knows the rules; `/claritty-new-automation` and
-`/claritty-convert` are ready as slash commands.
+there, so the agent knows the rules; `/clarity-new-automation` and
+`/clarity-convert` are ready as slash commands.
 
 **Two runtimes.** `--native` uses a local Python virtualenv, so Studio is
 useful a minute after download on a machine that has never seen Docker. Drop
@@ -112,7 +112,7 @@ useless the moment you want something to happen at 9am on Tuesday. Studio is bui
 half: automations that run on a schedule, react to webhooks, hold credentials, and need to be
 debugged six weeks after you wrote them.
 
-|  | Coding-agent harnesses | **Claritty Studio** |
+|  | Coding-agent harnesses | **Clarity Studio** |
 |---|---|---|
 | Runs agents in parallel | ✅ | ✅ |
 | Git worktree isolation | ✅ | ✅ |
@@ -164,7 +164,7 @@ needs — model calls routed to your own provider key, credentials from your OS 
 checkpoints, traces — so the automation runs unmodified on your machine.
 
 That last property is the point: the automation is a portable artifact. `docker compose up` works
-without Studio. Your own server works. So does Claritty Cloud, if you ever want always-on schedules.
+without Studio. Your own server works. So does Clarity Cloud, if you ever want always-on schedules.
 Nothing here locks you in either direction.
 
 ## Status
@@ -172,7 +172,7 @@ Nothing here locks you in either direction.
 Pre-alpha, built in the open. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 - ✅ **M0** — local control plane + automation seed
-- ✅ **M1** — local store, Docker and native runtimes, the `claritty-studio` CLI
+- ✅ **M1** — local store, Docker and native runtimes, the `clarity-studio` CLI
 - ✅ **M4** — scheduler, webhook ingress and replay
 - ✅ **M2** — Electron shell, design system, run timeline as a waterfall
 - ✅ **M3** — credential vault, connector engine, eight integrations
@@ -194,8 +194,8 @@ session is not stopped for permission on every `pnpm test`.
 
 ```
 apps/desktop/              Electron app
-apps/cli/                  claritty-studio — the same core, headless
-packages/control-plane/    the local Claritty runtime the SDK talks to
+apps/cli/                  clarity-studio — the same core, headless
+packages/control-plane/    the local Clarity runtime the SDK talks to
 packages/orchestrator/     Docker lifecycle, ports, logs, health
 packages/automation-seed/  the MIT seed every new automation starts from
 packages/connectors/       declarative HTTP connector engine + specs
@@ -209,4 +209,4 @@ packages/db/               local SQLite store
 
 ## License
 
-MIT. Built by the team behind [Claritty](https://claritty.ai).
+MIT. Built by the team behind [Clarity](https://claritty.ai).

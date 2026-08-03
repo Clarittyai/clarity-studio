@@ -325,7 +325,7 @@ export class Store {
 
   /**
    * Ciphertext only. The Store never sees a plaintext secret and has no way to
-   * decrypt one — that lives entirely in @claritty-studio/vault, so a bug here
+   * decrypt one — that lives entirely in @clarity-studio/vault, so a bug here
    * cannot turn into a disclosure.
    */
   putSecret(key: string, ciphertext: Buffer, last4: string): void {

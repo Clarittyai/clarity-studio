@@ -6,15 +6,15 @@
  * export, but CI has no keyring and needs the env path to work.
  */
 
-import { Store } from '@claritty-studio/db';
-import type { SecretSource } from '@claritty-studio/control-plane';
-import { EnvSecretSource } from '@claritty-studio/control-plane';
+import { Store } from '@clarity-studio/db';
+import type { SecretSource } from '@clarity-studio/control-plane';
+import { EnvSecretSource } from '@clarity-studio/control-plane';
 import {
   EnvBackend,
   PassphraseBackend,
   Vault,
   type VaultStorage,
-} from '@claritty-studio/vault';
+} from '@clarity-studio/vault';
 
 /** Bridges the vault's storage interface onto the SQLite store. */
 export function vaultStorage(store: Store): VaultStorage {

@@ -4,12 +4,12 @@ import { _electron as electron } from 'playwright';
 // container. The app itself keeps Chromium's sandbox on for real users.
 const app = await electron.launch({
   args: ['.', '--no-sandbox'],
-  cwd: '/home/user/claritty-studio/apps/desktop',
+  cwd: '/home/user/clarity-studio/apps/desktop',
   env: { ...process.env, STUDIO_HOME: '/tmp/studio-desktop' },
 });
 
 const win = await app.firstWindow();
-await win.waitForSelector('text=Claritty Studio');
+await win.waitForSelector('text=Clarity Studio');
 await win.waitForTimeout(1500);
 await win.screenshot({ path: '/tmp/electron-app.png' });
 

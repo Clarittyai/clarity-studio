@@ -43,7 +43,7 @@ function quiet(cmd, args) {
 }
 
 console.log();
-console.log(bold('Claritty Studio — setup'));
+console.log(bold('Clarity Studio — setup'));
 console.log();
 
 // ── Node ─────────────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ if (!python) {
       die(`could not create a virtualenv with ${python}. On Debian/Ubuntu: apt install python3-venv`);
     }
   }
-  step('installing the Claritty SDK from PyPI…');
+  step('installing the Clarity SDK from PyPI…');
   const pip = sh(VENV_PY, [
     '-m', 'pip', 'install', '--quiet', '--disable-pip-version-check',
     'claritty-sdk>=2.11,<3', 'fastapi', 'uvicorn[standard]',

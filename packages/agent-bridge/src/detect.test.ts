@@ -48,9 +48,9 @@ describe('detecting installed agents', () => {
 });
 
 describe('the opening prompt', () => {
-  it('sends a non-Claritty repo down the convert path', () => {
+  it('sends a non-Clarity repo down the convert path', () => {
     const prompt = composeOpeningPrompt({ hasManifest: false, isFresh: false, request: 'chase invoices' });
-    expect(prompt).toMatch(/\/claritty-convert/);
+    expect(prompt).toMatch(/\/clarity-convert/);
     // The instruction that keeps a conversion from becoming a rewrite.
     expect(prompt).toMatch(/do not rewrite/i);
     expect(prompt).toMatch(/chase invoices/);

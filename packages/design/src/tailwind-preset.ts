@@ -1,5 +1,5 @@
 /**
- * The Claritty Tailwind preset.
+ * The Clarity Tailwind preset.
  *
  * Hand-written rather than generated — parsing a TS config that imports plugins
  * is a fragile way to obtain values you can simply read. The trade is that a
@@ -16,7 +16,7 @@ import type { Config } from 'tailwindcss';
 /** `hsl(var(--x))`, so one token drives light and dark. */
 const token = (name: string) => `hsl(var(--${name}))`;
 
-export const clarittyPreset: Omit<Config, 'content'> = {
+export const clarityPreset: Omit<Config, 'content'> = {
   darkMode: ['class'],
 
   future: {
@@ -129,4 +129,4 @@ export const clarittyPreset: Omit<Config, 'content'> = {
   },
 };
 
-export default clarittyPreset;
+export default clarityPreset;

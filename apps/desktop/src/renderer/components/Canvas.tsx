@@ -13,7 +13,7 @@
 
 import { useMemo } from 'react';
 
-import { buildGraph, layout, type GraphEdge, type LaidOutNode, type ManifestLike } from '@claritty-studio/graph';
+import { buildGraph, layout, type GraphEdge, type LaidOutNode, type ManifestLike } from '@clarity-studio/graph';
 
 import { Badge, cn } from './ui.js';
 

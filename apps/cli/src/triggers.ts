@@ -9,14 +9,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { Store, TriggerInstanceRow } from '@claritty-studio/db';
+import type { Store, TriggerInstanceRow } from '@clarity-studio/db';
 import {
   describeSchedule,
   nextRunAt,
   ScheduleError,
   validateSchedule,
   type Schedule,
-} from '@claritty-studio/scheduler';
+} from '@clarity-studio/scheduler';
 
 export interface TriggerRecipe {
   id: string;
@@ -148,7 +148,7 @@ export function addTrigger(
   });
 }
 
-/** One line per trigger, for `claritty-studio trigger ls`. */
+/** One line per trigger, for `clarity-studio trigger ls`. */
 export function formatTrigger(instance: TriggerInstanceRow, colour: { dim: (s: string) => string }): string {
   const when =
     instance.type === 'WEBHOOK'

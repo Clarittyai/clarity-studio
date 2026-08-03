@@ -1,5 +1,5 @@
 {
-  "name": "@claritty-studio/desktop",
+  "name": "@clarity-studio/desktop",
   "version": "0.1.0",
   "license": "MIT",
   "private": true,
@@ -13,13 +13,13 @@
     "start": "electron ."
   },
   "dependencies": {
-    "@claritty-studio/control-plane": "workspace:*",
-    "@claritty-studio/db": "workspace:*",
-    "@claritty-studio/design": "workspace:*",
-    "@claritty-studio/orchestrator": "workspace:*",
-    "@claritty-studio/scheduler": "workspace:*",
-    "@claritty-studio/graph": "workspace:*",
-    "@claritty-studio/agent-bridge": "workspace:*"
+    "@clarity-studio/control-plane": "workspace:*",
+    "@clarity-studio/db": "workspace:*",
+    "@clarity-studio/design": "workspace:*",
+    "@clarity-studio/orchestrator": "workspace:*",
+    "@clarity-studio/scheduler": "workspace:*",
+    "@clarity-studio/graph": "workspace:*",
+    "@clarity-studio/agent-bridge": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

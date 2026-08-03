@@ -1,4 +1,4 @@
-# Claritty automation
+# Clarity automation
 
 **Read [`CLAUDE.md`](./CLAUDE.md) first — it is the full authoring contract.**
 This file is the short version, kept as a real file (not a symlink) so it

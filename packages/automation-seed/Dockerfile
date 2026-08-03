@@ -1,4 +1,4 @@
-# Claritty automation — runtime image.
+# Clarity automation — runtime image.
 #
 # Deliberately NOT pinned to linux/amd64. Studio builds this on whatever the
 # developer is sitting at; forcing amd64 puts Apple Silicon through emulation

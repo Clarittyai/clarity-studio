@@ -1,4 +1,4 @@
-# Claritty Studio
+# Clarity Studio
 
 **Read [`CLAUDE.md`](./CLAUDE.md) first — it is the full contract for working on
 this repo.** This file is the short version, kept as a real file so it survives

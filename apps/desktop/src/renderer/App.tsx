@@ -1,5 +1,5 @@
 /**
- * Claritty Studio — the window.
+ * Clarity Studio — the window.
  *
  * Two screens for now: the Launchpad, and a project. The project screen leads
  * with the run timeline rather than with settings, because the question people
@@ -68,7 +68,7 @@ function TitleBar() {
     <header className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4">
       <div className="flex items-center gap-2">
         <span className="h-2.5 w-2.5 rounded-[3px] bg-accent" />
-        <span className="text-[13px] font-semibold tracking-tight">Claritty Studio</span>
+        <span className="text-[13px] font-semibold tracking-tight">Clarity Studio</span>
         {isDemo && <Badge tone="warning">sample data</Badge>}
       </div>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">

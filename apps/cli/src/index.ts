@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `claritty-studio` — Claritty Studio without the window.
+ * `clarity-studio` — Clarity Studio without the window.
  *
  * Same core as the desktop app: the local control plane, the runner, the
  * store. It exists so the product is usable over SSH and in CI, and so that
@@ -16,8 +16,8 @@ import { randomUUID } from 'node:crypto';
 // Must be first — see the file for why the placement matters.
 import './quiet.js';
 
-import { ControlPlane, EnvSecretSource, formatUsd } from '@claritty-studio/control-plane';
-import { Store } from '@claritty-studio/db';
+import { ControlPlane, EnvSecretSource, formatUsd } from '@clarity-studio/control-plane';
+import { Store } from '@clarity-studio/db';
 import {
   allocatePort,
   isFree,
@@ -26,11 +26,11 @@ import {
   NativeRunner,
   run as spawnRun,
   type Runner,
-} from '@claritty-studio/orchestrator';
-import { Dispatcher, WebhookIngress, type DispatchTarget } from '@claritty-studio/scheduler';
+} from '@clarity-studio/orchestrator';
+import { Dispatcher, WebhookIngress, type DispatchTarget } from '@clarity-studio/scheduler';
 
-import { CATALOG, findIntegration } from '@claritty-studio/connectors';
-import { VaultUnavailableError } from '@claritty-studio/vault';
+import { CATALOG, findIntegration } from '@clarity-studio/connectors';
+import { VaultUnavailableError } from '@clarity-studio/vault';
 
 import { addTrigger, formatTrigger, parseScheduleFlags, readRecipes } from './triggers.js';
 import { openVault, VaultSecretSource } from './secrets.js';
@@ -63,12 +63,12 @@ function dataDir(): string {
   const explicit = process.env.STUDIO_HOME;
   if (explicit) return explicit;
   if (process.platform === 'darwin') {
-    return join(homedir(), 'Library', 'Application Support', 'ClarittyStudio');
+    return join(homedir(), 'Library', 'Application Support', 'ClarityStudio');
   }
   if (process.platform === 'win32') {
-    return join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'ClarittyStudio');
+    return join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'ClarityStudio');
   }
-  return join(process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share'), 'claritty-studio');
+  return join(process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share'), 'clarity-studio');
 }
 
 function openStore(): Store {
@@ -105,7 +105,7 @@ function slugOf(dir: string): string {
 
 async function cmdDoctor(): Promise<void> {
   info();
-  info(c.bold('Claritty Studio — environment check'));
+  info(c.bold('Clarity Studio — environment check'));
   info();
 
   const checks: Array<[string, boolean, string]> = [];
@@ -158,7 +158,7 @@ async function cmdDoctor(): Promise<void> {
 }
 
 async function cmdNew(name: string | undefined): Promise<void> {
-  if (!name) fail('usage: claritty-studio new <name>');
+  if (!name) fail('usage: clarity-studio new <name>');
   const target = resolve(process.cwd(), name!);
   if (existsSync(target)) fail(`${target} already exists.`);
 
@@ -175,7 +175,7 @@ async function cmdNew(name: string | undefined): Promise<void> {
     await spawnRun('git', ['add', '-A'], { cwd: target });
     await spawnRun(
       'git',
-      ['-c', 'user.name=Claritty Studio', '-c', 'user.email=studio@localhost', 'commit', '-qm', 'New automation from the Claritty seed'],
+      ['-c', 'user.name=Clarity Studio', '-c', 'user.email=studio@localhost', 'commit', '-qm', 'New automation from the Clarity seed'],
       { cwd: target },
     );
   }
@@ -186,7 +186,7 @@ async function cmdNew(name: string | undefined): Promise<void> {
   info(c.bold('Next:'));
   info(`  cd ${name}`);
   info(`  claude                                ${c.dim('# or codex — CLAUDE.md and AGENTS.md are already there')}`);
-  info(`  claritty-studio run daily-digest --simulate   ${c.dim('# check the wiring, no key needed')}`);
+  info(`  clarity-studio run daily-digest --simulate   ${c.dim('# check the wiring, no key needed')}`);
   info();
 }
 
@@ -214,8 +214,8 @@ async function withRuntime<T>(
   if (!manifest) {
     fail(
       `no intelligence.yaml in ${dir}.\n` +
-        `  Create one with: claritty-studio new my-automation\n` +
-        `  Or point an agent at an existing repo and run /claritty-convert.`,
+        `  Create one with: clarity-studio new my-automation\n` +
+        `  Or point an agent at an existing repo and run /clarity-convert.`,
     );
   }
 
@@ -351,7 +351,7 @@ function cmdPs(): void {
   const store = openStore();
   const projects = store.listProjects();
   if (projects.length === 0) {
-    info(c.dim('No automations yet. Create one with: claritty-studio new my-automation'));
+    info(c.dim('No automations yet. Create one with: clarity-studio new my-automation'));
     store.close();
     return;
   }
@@ -465,7 +465,7 @@ function projectFor(store: Store, dir: string) {
   if (!project) {
     fail(
       `Studio does not know this automation yet.\n` +
-        `  Run it once first: claritty-studio run --simulate`,
+        `  Run it once first: clarity-studio run --simulate`,
     );
   }
   return project!;
@@ -496,7 +496,7 @@ function cmdTriggerAdd(positional: string[], flags: TriggerFlags): void {
       info(`  ${c.dim('URL, once `serve` is running:')} http://127.0.0.1:${CONTROL_PLANE_PORT}/webhooks/${instance.id}`);
     }
     info();
-    info(c.dim('  Schedules only fire while Studio is running: claritty-studio serve'));
+    info(c.dim('  Schedules only fire while Studio is running: clarity-studio serve'));
     info();
   } finally {
     store.close();
@@ -514,7 +514,7 @@ function cmdTriggerList(flags: RunFlags): void {
       info(c.dim('  No triggers configured.'));
       if (recipes.length) {
         info(c.dim(`  This automation supports: ${recipes.map((r) => r.id).join(', ')}`));
-        info(c.dim('  Add one: claritty-studio trigger add --daily 09:00'));
+        info(c.dim('  Add one: clarity-studio trigger add --daily 09:00'));
       }
     }
     for (const instance of instances) info(`  ${formatTrigger(instance, c)}`);
@@ -526,7 +526,7 @@ function cmdTriggerList(flags: RunFlags): void {
 
 function cmdTriggerRemove(positional: string[], flags: RunFlags): void {
   const id = positional[0];
-  if (!id) fail('usage: claritty-studio trigger rm <id>');
+  if (!id) fail('usage: clarity-studio trigger rm <id>');
   const store = openStore();
   try {
     const project = projectFor(store, flags.dir);
@@ -553,7 +553,7 @@ function cmdDeliveries(flags: RunFlags): void {
       );
     }
     info();
-    info(c.dim('  Replay any of them: claritty-studio replay <id>'));
+    info(c.dim('  Replay any of them: clarity-studio replay <id>'));
     info();
   } finally {
     store.close();
@@ -562,7 +562,7 @@ function cmdDeliveries(flags: RunFlags): void {
 
 async function cmdReplay(positional: string[], flags: RunFlags): Promise<void> {
   const id = positional[0];
-  if (!id) fail('usage: claritty-studio replay <delivery-id>');
+  if (!id) fail('usage: clarity-studio replay <delivery-id>');
 
   await withRuntime({ ...flags, keep: false }, async ({ store, internalSecret, baseUrl }) => {
     const match = store.triggers.recentDeliveries(200).find((d) => d.id.startsWith(id!));
@@ -613,7 +613,7 @@ async function cmdServe(flags: RunFlags): Promise<void> {
     info(`  ${c.bold('control plane')}  ${plane.url}`);
     info();
     if (instances.length === 0) {
-      info(c.dim('  No triggers configured — add one: claritty-studio trigger add --daily 09:00'));
+      info(c.dim('  No triggers configured — add one: clarity-studio trigger add --daily 09:00'));
     }
     for (const instance of instances) {
       info(`  ${formatTrigger(instance, c)}`);
@@ -673,7 +673,7 @@ function cmdKeys(positional: string[], flags: RunFlags): void {
       info(c.dim(`  vault: ${vault.backendId}${vault.canStore ? '' : ' (read-only)'}`));
       if (stored.length === 0) {
         info(c.dim('  Nothing stored yet.'));
-        info(c.dim('  claritty-studio keys set anthropic sk-ant-…'));
+        info(c.dim('  clarity-studio keys set anthropic sk-ant-…'));
       }
       for (const entry of stored) {
         const scope = entry.ref.projectId ? ` (${entry.ref.projectId.slice(0, 8)})` : '';
@@ -685,7 +685,7 @@ function cmdKeys(positional: string[], flags: RunFlags): void {
     }
 
     if (action === 'set') {
-      if (!id || !value) fail('usage: claritty-studio keys set <provider> <key>');
+      if (!id || !value) fail('usage: clarity-studio keys set <provider> <key>');
       try {
         vault.set({ kind: 'provider', id: id!, field: 'api_key' }, value!);
       } catch (err) {
@@ -697,7 +697,7 @@ function cmdKeys(positional: string[], flags: RunFlags): void {
     }
 
     if (action === 'rm' || action === 'remove') {
-      if (!id) fail('usage: claritty-studio keys rm <provider>');
+      if (!id) fail('usage: clarity-studio keys rm <provider>');
       vault.remove({ kind: 'provider', id: id!, field: 'api_key' });
       ok(`removed the key for ${id}`);
       return;
@@ -727,7 +727,7 @@ function cmdIntegrations(positional: string[], flags: RunFlags): void {
       }
     }
     info();
-    info(c.dim('  Connect one: claritty-studio connect <id> <field>=<value>'));
+    info(c.dim('  Connect one: clarity-studio connect <id> <field>=<value>'));
     info();
   } finally {
     store.close();
@@ -736,11 +736,11 @@ function cmdIntegrations(positional: string[], flags: RunFlags): void {
 
 function cmdConnect(positional: string[], flags: RunFlags): void {
   const [id, ...pairs] = positional;
-  if (!id) fail('usage: claritty-studio connect <integration> <field>=<value> …');
+  if (!id) fail('usage: clarity-studio connect <integration> <field>=<value> …');
 
   const integration = findIntegration(id!);
   if (!integration) {
-    fail(`no connector called "${id}". See: claritty-studio integrations`);
+    fail(`no connector called "${id}". See: clarity-studio integrations`);
   }
 
   if (pairs.length === 0) {
@@ -755,7 +755,7 @@ function cmdConnect(positional: string[], flags: RunFlags): void {
     } else {
       info(c.bold('  Then:'));
       const example = integration!.fields.map((f) => `${f.key}=<${f.placeholder ?? f.label}>`).join(' ');
-      info(`  claritty-studio connect ${id} ${example}`);
+      info(`  clarity-studio connect ${id} ${example}`);
     }
     info();
     return;
@@ -804,24 +804,24 @@ function cmdConnect(positional: string[], flags: RunFlags): void {
 
 function help(): void {
   info(`
-${c.bold('claritty-studio')} — build, run and observe agentic automations locally
+${c.bold('clarity-studio')} — build, run and observe agentic automations locally
 
 ${c.bold('Usage')}
-  claritty-studio new <name>              create an automation from the seed
-  claritty-studio run [workflow]          run a workflow and print its timeline
-  claritty-studio up                      start the automation and leave it running
-  claritty-studio serve                   run it for real: schedules fire, webhooks land
-  claritty-studio trigger add             configure when it runs
-  claritty-studio trigger ls | rm <id>    list or remove triggers
-  claritty-studio deliveries              recent webhook deliveries
-  claritty-studio replay <id>             send a past delivery through again
-  claritty-studio keys set <provider> <k> store a model provider key
-  claritty-studio keys ls | rm <provider>
-  claritty-studio integrations            what Studio can connect to
-  claritty-studio connect <id> f=v …      connect an integration
-  claritty-studio ps                      list your automations
-  claritty-studio runs                    recent runs for this directory
-  claritty-studio doctor                  check this machine
+  clarity-studio new <name>              create an automation from the seed
+  clarity-studio run [workflow]          run a workflow and print its timeline
+  clarity-studio up                      start the automation and leave it running
+  clarity-studio serve                   run it for real: schedules fire, webhooks land
+  clarity-studio trigger add             configure when it runs
+  clarity-studio trigger ls | rm <id>    list or remove triggers
+  clarity-studio deliveries              recent webhook deliveries
+  clarity-studio replay <id>             send a past delivery through again
+  clarity-studio keys set <provider> <k> store a model provider key
+  clarity-studio keys ls | rm <provider>
+  clarity-studio integrations            what Studio can connect to
+  clarity-studio connect <id> f=v …      connect an integration
+  clarity-studio ps                      list your automations
+  clarity-studio runs                    recent runs for this directory
+  clarity-studio doctor                  check this machine
 
 ${c.bold('Options')}
   --dir <path>     the automation directory (default: current directory)
@@ -916,7 +916,7 @@ async function main(): Promise<void> {
     case 'doctor':
       return cmdDoctor();
     default:
-      fail(`unknown command "${command}". Try: claritty-studio help`);
+      fail(`unknown command "${command}". Try: clarity-studio help`);
   }
 }
 

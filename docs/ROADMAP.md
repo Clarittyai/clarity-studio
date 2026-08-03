@@ -5,7 +5,7 @@ you can actually demo, not a refactor.
 
 ## M0 — the local control plane ✅
 
-**The gate.** Claritty Studio rests on one claim: an automation's dependency on
+**The gate.** Clarity Studio rests on one claim: an automation's dependency on
 the hosted platform is a small, stable HTTP contract, so a local server can
 stand in for it and run the automation unmodified.
 

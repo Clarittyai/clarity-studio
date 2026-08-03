@@ -23,7 +23,7 @@
  *   scheduler down with it.
  */
 
-import type { Store, TriggerInstanceRow } from '@claritty-studio/db';
+import type { Store, TriggerInstanceRow } from '@clarity-studio/db';
 
 import { nextRunAt, type Schedule } from './schedule.js';
 

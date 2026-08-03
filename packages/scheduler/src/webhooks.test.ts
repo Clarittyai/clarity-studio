@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Store } from '@claritty-studio/db';
+import { Store } from '@clarity-studio/db';
 
 import { WebhookIngress } from './webhooks.js';
 

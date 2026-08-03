@@ -1,6 +1,6 @@
 # Building this automation
 
-You are editing a **Claritty automation**. It is not a web app and not a
+You are editing a **Clarity automation**. It is not a web app and not a
 library. It is a declarative manifest plus a small amount of Python, run by
 `claritty-sdk`. Read this file before changing anything.
 
@@ -93,7 +93,7 @@ curl -X POST localhost:3200/api/workflows/daily-digest/execute \
      -H 'content-type: application/json' -d '{"inputs":{}}'
 ```
 
-Inside Claritty Studio, both of these are buttons, and the run appears as a
+Inside Clarity Studio, both of these are buttons, and the run appears as a
 step-by-step trace with the model calls and their cost.
 
 ## Converting an existing agent

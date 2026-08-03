@@ -1,5 +1,5 @@
 {
-  "name": "@claritty-studio/scheduler",
+  "name": "@clarity-studio/scheduler",
   "version": "0.1.0",
   "license": "MIT",
   "type": "module",
@@ -12,7 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
-  "dependencies": { "@claritty-studio/db": "workspace:*" },
+  "dependencies": { "@clarity-studio/db": "workspace:*" },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "typescript": "^5.6.3",

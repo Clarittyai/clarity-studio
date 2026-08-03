@@ -1,7 +1,7 @@
 /**
  * The small set of primitives every screen is built from.
  *
- * House rules, from the Claritty design principles, enforced here so a screen
+ * House rules, from the Clarity design principles, enforced here so a screen
  * cannot casually break them:
  *
  * - Every button is a pill. There is no `radius` prop.

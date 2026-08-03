@@ -2,7 +2,7 @@
 /**
  * M0 spike — the load-bearing proof.
  *
- * Claritty Studio rests on one claim: a Claritty automation's dependency on the
+ * Clarity Studio rests on one claim: a Clarity automation's dependency on the
  * hosted platform is a small, stable HTTP contract, so a local server that
  * speaks that contract can run an automation unmodified, with your keys, on
  * your machine.

@@ -13,7 +13,7 @@ four things:
 4. Serves the dispatch endpoints a host calls to fire triggers:
    ``/internal/run-due-triggers`` (schedules) and ``/internal/trigger-webhook``.
 
-The automation runs NO scheduler of its own. Something outside it — Claritty
+The automation runs NO scheduler of its own. Something outside it — Clarity
 Studio on your laptop, or a host in production — decides when a trigger is due
 and calls in. That is what makes the same artifact run in both places.
 """
@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Claritty automation", lifespan=lifespan)
+app = FastAPI(title="Clarity automation", lifespan=lifespan)
 
 
 def boot() -> bootstrap.BootContext:

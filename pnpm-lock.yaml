@@ -29,22 +29,22 @@ importers:
 
   apps/cli:
     dependencies:
-      '@claritty-studio/connectors':
+      '@clarity-studio/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
-      '@claritty-studio/control-plane':
+      '@clarity-studio/control-plane':
         specifier: workspace:*
         version: link:../../packages/control-plane
-      '@claritty-studio/db':
+      '@clarity-studio/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@claritty-studio/orchestrator':
+      '@clarity-studio/orchestrator':
         specifier: workspace:*
         version: link:../../packages/orchestrator
-      '@claritty-studio/scheduler':
+      '@clarity-studio/scheduler':
         specifier: workspace:*
         version: link:../../packages/scheduler
-      '@claritty-studio/vault':
+      '@clarity-studio/vault':
         specifier: workspace:*
         version: link:../../packages/vault
     devDependencies:
@@ -57,25 +57,25 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@claritty-studio/agent-bridge':
+      '@clarity-studio/agent-bridge':
         specifier: workspace:*
         version: link:../../packages/agent-bridge
-      '@claritty-studio/control-plane':
+      '@clarity-studio/control-plane':
         specifier: workspace:*
         version: link:../../packages/control-plane
-      '@claritty-studio/db':
+      '@clarity-studio/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@claritty-studio/design':
+      '@clarity-studio/design':
         specifier: workspace:*
         version: link:../../packages/design
-      '@claritty-studio/graph':
+      '@clarity-studio/graph':
         specifier: workspace:*
         version: link:../../packages/graph
-      '@claritty-studio/orchestrator':
+      '@clarity-studio/orchestrator':
         specifier: workspace:*
         version: link:../../packages/orchestrator
-      '@claritty-studio/scheduler':
+      '@clarity-studio/scheduler':
         specifier: workspace:*
         version: link:../../packages/scheduler
     devDependencies:
@@ -145,7 +145,7 @@ importers:
 
   packages/control-plane:
     dependencies:
-      '@claritty-studio/connectors':
+      '@clarity-studio/connectors':
         specifier: workspace:*
         version: link:../connectors
       fastify:
@@ -206,7 +206,7 @@ importers:
 
   packages/scheduler:
     dependencies:
-      '@claritty-studio/db':
+      '@clarity-studio/db':
         specifier: workspace:*
         version: link:../db
     devDependencies:

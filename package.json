@@ -1,5 +1,5 @@
 {
-  "name": "claritty-studio",
+  "name": "clarity-studio",
   "version": "0.1.0",
   "private": true,
   "description": "Open-source desktop harness for building, running, scheduling and observing agentic automations locally, with your own keys.",
@@ -16,7 +16,7 @@
     "spike": "node scripts/m0-spike.mjs",
     "setup": "node scripts/bootstrap.mjs",
     "cli": "node apps/cli/dist/index.js",
-    "design:sync": "pnpm --filter @claritty-studio/design sync",
+    "design:sync": "pnpm --filter @clarity-studio/design sync",
     "shot": "node scripts/screenshot-app.mjs",
     "proof:integrations": "node scripts/m3-integration-proof.mjs"
   },

@@ -1,6 +1,6 @@
-# Working on Claritty Studio
+# Working on Clarity Studio
 
-You are working on **Claritty Studio**: an open-source, local-first desktop app
+You are working on **Clarity Studio**: an open-source, local-first desktop app
 for building, running, scheduling and observing AI automations. It is a pnpm
 monorepo. Read this before changing anything — several constraints here were
 discovered the expensive way and are not obvious from the code.
@@ -40,7 +40,7 @@ Drop it and set `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY`) for a real run.
 Seeing the window:
 
 ```bash
-pnpm --filter @claritty-studio/desktop build
+pnpm --filter @clarity-studio/desktop build
 cd apps/desktop && npx electron .
 # headless: xvfb-run -a npx electron . --no-sandbox
 ```
@@ -49,7 +49,7 @@ cd apps/desktop && npx electron .
 
 ## The one idea the whole thing rests on
 
-A Claritty automation is a Python project that runs on
+A Clarity automation is a Python project that runs on
 [`claritty-sdk`](https://pypi.org/project/claritty-sdk/) (MIT, on PyPI). When
 deployed, that SDK expects a *platform* behind `CLARITTY_PLATFORM_URL` to give
 it three things: a model to call, credentials to use, and somewhere to report
@@ -77,9 +77,9 @@ automation against a real control plane and fails if the contract drifts.
 | `packages/db` | The local SQLite store. Also implements the control plane's `RunStore`. |
 | `packages/graph` | `intelligence.yaml` → canvas nodes and edges, including what is broken. |
 | `packages/agent-bridge` | Detects installed coding CLIs and composes the opening prompt. |
-| `packages/design` | Design tokens, generated from the Claritty platform. |
+| `packages/design` | Design tokens, generated from the Clarity platform. |
 | `packages/automation-seed` | **Shipped to users.** The template every new automation starts from. |
-| `apps/cli` | `claritty-studio`. Same core as the app, no window. |
+| `apps/cli` | `clarity-studio`. Same core as the app, no window. |
 | `apps/desktop` | Electron. Read-only over the store today. |
 
 ---
@@ -108,6 +108,27 @@ switch is never settable from a spec or a tool argument.
 markdown and the About box are fine; call sites are not.
 
 **No native modules outside the desktop app.** See the trap below.
+
+---
+
+## One `t` is ours, two `t`s are upstream
+
+The product is **Clarity Studio**, one `t`. Everything this repo owns spells it
+that way: `@clarity-studio/*`, the `clarity-studio` binary, the `ai.clarity.studio.*`
+Docker labels, the `/clarity-*` slash commands, all prose.
+
+Everything the **SDK** reads still has two, because it is a published package we
+do not control. Renaming any of these turns a working automation into a broken
+one with no error message:
+
+`claritty-sdk` · `claritty_sdk.*` · `CLARITTY_*` env vars · `X-Claritty-*` headers ·
+`claritty_finish` · `claritty-seed-verify` · the `claritty.*` OTel attribute
+namespace · `gen_ai.system = claritty-proxy`
+
+Also left alone deliberately: the `Clarittyai` GitHub org and the `claritty.ai`
+domain, which are live addresses — a "fix" there is a dead link.
+
+So: if a token is read by Python, leave it. If it names something we ship, one `t`.
 
 ---
 
@@ -181,7 +202,7 @@ Be accurate about this. Do not describe unverified code as working.
 
 - **The Docker path.** `DockerRunner` is written and its deterministic parts are
   tested, but `docker compose up` has never run — the build container had no
-  daemon. Try `claritty-studio run` without `--native` early.
+  daemon. Try `clarity-studio run` without `--native` early.
 - **Real provider adapters.** Anthropic, OpenAI and Google have never hit a live
   API; only the simulator has. The Anthropic message translation is the riskiest
   code in the repo: OpenAI models tool results as `role: "tool"` messages,

@@ -22,7 +22,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
-  # The M0 gate. Claritty Studio's whole design rests on one claim — that an
+  # The M0 gate. Clarity Studio's whole design rests on one claim — that an
   # unmodified automation runs against a local control plane — so it is checked
   # on every commit rather than assumed. If this job goes red, the architecture
   # broke, not the test.
@@ -74,7 +74,7 @@ jobs:
         # outside contributor should not see a red X they cannot fix.
         run: |
           if [ -f vendor/clarity-platform/tailwind.config.ts ]; then
-            pnpm --filter @claritty-studio/design sync:check
+            pnpm --filter @clarity-studio/design sync:check
           else
             echo "No platform checkout available — skipping drift check."
           fi
@@ -84,17 +84,49 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Assert nothing calls Claritty or an auth provider at runtime
+      - name: Assert nothing calls Clarity or an auth provider at runtime
         run: |
           set -euo pipefail
-          hits=$(grep -rInE 'https?://[a-z0-9.-]*(claritty\.ai|auth0\.com)' \
+          # Both spellings: the repo is one-`t`, the live domain is still two.
+          hits=$(grep -rInE 'https?://[a-z0-9.-]*(clarit{1,2}y\.ai|auth0\.com)' \
                    --include='*.ts' --include='*.tsx' --include='*.js' --include='*.mjs' \
                    --include='*.py' \
                    apps packages scripts 2>/dev/null || true)
           if [ -n "$hits" ]; then
-            echo "Runtime code must not reach claritty.ai or auth0.com."
+            echo "Runtime code must not reach the Clarity site or auth0.com."
             echo "Links belong in markdown and the About box only."
             echo "$hits"
             exit 1
           fi
           echo "OK — no runtime call sites."
+
+  # The rename to one `t` is easy to undo by accident — an agent "fixing" a typo,
+  # a copy-paste from the platform repo. This pins which spelling is allowed where.
+  naming:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert two-`t` spellings only appear where upstream requires them
+        run: |
+          set -euo pipefail
+          # Everything below is read by claritty-sdk, published under that name,
+          # or is a live address. Renaming any of it breaks automations silently.
+          allowed='claritty-sdk|claritty_sdk|CLARITTY_[A-Z0-9_]*|[Xx]-[Cc]laritty-|x_claritty_'
+          allowed="$allowed"'|claritty_finish|claritty-seed-verify|claritty-eval'
+          allowed="$allowed"'|claritty-proxy|claritty\.(step|workflow|agent|tool|run|user|idempotency)\.'
+          allowed="$allowed"'|Clarittyai|claritty\.ai|create-claritty-app|\.claritty-allowlist'
+          allowed="$allowed"'|_claritty_redactor|claritty_user_context'
+          # This file is skipped because the check's own pattern would match it.
+          stray=$(grep -rIn -i 'claritty' \
+                    --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist \
+                    --exclude-dir=.turbo --exclude-dir=.venv-probe \
+                    . 2>/dev/null \
+                    | grep -v '^\./\.github/workflows/ci\.yml:' \
+                    | grep -vE "$allowed" || true)
+          if [ -n "$stray" ]; then
+            echo "Found a two-\`t\` spelling outside the upstream SDK contract."
+            echo "Anything this repo owns is spelled 'clarity'. See CLAUDE.md."
+            echo "$stray"
+            exit 1
+          fi
+          echo "OK — naming is consistent."

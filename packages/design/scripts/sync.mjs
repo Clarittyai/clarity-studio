@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Pull the design system out of the Claritty platform.
+ * Pull the design system out of the Clarity platform.
  *
  * Two different jobs, handled two different ways on purpose:
  *

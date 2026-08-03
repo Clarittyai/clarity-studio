@@ -1,10 +1,10 @@
 {
-  "name": "@claritty-studio/cli",
+  "name": "@clarity-studio/cli",
   "version": "0.1.0",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "claritty-studio": "./dist/index.js"
+    "clarity-studio": "./dist/index.js"
   },
   "files": [
     "dist",
@@ -15,12 +15,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@claritty-studio/control-plane": "workspace:*",
-    "@claritty-studio/db": "workspace:*",
-    "@claritty-studio/orchestrator": "workspace:*",
-    "@claritty-studio/scheduler": "workspace:*",
-    "@claritty-studio/vault": "workspace:*",
-    "@claritty-studio/connectors": "workspace:*"
+    "@clarity-studio/control-plane": "workspace:*",
+    "@clarity-studio/db": "workspace:*",
+    "@clarity-studio/orchestrator": "workspace:*",
+    "@clarity-studio/scheduler": "workspace:*",
+    "@clarity-studio/vault": "workspace:*",
+    "@clarity-studio/connectors": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

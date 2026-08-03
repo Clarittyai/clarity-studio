@@ -143,9 +143,9 @@ export interface PromptContext {
 export function composeOpeningPrompt(ctx: PromptContext): string {
   if (!ctx.hasManifest) {
     return [
-      'This repo is not a Claritty automation yet.',
+      'This repo is not a Clarity automation yet.',
       ctx.request ? `The goal: ${ctx.request}` : '',
-      'Run /claritty-convert to map what is already here onto intelligence.yaml.',
+      'Run /clarity-convert to map what is already here onto intelligence.yaml.',
       'Wrap the existing code — do not rewrite it.',
     ]
       .filter(Boolean)
@@ -170,7 +170,7 @@ export function composeOpeningPrompt(ctx: PromptContext): string {
         ? `Replace the example automation with one that does this: ${ctx.request}`
         : 'Replace the example automation with a real one. Ask me what it should do.',
       '',
-      'Follow /claritty-new-automation. Delete the example rather than leaving it alongside.',
+      'Follow /clarity-new-automation. Delete the example rather than leaving it alongside.',
     ].join('\n');
   }
 
