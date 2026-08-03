@@ -48,6 +48,34 @@ jobs:
           ./.venv-probe/bin/pip install --quiet "claritty-sdk>=2.11,<3" fastapi "uvicorn[standard]"
       - run: pnpm spike
 
+  # The design system is generated from clarity-platform. If someone edits the
+  # generated files by hand, or upstream moves a load-bearing value, this fails
+  # rather than letting Studio and the platform drift apart in silence.
+  design-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: Clarittyai/clarity-platform
+          path: vendor/clarity-platform
+          token: ${{ secrets.PLATFORM_READ_TOKEN }}
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Check the generated design files are current
+        # Skipped when the private platform checkout is unavailable — an
+        # outside contributor should not see a red X they cannot fix.
+        run: |
+          if [ -f vendor/clarity-platform/tailwind.config.ts ]; then
+            pnpm --filter @claritty-studio/design sync:check
+          else
+            echo "No platform checkout available — skipping drift check."
+          fi
+
   # "No accounts, no telemetry, no phoning home" is a promise, so it is a test.
   no-phone-home:
     runs-on: ubuntu-latest

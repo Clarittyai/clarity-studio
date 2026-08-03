@@ -1,0 +1,21 @@
+{
+  "name": "@claritty-studio/design",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./tokens.css": "./src/tokens.css",
+    "./glass.css": "./src/glass.css"
+  },
+  "files": ["dist", "src/tokens.css", "src/glass.css"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "sync": "node scripts/sync.mjs",
+    "sync:check": "node scripts/sync.mjs --check"
+  },
+  "dependencies": { "tailwindcss": "^3.4.17" }
+}

@@ -173,9 +173,9 @@ Pre-alpha, built in the open. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 - ✅ **M0** — local control plane + automation seed
 - ✅ **M1** — local store, Docker and native runtimes, the `claritty-studio` CLI
-- ✅ **M4** — scheduler, webhook ingress and replay ← *brought forward*
-- **M2** — Electron shell, design system, run timeline as a waterfall ← next
-- M3 — credential vault, connectors, MCP
+- ✅ **M4** — scheduler, webhook ingress and replay
+- ✅ **M2** — Electron shell, design system, run timeline as a waterfall
+- **M3** — credential vault, connectors, MCP ← next
 - M5 — embedded terminal, coding-agent bridge, intelligence canvas
 - M6 — import & convert existing agents, signed installers
 

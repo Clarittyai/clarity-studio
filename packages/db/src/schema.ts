@@ -9,6 +9,13 @@
  *
  * Everything is local and user-owned. There is no sync, no server, and no row
  * that leaves this file.
+ *
+ * ⚠️ This choice sets a floor on Electron. `node:sqlite` arrived in Node 22, so
+ * the desktop app needs an Electron whose bundled Node is 22+ — Electron 35 and
+ * later. Electron 33 bundles Node 20 and fails at load with
+ * `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite`, which reads like a packaging bug
+ * rather than a version constraint. Do not downgrade Electron without swapping
+ * the driver.
  */
 
 export const SCHEMA_VERSION = 1;

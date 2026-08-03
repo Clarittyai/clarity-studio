@@ -3,4 +3,9 @@ packages:
   - 'packages/*'
 
 # The automation seed is a Python project vendored as a template, not a JS package.
-ignoredBuiltDependencies: []
+# Electron ships a prebuilt binary via a postinstall script. pnpm 10 blocks
+# those by default, which leaves node_modules/electron without an executable
+# and produces a confusing "failed to install correctly" at launch.
+onlyBuiltDependencies:
+  - electron
+  - esbuild

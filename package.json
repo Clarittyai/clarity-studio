@@ -15,10 +15,13 @@
     "lint": "turbo run lint",
     "spike": "node scripts/m0-spike.mjs",
     "setup": "node scripts/bootstrap.mjs",
-    "cli": "node apps/cli/dist/index.js"
+    "cli": "node apps/cli/dist/index.js",
+    "design:sync": "pnpm --filter @claritty-studio/design sync",
+    "shot": "node scripts/screenshot-app.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "playwright": "^1.62.1",
     "tsx": "^4.19.2",
     "turbo": "^2.3.3",
     "typescript": "^5.6.3",

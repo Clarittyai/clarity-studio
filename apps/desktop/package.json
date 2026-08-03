@@ -1,0 +1,37 @@
+{
+  "name": "@claritty-studio/desktop",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.node.json && tsc -p tsconfig.preload.json && vite build",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "dev": "vite",
+    "preview": "vite preview --port 5199 --strictPort",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@claritty-studio/control-plane": "workspace:*",
+    "@claritty-studio/db": "workspace:*",
+    "@claritty-studio/design": "workspace:*",
+    "@claritty-studio/orchestrator": "workspace:*",
+    "@claritty-studio/scheduler": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "electron": "^37.10.3",
+    "postcss": "^8.4.49",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "postcss-import": "^16.1.0",
+    "@fontsource-variable/inter": "^5.1.0"
+  }
+}

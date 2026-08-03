@@ -58,20 +58,30 @@ demo — so it was worth finding the flaws here before building screens on top.)
   provider signature headers survive.
 - CLI: `trigger add|ls|rm`, `serve`, `deliveries`, `replay`.
 
-## M1 — the app
+## M2 — the window ✅
 
-Electron shell, design tokens extracted from `clarity-platform` with a CI drift
-gate, Launchpad, create-from-seed, start/stop/rebuild, live log streaming,
-SQLite store.
+- `packages/design` — tokens and the `glass-*` recipes **generated** from
+  `clarity-platform`, with a Tailwind preset that is hand-written but whose
+  load-bearing constants are asserted against upstream on every CI run. The one
+  that matters most is `md: 920px`: it is not Tailwind's default, and getting it
+  wrong breaks every layout in a way that looks like a styling mistake.
+- `apps/desktop` — Electron shell, sidebar, project overview, triggers, and the
+  run list with a **waterfall** timeline laid out against the run's own span, so
+  where the time went is visible rather than inferred.
+- Security posture asserted, not assumed: `contextIsolation` on, `sandbox` on,
+  `nodeIntegration` off, a self-only CSP, navigation blocked. A test checks that
+  `window.require` and `window.process` are genuinely absent in the renderer.
+- Verified by launching the real app under xvfb and screenshotting it, in both
+  themes, against real store rows rather than fixtures.
 
-*Demo: create an automation in the app, watch it build, open it on localhost.*
+**The constraint this turned up:** `node:sqlite` needs Node 22, so the desktop
+app requires **Electron 35+**. Electron 33 bundles Node 20 and dies at load with
+`ERR_UNKNOWN_BUILTIN_MODULE` — which reads like a packaging bug rather than a
+version floor. Recorded in `packages/db/src/schema.ts` next to the decision that
+caused it.
 
-## M2 — observability
-
-OTLP receiver, run list, run timeline waterfall, per-step inputs and outputs,
-model messages, token and cost accounting, re-run and re-run-from-step.
-
-*Demo: run a workflow and see exactly what it did and what it cost.*
+Still to come here: live log streaming, and wiring Start/Stop/Run in the window
+(they currently say plainly that they are CLI-only rather than doing nothing).
 
 ## M3 — keys and connectors
 
