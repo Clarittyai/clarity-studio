@@ -12,6 +12,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
+import { ConnectorError, executeTool, resolveTool } from '@claritty-studio/connectors';
+
 import { EnvSecretSource } from './env-secrets.js';
 import { MemoryRunStore } from './memory-store.js';
 import { anthropic, ProviderHttpError } from './providers/anthropic.js';
@@ -61,6 +63,9 @@ export interface ControlPlaneOptions {
    *  there is no fleet to break here, and the alternative is watching a
    *  credential leave for a third party. */
   blockSecretEgress?: boolean;
+  /** Let connectors reach private and loopback addresses. Off by default.
+   *  Turn it on only to automate something you self-host on your own network. */
+  allowPrivateHosts?: boolean;
 }
 
 export class ControlPlane {
@@ -394,6 +399,62 @@ export class ControlPlane {
       }
       await this.refreshRedactor();
       return reply.send({ credentials: creds, integrationId, userId: body.userId ?? 'local' });
+    });
+
+    // ── running a connector tool ─────────────────────────────────────────────
+    // This is the endpoint that turns "34 connectors" from a claim into a
+    // capability. The SDK's catalog wires every integration tool to POST here;
+    // without it an automation can think but cannot touch anything.
+    app.post('/internal/integrations/tools/:integrationId/:toolId/execute', async (req, reply) => {
+      const project = this.authenticateInternal(req);
+      const { integrationId, toolId } = req.params as { integrationId: string; toolId: string };
+      const body = (req.body ?? {}) as { userId?: string; arguments?: Record<string, unknown>; args?: Record<string, unknown> };
+      const args = body.arguments ?? body.args ?? {};
+
+      const credentials = (await this.secrets.integrationCredentials(
+        project.id,
+        integrationId,
+        body.userId ?? 'local',
+      )) as Record<string, string> | undefined;
+
+      const resolved = resolveTool(integrationId, toolId, credentials ?? {});
+      if (!resolved) {
+        // Naming what IS available beats a bare 404 — the usual cause is a
+        // manifest written against the hosted catalog, which is larger.
+        throw new HttpError(404, `Studio has no local connector for "${integrationId}.${toolId}".`, {
+          reason: 'NO_LOCAL_CONNECTOR',
+          integrationId,
+          toolId,
+        });
+      }
+
+      if (!credentials && resolved.integration.fields.length > 0) {
+        // 409 rather than 500: the SDK maps this to "not connected", which a
+        // tool handler degrades on instead of crashing the run.
+        return reply.status(409).send({
+          reason: 'NOT_CONNECTED',
+          integrationId,
+          message: `${resolved.integration.name} is not connected. ${resolved.integration.howToConnect}`,
+        });
+      }
+
+      try {
+        const result = await executeTool({
+          spec: resolved.tool,
+          args,
+          credentials: credentials ?? {},
+          allowPrivateHosts: this.opts.allowPrivateHosts ?? false,
+        });
+        return reply.send({ result });
+      } catch (err) {
+        if (err instanceof ConnectorError) {
+          const status = err.reason === 'credentials' ? 409 : err.reason === 'ssrf' ? 400 : (err.status ?? 502);
+          // Redacted: a provider's error body can echo the request, and the
+          // request carried the credential.
+          throw new HttpError(status, this.redactor.text(err.message), { reason: err.reason.toUpperCase() });
+        }
+        throw err;
+      }
     });
 
     app.post('/internal/integrations/state', async (req) => {

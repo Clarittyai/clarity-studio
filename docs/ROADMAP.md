@@ -83,12 +83,32 @@ caused it.
 Still to come here: live log streaming, and wiring Start/Stop/Run in the window
 (they currently say plainly that they are CLI-only rather than doing nothing).
 
-## M3 — keys and connectors
+## M3 — keys and connectors ✅
 
-OS-keychain vault, provider routing from stored keys, the declarative HTTP
-connector engine plus the first API-key connectors, MCP server support.
+- `packages/vault` — three backends: Electron `safeStorage` (the real one, OS
+  keyring), scrypt + AES-256-GCM from a passphrase for headless use, and
+  read-only env for CI. **When encryption is unavailable it refuses to store**
+  rather than quietly writing plaintext; a user who believes their key is
+  encrypted and later finds it in a file has been lied to.
+- `packages/connectors` — the declarative HTTP engine. Two rules are enforced
+  in the engine rather than left to spec authors: a credential can never be
+  interpolated into a URL (URLs reach logs, errors and run history), and the
+  target must be a public host (nine SSRF cases tested, including the cloud
+  metadata endpoint). An explicit `allowPrivateHosts` opt-in exists for people
+  automating something they self-host.
+- Eight integrations, chosen by one criterion: you can get a working credential
+  in under a minute without registering an OAuth app.
+- CLI: `keys set|ls|rm`, `integrations`, `connect`.
+- `pnpm proof:integrations` drives the whole chain end to end against a real
+  HTTP server and asserts the payload arrived.
 
-*Demo: an automation that searches the web and posts to Slack, on your keys.*
+**Worth knowing:** the simulator proves *wiring*, not argument quality. Running
+the same automation through it reported success while calling nothing useful,
+because synthesised arguments produced an empty URL. A dry run answers "is this
+connected correctly", never "will the model pass sensible values".
+
+Still to come: OAuth for the providers that permit a loopback redirect, and MCP
+servers (which work today via the SDK, but are not yet surfaced in Studio).
 
 ## M4 — schedules and webhooks
 

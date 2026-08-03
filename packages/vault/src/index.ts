@@ -1,0 +1,15 @@
+export {
+  EnvBackend,
+  PassphraseBackend,
+  SafeStorageBackend,
+  Vault,
+  VaultUnavailableError,
+  secretKey,
+  secretsMatch,
+  type SafeStorageLike,
+  type SecretKind,
+  type SecretRef,
+  type StoredSecret,
+  type VaultBackend,
+  type VaultStorage,
+} from './vault.js';

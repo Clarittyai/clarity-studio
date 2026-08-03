@@ -29,7 +29,11 @@ import {
 } from '@claritty-studio/orchestrator';
 import { Dispatcher, WebhookIngress, type DispatchTarget } from '@claritty-studio/scheduler';
 
+import { CATALOG, findIntegration } from '@claritty-studio/connectors';
+import { VaultUnavailableError } from '@claritty-studio/vault';
+
 import { addTrigger, formatTrigger, parseScheduleFlags, readRecipes } from './triggers.js';
+import { openVault, VaultSecretSource } from './secrets.js';
 
 // ── output ───────────────────────────────────────────────────────────────────
 
@@ -228,7 +232,7 @@ async function withRuntime<T>(
 
   const plane = new ControlPlane({
     port: planePort,
-    secrets: new EnvSecretSource(),
+    secrets: new VaultSecretSource(openVault(store)),
     store: {
       checkpointStep: (cp) => store.checkpointStep(cp),
       completeRun: (rc) => store.completeRun(rc),
@@ -654,6 +658,150 @@ async function cmdServe(flags: RunFlags): Promise<void> {
   });
 }
 
+
+// ── secrets ──────────────────────────────────────────────────────────────────
+
+function cmdKeys(positional: string[], flags: RunFlags): void {
+  const store = openStore();
+  try {
+    const vault = openVault(store);
+    const [action, id, value] = positional;
+
+    if (!action || action === 'ls' || action === 'list') {
+      const stored = vault.list();
+      info();
+      info(c.dim(`  vault: ${vault.backendId}${vault.canStore ? '' : ' (read-only)'}`));
+      if (stored.length === 0) {
+        info(c.dim('  Nothing stored yet.'));
+        info(c.dim('  claritty-studio keys set anthropic sk-ant-…'));
+      }
+      for (const entry of stored) {
+        const scope = entry.ref.projectId ? ` (${entry.ref.projectId.slice(0, 8)})` : '';
+        // Only the last four, ever. There is no command that prints a secret.
+        info(`  ${entry.ref.kind.padEnd(12)} ${entry.ref.id.padEnd(16)} ${entry.ref.field.padEnd(14)} ····${entry.last4}${scope}`);
+      }
+      info();
+      return;
+    }
+
+    if (action === 'set') {
+      if (!id || !value) fail('usage: claritty-studio keys set <provider> <key>');
+      try {
+        vault.set({ kind: 'provider', id: id!, field: 'api_key' }, value!);
+      } catch (err) {
+        if (err instanceof VaultUnavailableError) fail(err.message);
+        throw err;
+      }
+      ok(`stored a key for ${id} (····${value!.slice(-4)})`);
+      return;
+    }
+
+    if (action === 'rm' || action === 'remove') {
+      if (!id) fail('usage: claritty-studio keys rm <provider>');
+      vault.remove({ kind: 'provider', id: id!, field: 'api_key' });
+      ok(`removed the key for ${id}`);
+      return;
+    }
+
+    fail(`unknown: keys ${action}. Try set, ls or rm.`);
+  } finally {
+    store.close();
+  }
+}
+
+function cmdIntegrations(positional: string[], flags: RunFlags): void {
+  const store = openStore();
+  try {
+    const vault = openVault(store);
+    const project = store.getProjectBySlug(slugOf(resolve(flags.dir)));
+
+    info();
+    for (const integration of CATALOG) {
+      const bundle = vault.bundle(integration.id, project?.id);
+      const connected = integration.fields.length === 0 || Boolean(bundle);
+      const mark = connected ? c.green('●') : c.dim('○');
+      const note = integration.fields.length === 0 ? c.dim('no credential needed') : connected ? '' : c.dim('not connected');
+      info(`  ${mark} ${integration.id.padEnd(20)} ${integration.name.padEnd(16)} ${note}`);
+      for (const tool of integration.tools) {
+        info(`      ${c.dim(tool.id.padEnd(28))} ${c.dim(tool.summary ?? '')}`);
+      }
+    }
+    info();
+    info(c.dim('  Connect one: claritty-studio connect <id> <field>=<value>'));
+    info();
+  } finally {
+    store.close();
+  }
+}
+
+function cmdConnect(positional: string[], flags: RunFlags): void {
+  const [id, ...pairs] = positional;
+  if (!id) fail('usage: claritty-studio connect <integration> <field>=<value> …');
+
+  const integration = findIntegration(id!);
+  if (!integration) {
+    fail(`no connector called "${id}". See: claritty-studio integrations`);
+  }
+
+  if (pairs.length === 0) {
+    // Show what is needed rather than erroring — the user almost certainly
+    // does not know the field names yet.
+    info();
+    info(c.bold(integration!.name));
+    info(`  ${integration!.howToConnect}`);
+    info();
+    if (integration!.fields.length === 0) {
+      info(c.dim('  This one needs no credential.'));
+    } else {
+      info(c.bold('  Then:'));
+      const example = integration!.fields.map((f) => `${f.key}=<${f.placeholder ?? f.label}>`).join(' ');
+      info(`  claritty-studio connect ${id} ${example}`);
+    }
+    info();
+    return;
+  }
+
+  const store = openStore();
+  try {
+    const vault = openVault(store);
+    const project = store.getProjectBySlug(slugOf(resolve(flags.dir)));
+
+    for (const pair of pairs) {
+      const at = pair.indexOf('=');
+      if (at === -1) fail(`"${pair}" should look like field=value`);
+      const field = pair.slice(0, at);
+      const value = pair.slice(at + 1);
+      if (!integration!.fields.some((f) => f.key === field)) {
+        fail(
+          `${integration!.name} has no "${field}" field. It expects: ` +
+            integration!.fields.map((f) => f.key).join(', '),
+        );
+      }
+      try {
+        vault.set(
+          {
+            kind: 'integration',
+            id: integration!.id,
+            field,
+            // Scoped to this project when run inside one, so two automations
+            // can use different accounts for the same service.
+            ...(project ? { projectId: project.id } : {}),
+          },
+          value,
+        );
+      } catch (err) {
+        if (err instanceof VaultUnavailableError) fail(err.message);
+        throw err;
+      }
+    }
+
+    ok(`connected ${integration!.name}${project ? ` for ${project.name}` : ' (all automations)'}`);
+    info(c.dim(`  tools: ${integration!.tools.map((t) => t.id).join(', ')}`));
+  } finally {
+    store.close();
+  }
+}
+
 function help(): void {
   info(`
 ${c.bold('claritty-studio')} — build, run and observe agentic automations locally
@@ -667,6 +815,10 @@ ${c.bold('Usage')}
   claritty-studio trigger ls | rm <id>    list or remove triggers
   claritty-studio deliveries              recent webhook deliveries
   claritty-studio replay <id>             send a past delivery through again
+  claritty-studio keys set <provider> <k> store a model provider key
+  claritty-studio keys ls | rm <provider>
+  claritty-studio integrations            what Studio can connect to
+  claritty-studio connect <id> f=v …      connect an integration
   claritty-studio ps                      list your automations
   claritty-studio runs                    recent runs for this directory
   claritty-studio doctor                  check this machine
@@ -751,6 +903,12 @@ async function main(): Promise<void> {
       if (sub === 'rm' || sub === 'remove') return cmdTriggerRemove(rest2, flags);
       return fail(`unknown: trigger ${sub}. Try add, ls or rm.`);
     }
+    case 'keys':
+      return cmdKeys(positional.slice(1), flags);
+    case 'integrations':
+      return cmdIntegrations(positional.slice(1), flags);
+    case 'connect':
+      return cmdConnect(positional.slice(1), flags);
     case 'deliveries':
       return cmdDeliveries(flags);
     case 'replay':

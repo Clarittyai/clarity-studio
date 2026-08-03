@@ -135,6 +135,22 @@ export const MIGRATIONS: string[] = [
     request_body    TEXT
   );
 
+  -- Ciphertext only. The key that decrypts these lives in the OS keyring or is
+  -- derived from a passphrase — never in this file, which is why losing the
+  -- database does not lose the secrets to whoever finds it.
+  CREATE TABLE IF NOT EXISTS secrets (
+    id          TEXT PRIMARY KEY,
+    scope       TEXT NOT NULL,
+    project_id  TEXT,
+    kind        TEXT NOT NULL,
+    provider_id TEXT NOT NULL,
+    field       TEXT NOT NULL,
+    ciphertext  BLOB NOT NULL,
+    last4       TEXT,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL

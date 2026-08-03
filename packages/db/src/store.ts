@@ -321,6 +321,50 @@ export class Store {
     return { costMicros: row.m, calls: row.n };
   }
 
+  // ── vault storage ──────────────────────────────────────────────────────────
+
+  /**
+   * Ciphertext only. The Store never sees a plaintext secret and has no way to
+   * decrypt one — that lives entirely in @claritty-studio/vault, so a bug here
+   * cannot turn into a disclosure.
+   */
+  putSecret(key: string, ciphertext: Buffer, last4: string): void {
+    const parts = key.split(':');
+    this.db
+      .prepare(
+        `INSERT INTO secrets (id, scope, project_id, kind, provider_id, field, ciphertext, last4, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET ciphertext=excluded.ciphertext, last4=excluded.last4, updated_at=excluded.updated_at`,
+      )
+      .run(
+        key, parts[1] ?? '*', parts[1] === '*' ? null : (parts[1] ?? null), parts[0] ?? '',
+        parts[2] ?? '', parts.slice(3).join(':'), ciphertext, last4, Date.now(), Date.now(),
+      );
+  }
+
+  getSecret(key: string): Buffer | undefined {
+    const row = this.db.prepare('SELECT ciphertext FROM secrets WHERE id = ?').get(key) as
+      | { ciphertext: Uint8Array }
+      | undefined;
+    return row ? Buffer.from(row.ciphertext) : undefined;
+  }
+
+  removeSecret(key: string): void {
+    this.db.prepare('DELETE FROM secrets WHERE id = ?').run(key);
+  }
+
+  listSecrets(): Array<{ key: string; last4: string; createdAt: number; updatedAt: number }> {
+    const rows = this.db
+      .prepare('SELECT id, last4, created_at, updated_at FROM secrets ORDER BY id')
+      .all() as Record<string, unknown>[];
+    return rows.map((r) => ({
+      key: String(r.id),
+      last4: String(r.last4 ?? ''),
+      createdAt: Number(r.created_at),
+      updatedAt: Number(r.updated_at),
+    }));
+  }
+
   // ── settings ───────────────────────────────────────────────────────────────
 
   get<T>(key: string): T | undefined {

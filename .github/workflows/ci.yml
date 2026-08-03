@@ -47,6 +47,9 @@ jobs:
           python -m venv .venv-probe
           ./.venv-probe/bin/pip install --quiet "claritty-sdk>=2.11,<3" fastapi "uvicorn[standard]"
       - run: pnpm spike
+      # The M3 proof: an automation reaching a real HTTP service through the
+      # vault and the connector engine, with the credential never leaving the host.
+      - run: pnpm proof:integrations
 
   # The design system is generated from clarity-platform. If someone edits the
   # generated files by hand, or upstream moves a load-bearing value, this fails

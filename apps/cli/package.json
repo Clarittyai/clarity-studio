@@ -18,7 +18,9 @@
     "@claritty-studio/control-plane": "workspace:*",
     "@claritty-studio/db": "workspace:*",
     "@claritty-studio/orchestrator": "workspace:*",
-    "@claritty-studio/scheduler": "workspace:*"
+    "@claritty-studio/scheduler": "workspace:*",
+    "@claritty-studio/vault": "workspace:*",
+    "@claritty-studio/connectors": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -29,6 +29,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@claritty-studio/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@claritty-studio/control-plane':
         specifier: workspace:*
         version: link:../../packages/control-plane
@@ -41,6 +44,9 @@ importers:
       '@claritty-studio/scheduler':
         specifier: workspace:*
         version: link:../../packages/scheduler
+      '@claritty-studio/vault':
+        specifier: workspace:*
+        version: link:../../packages/vault
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
@@ -107,8 +113,23 @@ importers:
         specifier: ^5.4.11
         version: 5.4.21(@types/node@22.20.1)
 
+  packages/connectors:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
+
   packages/control-plane:
     dependencies:
+      '@claritty-studio/connectors':
+        specifier: workspace:*
+        version: link:../connectors
       fastify:
         specifier: ^5.2.0
         version: 5.11.2
@@ -158,6 +179,18 @@ importers:
       '@claritty-studio/db':
         specifier: workspace:*
         version: link:../db
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
+
+  packages/vault:
     devDependencies:
       '@types/node':
         specifier: ^22.10.2

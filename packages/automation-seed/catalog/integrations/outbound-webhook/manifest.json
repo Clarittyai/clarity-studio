@@ -1,0 +1,11 @@
+{
+  "$comment": "A catalog integration. The SDK reads providedTools at boot and registers a handler for each that forwards to the host's /internal/integrations/tools/<id>/<tool>/execute — so the automation itself never holds a credential or knows a provider's URL.",
+  "id": "outbound-webhook",
+  "name": "Outbound webhook",
+  "version": "1.0.0",
+  "transport": "native",
+  "authType": "none",
+  "providedTools": [
+    { "id": "post", "description": "POST a JSON payload to a URL." }
+  ]
+}

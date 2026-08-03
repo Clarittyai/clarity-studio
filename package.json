@@ -17,7 +17,8 @@
     "setup": "node scripts/bootstrap.mjs",
     "cli": "node apps/cli/dist/index.js",
     "design:sync": "pnpm --filter @claritty-studio/design sync",
-    "shot": "node scripts/screenshot-app.mjs"
+    "shot": "node scripts/screenshot-app.mjs",
+    "proof:integrations": "node scripts/m3-integration-proof.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
