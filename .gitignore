@@ -1,0 +1,31 @@
+node_modules/
+dist/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local state — never commit
+.studio/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Electron
+release/
+
+# Spike scratch
+.venv-probe/
+.spike-data/

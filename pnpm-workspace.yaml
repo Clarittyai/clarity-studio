@@ -1,0 +1,6 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# The automation seed is a Python project vendored as a template, not a JS package.
+ignoredBuiltDependencies: []

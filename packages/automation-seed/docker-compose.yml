@@ -1,0 +1,30 @@
+# Runs the automation on its own, with no Studio and no host.
+#
+#   docker compose up --build      → http://localhost:3200/health
+#
+# Studio layers .studio/compose.override.yml on top of this file to inject the
+# control-plane address, per-project secrets and resource limits. Nothing in
+# here depends on that override existing — this file works alone, which is what
+# keeps the automation a portable artifact rather than a Studio-only thing.
+services:
+  automation:
+    build:
+      context: .
+    ports:
+      - "3200:3200"
+    environment:
+      # Without a control plane the runtime has no model to call, so agent
+      # steps will fail. Tool-only workflows run fine. Point this at Studio
+      # (or a host) to give the automation a brain.
+      CLARITTY_PLATFORM_URL: ${CLARITTY_PLATFORM_URL:-}
+      CLARITTY_AUTH_TOKEN: ${CLARITTY_AUTH_TOKEN:-}
+      CLARITY_INTERNAL_SECRET: ${CLARITY_INTERNAL_SECRET:-}
+      CLARITTY_USER_ID: ${CLARITTY_USER_ID:-local}
+      CLARITTY_ENV: ${CLARITTY_ENV:-local}
+      ENABLE_DEBUG: "false"
+      APP_DATA_DIR: /data
+    volumes:
+      - automation-data:/data
+
+volumes:
+  automation-data:

@@ -1,0 +1,19 @@
+{
+  "$comment": "Trigger recipes: what this automation SUPPORTS. The user creates instances of these in Studio, which stores the schedule and fires them. Keep the ids in lockstep with intelligence.yaml#triggers.",
+  "appName": "My Automation",
+  "triggers": [
+    {
+      "id": "every-morning",
+      "type": "SCHEDULE",
+      "name": "Every morning",
+      "description": "Runs the daily digest once a day at a time you choose.",
+      "workflowId": "daily-digest",
+      "maxInstancesPerUser": 1,
+      "supportedSchedules": ["DAILY"],
+      "configFields": [
+        { "key": "time", "type": "time", "required": true, "label": "Run at", "default": "09:00" },
+        { "key": "timezone", "type": "timezone", "required": true, "label": "Timezone" }
+      ]
+    }
+  ]
+}

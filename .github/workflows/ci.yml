@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  # The M0 gate. Claritty Studio's whole design rests on one claim — that an
+  # unmodified automation runs against a local control plane — so it is checked
+  # on every commit rather than assumed. If this job goes red, the architecture
+  # broke, not the test.
+  spike:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Install the published SDK (not a checkout — the point is that it is unmodified)
+        run: |
+          python -m venv .venv-probe
+          ./.venv-probe/bin/pip install --quiet "claritty-sdk>=2.11,<3" fastapi "uvicorn[standard]"
+      - run: pnpm spike
+
+  # "No accounts, no telemetry, no phoning home" is a promise, so it is a test.
+  no-phone-home:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert nothing calls Claritty or an auth provider at runtime
+        run: |
+          set -euo pipefail
+          hits=$(grep -rInE 'https?://[a-z0-9.-]*(claritty\.ai|auth0\.com)' \
+                   --include='*.ts' --include='*.tsx' --include='*.js' --include='*.mjs' \
+                   --include='*.py' \
+                   apps packages scripts 2>/dev/null || true)
+          if [ -n "$hits" ]; then
+            echo "Runtime code must not reach claritty.ai or auth0.com."
+            echo "Links belong in markdown and the About box only."
+            echo "$hits"
+            exit 1
+          fi
+          echo "OK — no runtime call sites."

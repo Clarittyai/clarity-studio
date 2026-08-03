@@ -1,0 +1,121 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  intelligence.yaml — the single source of truth for this automation.
+#
+#  Five primitives, and nothing else:
+#    integrations  credentials this automation depends on
+#    tools         callable actions (your Python, or a catalog capability)
+#    agents        prompt-driven units that decide WHICH tools to call
+#    workflows     a DAG of steps; each step runs exactly one agent or tool
+#    triggers      the external dispatcher that fires ONE workflow or agent
+#
+#  The runtime (claritty-sdk) validates this at boot and refuses to start if
+#  anything is inconsistent — a dangling tool reference, an agent with no
+#  instructions, a step piping from a field that doesn't exist. You will never
+#  ship an automation that builds green and runs hollow.
+#
+#  The schema is STRICT (unknown keys are rejected). Only these keys exist:
+#    tool     → id, source, handler, input, output, integrations
+#    agent    → id, source, handler, systemPrompt, promptFile, description,
+#               model, reasoning, thinkingBudget, integrations, tools, skills,
+#               input, output, timeout, budgetCents
+#    workflow → id, type, inputs, steps, outputs, onError, budgetCents,
+#               team, maxIterations, coordinatorPrompt
+#    step     → id, agent, tool, input, mode, onError, forEach, as, maxIterations
+#    trigger  → id, type, workflow, agent, name, description,
+#               supportedSchedules, maxInstancesPerUser, configFields
+#  Tools and workflows have NO name/description field — document them in
+#  comments like these, or in the agent prompt that uses them.
+#
+#  Full spec: docs/INTELLIGENCE_YAML.md
+# ─────────────────────────────────────────────────────────────────────────────
+schemaVersion: 2
+id: my-automation
+version: 1.0.0
+
+# Credentials this automation needs. Connect them in Studio → Integrations.
+# The example below needs none, so the list is empty.
+integrations: []
+
+tools:
+  # Return the items that need summarising. Replace the body with a real
+  # source — a database query, an HTTP call via ctx.integration(...), a file
+  # read. Returning fixtures is fine while you are still shaping the flow.
+  - id: app.collect_items
+    handler: backend.tools.collect_items:run
+    input:
+      since_hours:
+        type: number
+        required: false
+    output:
+      items:
+        type: array
+        required: true
+      count:
+        type: number
+        required: true
+
+  # Persist the finished digest so something downstream can read it. Replace
+  # with your real sink — a table, an email, a Slack message.
+  - id: app.save_digest
+    handler: backend.tools.save_digest:run
+    input:
+      summary:
+        type: string
+        required: true
+      item_count:
+        type: number
+        required: true
+    output:
+      digest_id:
+        type: string
+        required: true
+      saved_at:
+        type: string
+        required: true
+
+agents:
+  - id: digest-writer
+    description: >
+      Reads the collected items and writes a short, specific digest a human can
+      act on in under a minute.
+    # An agent has ONE instruction source: promptFile (recommended — markdown,
+    # reviewable in a diff) or an inline systemPrompt.
+    promptFile: backend/agents/digest_writer.md
+    # Every tool the agent may call must be listed here AND referenced by name
+    # in the prompt. A tool listed but never mentioned is never called.
+    tools:
+      - app.collect_items
+      - app.save_digest
+    output:
+      digest_id:
+        type: string
+        required: true
+      summary:
+        type: string
+        required: true
+
+workflows:
+  # Collect → summarise → save.
+  - id: daily-digest
+    steps:
+      - id: write
+        agent: digest-writer
+        input:
+          since_hours: 24
+    outputs:
+      digest_id: "${steps.write.output.digest_id}"
+      summary: "${steps.write.output.summary}"
+
+triggers:
+  # The dispatcher fires this — the automation itself runs no scheduler.
+  # Studio drives it locally; a host would drive it in production.
+  - id: every-morning
+    type: SCHEDULE
+    name: Every morning
+    description: Runs the daily digest once a day at a time you choose.
+    workflow: daily-digest
+    supportedSchedules: [DAILY]
+    maxInstancesPerUser: 1
+    configFields:
+      - { key: time, type: time, required: true, label: "Run at", default: "09:00" }
+      - { key: timezone, type: timezone, required: true, label: "Timezone" }
