@@ -1,0 +1,21 @@
+{
+  "name": "@claritty-studio/cli",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "claritty-studio": "./dist/index.js" },
+  "files": ["dist", "seed"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@claritty-studio/control-plane": "workspace:*",
+    "@claritty-studio/db": "workspace:*",
+    "@claritty-studio/orchestrator": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.6.3"
+  }
+}

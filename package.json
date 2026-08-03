@@ -6,14 +6,16 @@
   "license": "MIT",
   "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
-    "spike": "node scripts/m0-spike.mjs"
+    "spike": "node scripts/m0-spike.mjs",
+    "setup": "node scripts/bootstrap.mjs",
+    "cli": "node apps/cli/dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

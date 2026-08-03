@@ -24,11 +24,42 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)
 
+  apps/cli:
+    dependencies:
+      '@claritty-studio/control-plane':
+        specifier: workspace:*
+        version: link:../../packages/control-plane
+      '@claritty-studio/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@claritty-studio/orchestrator':
+        specifier: workspace:*
+        version: link:../../packages/orchestrator
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
   packages/control-plane:
     dependencies:
       fastify:
         specifier: ^5.2.0
         version: 5.11.2
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
+
+  packages/db:
     devDependencies:
       '@types/node':
         specifier: ^22.10.2

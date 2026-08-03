@@ -13,6 +13,64 @@ dollar they spend.
 
 ---
 
+## Quickstart
+
+Needs **Node 22+**. Python 3.9+ and Docker are optional — see below.
+
+```bash
+pnpm setup                       # checks the machine, builds, prepares Python
+pnpm spike                       # proves an automation runs against the local control plane
+```
+
+Then make one and run it:
+
+```bash
+node apps/cli/dist/index.js new my-automation
+cd my-automation
+
+# Check the wiring — no model, no key, nothing spent
+node ../apps/cli/dist/index.js run --native --simulate
+```
+
+```
+✓ my-automation v1.0.0 on http://127.0.0.1:33000
+→ running daily-digest…
+
+  Run timeline
+  ──────────────────────────────────────────────────────────────────────
+  ● write                success   213ms
+  ──────────────────────────────────────────────────────────────────────
+  3 model call(s) · 1515 in / 0 out · $0.00 · 0.3s wall
+✓ workflow succeeded — {"digest_id":"dg_9bbe05dce9b1", …}
+```
+
+To run it for real, give the control plane a key and drop `--simulate`:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-…      # or OPENAI_API_KEY / GOOGLE_API_KEY
+node ../apps/cli/dist/index.js run --native
+```
+
+Now open the folder in Claude Code or Codex and tell it what you actually want
+the automation to do. `CLAUDE.md`, `AGENTS.md` and `.cursorrules` are already
+there, so the agent knows the rules; `/claritty-new-automation` and
+`/claritty-convert` are ready as slash commands.
+
+**Two runtimes.** `--native` uses a local Python virtualenv, so Studio is
+useful a minute after download on a machine that has never seen Docker. Drop
+the flag and it runs the automation in its container instead — the same one it
+would run in on a server, which is what you want before you trust it with a
+schedule.
+
+**About your keys.** They are read by the local control plane and *never* given
+to the automation. The container gets a local, revocable token and nothing
+else, so a compromised image yields no credential. That is the same trust model
+the hosted platform uses, which is why an automation that works here works
+unchanged anywhere.
+
+Other commands: `doctor` (check this machine), `ps` (your automations),
+`runs` (recent runs with cost), `up` (start and leave running), `help`.
+
 ## Why this exists
 
 Agent harnesses today are development scratchpads — great for running coding agents side by side,
