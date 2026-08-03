@@ -6,9 +6,12 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { ControlPlane } from '/home/user/clarity-studio/packages/control-plane/dist/index.js';
+import { ControlPlane } from '../packages/control-plane/dist/index.js';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const received = [];
 const server = createServer((req, res) => {
@@ -27,7 +30,7 @@ console.log(`fake service listening on ${hookPort}`);
 // Build an automation that calls the connector tool.
 const dir = mkdtempSync(join(tmpdir(), 'm3-'));
 const project = join(dir, 'notifier');
-cpSync('/home/user/clarity-studio/packages/automation-seed', project, { recursive: true });
+cpSync(join(ROOT, 'packages/automation-seed'), project, { recursive: true });
 
 writeFileSync(join(project, 'intelligence.yaml'), `schemaVersion: 2
 id: notifier
@@ -89,7 +92,7 @@ const plane = new ControlPlane({
 const { url: planeUrl } = await plane.listen();
 const env = plane.environmentFor('m3', { platformUrl: planeUrl });
 
-const py = '/home/user/clarity-studio/.venv-probe/bin/python';
+const py = join(ROOT, '.venv-probe/bin/python');
 const proc = spawn(py, ['-m', 'uvicorn', 'backend.main:app', '--host', '127.0.0.1', '--port', '3311', '--log-level', 'warning'], {
   cwd: project, env: { ...process.env, ...env, PYTHONPATH: project, APP_DATA_DIR: join(project, '.data') },
   stdio: ['ignore', 'pipe', 'pipe'],

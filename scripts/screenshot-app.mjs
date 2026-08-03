@@ -1,10 +1,15 @@
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { _electron as electron } from 'playwright';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // --no-sandbox is needed only because this harness runs as root in a
 // container. The app itself keeps Chromium's sandbox on for real users.
 const app = await electron.launch({
   args: ['.', '--no-sandbox'],
-  cwd: '/home/user/clarity-studio/apps/desktop',
+  cwd: join(ROOT, 'apps/desktop'),
   env: { ...process.env, STUDIO_HOME: '/tmp/studio-desktop' },
 });
 
