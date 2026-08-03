@@ -179,6 +179,17 @@ Pre-alpha, built in the open. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 - ◐ **M5** — intelligence canvas and agent detection done; embedded terminal outstanding
 - **M6** — import & convert existing agents, signed installers ← next
 
+## Working on Studio itself
+
+`CLAUDE.md` in the repo root is the contract for anyone — human or agent —
+changing this codebase: architecture, invariants, the traps that cost real time
+to find, six ways the upstream SDK's own docs are wrong, and an honest list of
+what has never been executed. `AGENTS.md` is the short version.
+
+If you open this repo in Claude Code, Codex or Cursor, they read those on their
+own. `.claude/settings.json` pre-approves the build and test commands so a
+session is not stopped for permission on every `pnpm test`.
+
 ## Repository layout
 
 ```
