@@ -80,6 +80,11 @@ export class ControlPlane {
     string,
     (payload: unknown, headers: Record<string, string>) => Promise<unknown>
   >();
+  private anyWebhook?: (
+    instanceId: string,
+    payload: unknown,
+    headers: Record<string, string>,
+  ) => Promise<{ status: number; body: unknown }>;
 
   private address?: { host: string; port: number };
 
@@ -151,6 +156,26 @@ export class ControlPlane {
     sink: (payload: unknown, headers: Record<string, string>) => Promise<unknown>,
   ): void {
     this.webhookSinks.set(instanceId, sink);
+  }
+
+  /**
+   * Handle every webhook, whatever the instance id.
+   *
+   * Preferred over per-instance registration because it removes a race: the
+   * control plane starts listening as soon as Studio does, but an automation
+   * takes seconds to boot. A delivery landing in that window would otherwise
+   * hit no sink and be answered with a 404 — telling a sender that a perfectly
+   * valid endpoint does not exist, and losing the payload. With one handler
+   * installed up front, the delivery is recorded and can be replayed.
+   */
+  onAnyWebhook(
+    handler: (
+      instanceId: string,
+      payload: unknown,
+      headers: Record<string, string>,
+    ) => Promise<{ status: number; body: unknown }>,
+  ): void {
+    this.anyWebhook = handler;
   }
 
   // ── lifecycle ──────────────────────────────────────────────────────────────
@@ -423,12 +448,25 @@ export class ControlPlane {
     // ── webhooks ─────────────────────────────────────────────────────────────
     app.post('/webhooks/:instanceId', async (req, reply) => {
       const { instanceId } = req.params as { instanceId: string };
-      const sink = this.webhookSinks.get(instanceId);
-      if (!sink) return reply.status(404).send({ error: `no trigger instance ${instanceId}` });
       const headers = Object.fromEntries(
         Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : String(v ?? '')]),
       );
-      return reply.send(await sink(req.body, headers));
+
+      const sink = this.webhookSinks.get(instanceId);
+      if (sink) return reply.send(await sink(req.body, headers));
+
+      if (this.anyWebhook) {
+        const result = await this.anyWebhook(instanceId, req.body, headers);
+        return reply.status(result.status).send(result.body);
+      }
+
+      // Nothing is listening at all — Studio is up but no automation is being
+      // served. Say so rather than claiming the endpoint does not exist.
+      return reply.status(503).send({
+        error: 'Studio is not serving any automation right now',
+        hint: 'run `claritty-studio serve` in the automation directory',
+        instanceId,
+      });
     });
   }
 }

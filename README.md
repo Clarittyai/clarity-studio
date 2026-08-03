@@ -68,8 +68,42 @@ else, so a compromised image yields no credential. That is the same trust model
 the hosted platform uses, which is why an automation that works here works
 unchanged anywhere.
 
+### Make it run on its own
+
+This is the part other agent harnesses don't do.
+
+```bash
+node ../apps/cli/dist/index.js trigger add --daily 09:00
+node ../apps/cli/dist/index.js serve --native
+```
+
+`serve` holds the automation up, ticks every 15 seconds, and fires anything
+that's due. Close the terminal and nothing runs — that's a property of your
+laptop, not a limitation we chose. When Studio starts again it tells you what
+it missed rather than pretending nothing happened.
+
+Webhooks land on the same process:
+
+```bash
+node ../apps/cli/dist/index.js trigger add on-event      # a WEBHOOK trigger
+# → http://127.0.0.1:4319/webhooks/<instance-id>
+curl -X POST http://127.0.0.1:4319/webhooks/<id> -d '{"hello":"world"}'
+```
+
+Every delivery is stored whole — headers and body — **before** it is forwarded.
+So when one fails at 2am, you don't ask the sender to please do it again:
+
+```bash
+node ../apps/cli/dist/index.js deliveries
+node ../apps/cli/dist/index.js replay <delivery-id>
+```
+
+Deliveries that arrive while the automation is down are still recorded, and
+answered with a 503 rather than a 404 — nothing is lost, and you replay them
+once it's back.
+
 Other commands: `doctor` (check this machine), `ps` (your automations),
-`runs` (recent runs with cost), `up` (start and leave running), `help`.
+`runs` (recent runs with cost), `trigger ls|rm`, `up`, `help`.
 
 ## Why this exists
 
@@ -83,6 +117,7 @@ debugged six weeks after you wrote them.
 | Runs agents in parallel | ✅ | ✅ |
 | Git worktree isolation | ✅ | ✅ |
 | Fires on a schedule | ❌ | ✅ |
+| Survives DST without drifting | ❌ | ✅ |
 | Webhook ingress + **replay** | ❌ | ✅ |
 | Credential vault for third-party APIs | ❌ | ✅ |
 | Per-step run traces, tokens and cost | ❌ | ✅ |
@@ -136,11 +171,11 @@ Nothing here locks you in either direction.
 
 Pre-alpha, built in the open. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-- **M0 — local control plane + automation seed** ← we are here
-- M1 — Electron shell, project lifecycle, live logs
-- M2 — run timeline, traces, token/cost accounting
-- M3 — credential vault, BYO provider routing, connectors, MCP
-- M4 — scheduler, webhook ingress and replay
+- ✅ **M0** — local control plane + automation seed
+- ✅ **M1** — local store, Docker and native runtimes, the `claritty-studio` CLI
+- ✅ **M4** — scheduler, webhook ingress and replay ← *brought forward*
+- **M2** — Electron shell, design system, run timeline as a waterfall ← next
+- M3 — credential vault, connectors, MCP
 - M5 — embedded terminal, coding-agent bridge, intelligence canvas
 - M6 — import & convert existing agents, signed installers
 

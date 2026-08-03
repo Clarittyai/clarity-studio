@@ -114,7 +114,10 @@ triggers:
     name: Every morning
     description: Runs the daily digest once a day at a time you choose.
     workflow: daily-digest
-    supportedSchedules: [DAILY]
+    # DAILY is the real cadence; INTERVAL and ONE_TIME are here so you can
+    # fire it every couple of minutes while building instead of waiting until
+    # tomorrow morning to find out whether it works.
+    supportedSchedules: [DAILY, INTERVAL, ONE_TIME]
     maxInstancesPerUser: 1
     configFields:
       - { key: time, type: time, required: true, label: "Run at", default: "09:00" }

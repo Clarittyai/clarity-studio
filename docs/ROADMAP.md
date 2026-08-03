@@ -39,6 +39,25 @@ building on the SDK needs to know:
    explicit model override, not just a fallback — otherwise someone holding
    only an OpenAI key could never run a manifest written against Claude.
 
+## M4 — schedules and webhooks ✅
+
+*(Brought forward. A trigger that actually fires is what makes this an
+automation tool rather than a nicer way to run scripts, and it needs no UI to
+demo — so it was worth finding the flaws here before building screens on top.)*
+
+- `packages/scheduler` — next-fire maths for ONE_TIME / INTERVAL / DAILY /
+  WEEKLY / MONTHLY across real IANA zones, with no date library. Handles the
+  two days a year that break naive schedulers: a local time skipped by
+  spring-forward still fires, and the hour repeated by fall-back fires once.
+- The dispatch tick: finds due instances, dedupes on `(trigger, scheduled
+  instant)`, fires them independently so one failure can't stop the rest, and
+  always reschedules — a failed run must never leave an instance stuck due.
+- Missed windows are counted, not swallowed. Default is to skip and record.
+- Webhook ingress with **replay**. Every delivery stored whole before
+  forwarding; inbound `authorization` and `cookie` headers are dropped while
+  provider signature headers survive.
+- CLI: `trigger add|ls|rm`, `serve`, `deliveries`, `replay`.
+
 ## M1 — the app
 
 Electron shell, design tokens extracted from `clarity-platform` with a CI drift

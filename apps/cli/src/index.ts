@@ -20,12 +20,16 @@ import { ControlPlane, EnvSecretSource, formatUsd } from '@claritty-studio/contr
 import { Store } from '@claritty-studio/db';
 import {
   allocatePort,
+  isFree,
   DockerRunner,
   fireWorkflow,
   NativeRunner,
   run as spawnRun,
   type Runner,
 } from '@claritty-studio/orchestrator';
+import { Dispatcher, WebhookIngress, type DispatchTarget } from '@claritty-studio/scheduler';
+
+import { addTrigger, formatTrigger, parseScheduleFlags, readRecipes } from './triggers.js';
 
 // ── output ───────────────────────────────────────────────────────────────────
 
@@ -85,6 +89,9 @@ function manifestIn(dir: string): string | undefined {
   }
   return undefined;
 }
+
+/** Where webhooks arrive. Fixed so the URLs you hand out keep working. */
+export const CONTROL_PLANE_PORT = 4319;
 
 function slugOf(dir: string): string {
   return basename(dir).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '') || 'automation';
@@ -188,7 +195,15 @@ interface RunFlags {
 
 async function withRuntime<T>(
   flags: RunFlags,
-  body: (ctx: { plane: ControlPlane; runner: Runner; store: Store; projectId: string; baseUrl: string }) => Promise<T>,
+  body: (ctx: {
+    plane: ControlPlane;
+    runner: Runner;
+    store: Store;
+    projectId: string;
+    baseUrl: string;
+    internalSecret: string;
+  }) => Promise<T>,
+  hooks: { onPlaneReady?: (ctx: { plane: ControlPlane; store: Store; projectId: string }) => void } = {},
 ): Promise<T> {
   const dir = resolve(flags.dir);
   const manifest = manifestIn(dir);
@@ -205,8 +220,14 @@ async function withRuntime<T>(
   const existing = store.getProjectBySlug(slug);
   const projectId = existing?.id ?? randomUUID();
 
+  // The control plane wants a STABLE port, unlike the automation: a webhook URL
+  // you hand to GitHub must survive a restart, and an ephemeral port would mean
+  // reconfiguring the sender every time. Fall back only if something else has
+  // 4319, in which case webhook URLs move and we say so.
+  const planePort = (await isFree(CONTROL_PLANE_PORT)) ? CONTROL_PLANE_PORT : 0;
+
   const plane = new ControlPlane({
-    port: 0,
+    port: planePort,
     secrets: new EnvSecretSource(),
     store: {
       checkpointStep: (cp) => store.checkpointStep(cp),
@@ -245,7 +266,12 @@ async function withRuntime<T>(
   const platformUrl = flags.native
     ? planeUrl
     : planeUrl.replace('127.0.0.1', 'host.docker.internal');
+  const identity = plane.register(projectId);
   const environment = plane.environmentFor(projectId, { platformUrl });
+
+  // Before the automation boots, so a webhook arriving during startup is
+  // recorded and answered honestly rather than 404'd away.
+  hooks.onPlaneReady?.({ plane, store, projectId });
 
   const runner: Runner = flags.native
     ? new NativeRunner({ projectId, projectPath: dir, hostPort, environment })
@@ -259,7 +285,11 @@ async function withRuntime<T>(
     const health = await runner.waitUntilHealthy();
     store.setProjectStatus(projectId, 'running');
     ok(`${health.automation} v${health.version} on ${c.bold(runner.baseUrl)}`);
-    return await body({ plane, runner, store, projectId, baseUrl: runner.baseUrl });
+    return await body({
+      plane, runner, store, projectId,
+      baseUrl: runner.baseUrl,
+      internalSecret: identity.internalSecret,
+    });
   } catch (err) {
     store.setProjectStatus(projectId, 'crashed', err instanceof Error ? err.message : String(err));
     throw err;
@@ -349,7 +379,7 @@ function cmdRuns(dir: string): void {
     const mark = r.status === 'success' ? c.green('●') : r.status === 'running' ? c.yellow('●') : c.red('●');
     const dur = r.endedAt ? `${((r.endedAt - r.startedAt) / 1000).toFixed(1)}s` : '—';
     info(
-      `  ${mark} ${r.id.slice(0, 16).padEnd(18)} ${String(r.workflowId ?? '').padEnd(18)} ` +
+      `  ${mark} ${r.id.slice(0, 28).padEnd(30)} ${String(r.workflowId ?? '').padEnd(16)} ` +
         `${r.status.padEnd(9)} ${dur.padStart(7)} ${formatUsd(r.costMicros).padStart(9)} ${c.dim(timeAgo(r.startedAt))}`,
     );
   }
@@ -412,6 +442,218 @@ function timeAgo(ts: number): string {
   return `${Math.round(s / 86400)}d ago`;
 }
 
+
+// ── triggers ─────────────────────────────────────────────────────────────────
+
+interface TriggerFlags extends RunFlags {
+  every?: string;
+  daily?: string;
+  weekly?: string;
+  monthly?: string;
+  once?: string;
+  timezone?: string;
+  missed?: 'skip' | 'run-once' | 'catch-up';
+  trigger?: string;
+}
+
+function projectFor(store: Store, dir: string) {
+  const project = store.getProjectBySlug(slugOf(resolve(dir)));
+  if (!project) {
+    fail(
+      `Studio does not know this automation yet.\n` +
+        `  Run it once first: claritty-studio run --simulate`,
+    );
+  }
+  return project!;
+}
+
+function cmdTriggerAdd(positional: string[], flags: TriggerFlags): void {
+  const store = openStore();
+  try {
+    const dir = resolve(flags.dir);
+    const project = projectFor(store, dir);
+    const recipeId = flags.trigger ?? positional[0];
+    const recipes = readRecipes(dir);
+    const recipe = recipeId ? recipes.find((r) => r.id === recipeId) : recipes[0];
+
+    const instance = addTrigger(store, {
+      projectId: project.id,
+      projectPath: dir,
+      recipeId: recipe?.id,
+      // A webhook trigger needs no schedule, so only parse the flags when the
+      // recipe actually wants one — otherwise every webhook would demand a time.
+      schedule: recipe?.type === 'WEBHOOK' ? undefined : parseScheduleFlags(flags),
+      missedPolicy: flags.missed ?? 'skip',
+    });
+
+    info();
+    ok(`trigger added — ${formatTrigger(instance, c)}`);
+    if (instance.type === 'WEBHOOK') {
+      info(`  ${c.dim('URL, once `serve` is running:')} http://127.0.0.1:${CONTROL_PLANE_PORT}/webhooks/${instance.id}`);
+    }
+    info();
+    info(c.dim('  Schedules only fire while Studio is running: claritty-studio serve'));
+    info();
+  } finally {
+    store.close();
+  }
+}
+
+function cmdTriggerList(flags: RunFlags): void {
+  const store = openStore();
+  try {
+    const project = projectFor(store, flags.dir);
+    const instances = store.triggers.list(project.id);
+    info();
+    if (instances.length === 0) {
+      const recipes = readRecipes(resolve(flags.dir));
+      info(c.dim('  No triggers configured.'));
+      if (recipes.length) {
+        info(c.dim(`  This automation supports: ${recipes.map((r) => r.id).join(', ')}`));
+        info(c.dim('  Add one: claritty-studio trigger add --daily 09:00'));
+      }
+    }
+    for (const instance of instances) info(`  ${formatTrigger(instance, c)}`);
+    info();
+  } finally {
+    store.close();
+  }
+}
+
+function cmdTriggerRemove(positional: string[], flags: RunFlags): void {
+  const id = positional[0];
+  if (!id) fail('usage: claritty-studio trigger rm <id>');
+  const store = openStore();
+  try {
+    const project = projectFor(store, flags.dir);
+    const match = store.triggers.list(project.id).find((t) => t.id.startsWith(id!));
+    if (!match) fail(`no trigger starting with "${id}".`);
+    store.triggers.remove(match!.id);
+    ok(`removed ${match!.recipeTriggerId}`);
+  } finally {
+    store.close();
+  }
+}
+
+function cmdDeliveries(flags: RunFlags): void {
+  const store = openStore();
+  try {
+    const deliveries = store.triggers.recentDeliveries(25);
+    info();
+    if (deliveries.length === 0) info(c.dim('  No deliveries yet.'));
+    for (const d of deliveries) {
+      const mark = d.success ? c.green('●') : d.success === false ? c.red('●') : c.yellow('●');
+      info(
+        `  ${mark} ${d.id.slice(0, 8)}  ${timeAgo(d.startedAt).padEnd(10)}` +
+          ` ${String(d.httpStatus ?? '—').padEnd(5)} ${c.dim(d.error ?? d.runId ?? '')}`,
+      );
+    }
+    info();
+    info(c.dim('  Replay any of them: claritty-studio replay <id>'));
+    info();
+  } finally {
+    store.close();
+  }
+}
+
+async function cmdReplay(positional: string[], flags: RunFlags): Promise<void> {
+  const id = positional[0];
+  if (!id) fail('usage: claritty-studio replay <delivery-id>');
+
+  await withRuntime({ ...flags, keep: false }, async ({ store, internalSecret, baseUrl }) => {
+    const match = store.triggers.recentDeliveries(200).find((d) => d.id.startsWith(id!));
+    if (!match) fail(`no delivery starting with "${id}".`);
+
+    const ingress = new WebhookIngress({
+      store,
+      resolveTarget: () => ({ baseUrl, internalSecret }),
+    });
+    step(`replaying delivery ${match!.id.slice(0, 8)}…`);
+    const result = await ingress.replay(match!.id);
+    if (result.runId) printTimeline(store, result.runId, 0, result.status === 200 ? 'success' : 'failed');
+    else info(JSON.stringify(result.body));
+  });
+}
+
+/**
+ * Hold everything up: the automation, the control plane, the dispatch tick and
+ * webhook ingress. This is the mode in which a schedule actually fires.
+ */
+async function cmdServe(flags: RunFlags): Promise<void> {
+  // Filled in once the automation is healthy. The webhook handler is installed
+  // before that happens, and simply reports "not running" until this is set.
+  let webhookTarget: DispatchTarget | undefined;
+
+  await withRuntime({ ...flags, keep: true }, async ({ baseUrl, plane, runner, store, projectId, internalSecret }) => {
+    const target: DispatchTarget = { baseUrl, internalSecret };
+    webhookTarget = target;
+
+    const dispatcher = new Dispatcher({
+      store,
+      resolveTarget: () => target,
+      onEvent: (event) => {
+        if (event.fired) ok(`fired ${event.instanceId.slice(0, 8)} → ${event.runId}`);
+        else if (event.skipped === 'missed-window') {
+          warn(`${event.instanceId.slice(0, 8)}: window missed while Studio was not running`);
+        } else if (event.error) {
+          console.error(`${c.red('✘')} ${event.instanceId.slice(0, 8)}: ${event.error}`);
+        }
+      },
+    });
+
+    dispatcher.start();
+
+    const instances = store.triggers.list(projectId);
+    info();
+    info(`  ${c.bold('automation')}     ${baseUrl}`);
+    info(`  ${c.bold('control plane')}  ${plane.url}`);
+    info();
+    if (instances.length === 0) {
+      info(c.dim('  No triggers configured — add one: claritty-studio trigger add --daily 09:00'));
+    }
+    for (const instance of instances) {
+      info(`  ${formatTrigger(instance, c)}`);
+      if (instance.type === 'WEBHOOK') {
+        info(`    ${c.dim(`${plane.url}/webhooks/${instance.id}`)}`);
+      }
+    }
+    if (!plane.url.endsWith(`:${CONTROL_PLANE_PORT}`)) {
+      warn(
+        `port ${CONTROL_PLANE_PORT} was busy, so webhook URLs are on ${plane.url} this session. ` +
+          `Stop whatever holds ${CONTROL_PLANE_PORT} to keep them stable.`,
+      );
+    }
+    info();
+    info(c.dim('  Watching for due triggers. Press Ctrl-C to stop.'));
+    info();
+
+    await new Promise<void>((resolveWait) => {
+      process.on('SIGINT', () => resolveWait());
+      process.on('SIGTERM', () => resolveWait());
+    });
+
+    step('stopping…');
+    dispatcher.stop();
+    await runner.stop();
+  }, {
+    onPlaneReady: ({ plane, store, projectId }) => {
+      // Registered before boot. Until the automation is healthy the ingress
+      // answers 503 and stores the delivery, so nothing is lost and it can be
+      // replayed once things are up.
+      const ingress = new WebhookIngress({
+        store,
+        resolveTarget: () => webhookTarget,
+      });
+      plane.onAnyWebhook(async (instanceId, payload, headers) => {
+        const result = await ingress.deliver(instanceId, payload, headers);
+        info(`${c.cyan('→')} webhook ${instanceId.slice(0, 8)} → ${result.status}`);
+        return { status: result.status, body: result.body };
+      });
+      void projectId;
+    },
+  });
+}
+
 function help(): void {
   info(`
 ${c.bold('claritty-studio')} — build, run and observe agentic automations locally
@@ -420,6 +662,11 @@ ${c.bold('Usage')}
   claritty-studio new <name>              create an automation from the seed
   claritty-studio run [workflow]          run a workflow and print its timeline
   claritty-studio up                      start the automation and leave it running
+  claritty-studio serve                   run it for real: schedules fire, webhooks land
+  claritty-studio trigger add             configure when it runs
+  claritty-studio trigger ls | rm <id>    list or remove triggers
+  claritty-studio deliveries              recent webhook deliveries
+  claritty-studio replay <id>             send a past delivery through again
   claritty-studio ps                      list your automations
   claritty-studio runs                    recent runs for this directory
   claritty-studio doctor                  check this machine
@@ -429,6 +676,15 @@ ${c.bold('Options')}
   --native         run with a local Python venv instead of Docker
   --simulate       exercise the wiring with no model, no key and no spend
   --keep           leave the automation running after the command finishes
+
+${c.bold('Scheduling')} ${c.dim('(for `trigger add`)')}
+  --every 30m      every 30 minutes (also 2h, 1d)
+  --daily 09:00    every day at 09:00
+  --weekly mon,fri@09:00
+  --monthly 1@06:00
+  --once <iso>     a single run at a given instant
+  --timezone <tz>  defaults to this machine's timezone
+  --missed skip|run-once   what to do about windows missed while Studio was off
 
 ${c.bold('Keys')}
   Set ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY or OPENROUTER_API_KEY.
@@ -474,6 +730,31 @@ async function main(): Promise<void> {
       return cmdPs();
     case 'runs':
       return cmdRuns(flags.dir);
+    case 'serve':
+      return cmdServe(flags);
+    case 'trigger': {
+      const sub = positional[1];
+      const rest2 = positional.slice(2);
+      const tf: TriggerFlags = {
+        ...flags,
+        every: valueOf('--every'),
+        daily: valueOf('--daily'),
+        weekly: valueOf('--weekly'),
+        monthly: valueOf('--monthly'),
+        once: valueOf('--once'),
+        timezone: valueOf('--timezone'),
+        missed: valueOf('--missed') as TriggerFlags['missed'],
+        trigger: valueOf('--trigger'),
+      };
+      if (sub === 'add') return cmdTriggerAdd(rest2, tf);
+      if (sub === 'ls' || sub === 'list' || sub === undefined) return cmdTriggerList(flags);
+      if (sub === 'rm' || sub === 'remove') return cmdTriggerRemove(rest2, flags);
+      return fail(`unknown: trigger ${sub}. Try add, ls or rm.`);
+    }
+    case 'deliveries':
+      return cmdDeliveries(flags);
+    case 'replay':
+      return cmdReplay(positional.slice(1), flags);
     case 'doctor':
       return cmdDoctor();
     default:

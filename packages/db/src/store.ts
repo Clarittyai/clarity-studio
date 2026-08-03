@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import type { DatabaseSync as DatabaseSyncType } from 'node:sqlite';
 
 import { MIGRATIONS } from './schema.js';
+import { TriggerStore } from './triggers.js';
 
 // Loaded through createRequire rather than a static import: bundlers that
 // don't yet know `node:sqlite` (Vite 5 among them) try to resolve it as a file
@@ -61,6 +62,8 @@ export interface StepRow {
 
 export class Store {
   private db: DatabaseSyncType;
+  /** Trigger instances and their delivery history. */
+  readonly triggers: TriggerStore;
 
   constructor(readonly file: string) {
     if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
@@ -70,6 +73,7 @@ export class Store {
     if (file !== ':memory:') this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec('PRAGMA foreign_keys = ON');
     for (const migration of MIGRATIONS) this.db.exec(migration);
+    this.triggers = new TriggerStore(this.db);
   }
 
   close(): void {
@@ -195,7 +199,10 @@ export class Store {
 
   listRuns(projectId: string, limit = 50): RunRow[] {
     const rows = this.db
-      .prepare('SELECT * FROM runs WHERE project_id = ? ORDER BY started_at DESC LIMIT ?')
+      // rowid breaks ties: two runs started in the same millisecond would
+      // otherwise come back in arbitrary order, which makes a run list appear
+      // to shuffle itself between refreshes.
+      .prepare('SELECT * FROM runs WHERE project_id = ? ORDER BY started_at DESC, rowid DESC LIMIT ?')
       .all(projectId, limit) as Record<string, unknown>[];
     return rows.map(toRun);
   }

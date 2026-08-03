@@ -9,10 +9,25 @@
       "description": "Runs the daily digest once a day at a time you choose.",
       "workflowId": "daily-digest",
       "maxInstancesPerUser": 1,
-      "supportedSchedules": ["DAILY"],
+      "supportedSchedules": [
+        "DAILY",
+        "INTERVAL",
+        "ONE_TIME"
+      ],
       "configFields": [
-        { "key": "time", "type": "time", "required": true, "label": "Run at", "default": "09:00" },
-        { "key": "timezone", "type": "timezone", "required": true, "label": "Timezone" }
+        {
+          "key": "time",
+          "type": "time",
+          "required": true,
+          "label": "Run at",
+          "default": "09:00"
+        },
+        {
+          "key": "timezone",
+          "type": "timezone",
+          "required": true,
+          "label": "Timezone"
+        }
       ]
     }
   ]
