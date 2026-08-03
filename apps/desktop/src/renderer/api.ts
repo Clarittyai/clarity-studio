@@ -57,7 +57,17 @@ export interface Trigger {
   missedCount: number;
 }
 
+export interface AgentInfo {
+  id: string;
+  name: string;
+  version: string;
+}
+
 export interface StudioApi {
+  /** The project's parsed intelligence.yaml, for the canvas. */
+  manifest(projectId: string): Promise<Record<string, unknown> | undefined>;
+  /** Coding agents installed on this machine. */
+  agents(): Promise<AgentInfo[]>;
   listProjects(): Promise<Project[]>;
   listRuns(projectId: string): Promise<Run[]>;
   listSteps(runId: string): Promise<Step[]>;
@@ -217,7 +227,38 @@ const demoTriggers: Trigger[] = [
   },
 ];
 
+const demoManifest = {
+  id: 'invoice-chaser',
+  integrations: [{ id: 'gmail', required: true }, { id: 'stripe', required: true }],
+  tools: [{ id: 'app.list_overdue', handler: 'backend.tools.list_overdue:run' }],
+  agents: [
+    {
+      id: 'chaser',
+      description: 'Decides which invoices to chase',
+      promptFile: 'backend/agents/chaser.md',
+      tools: ['app.list_overdue', 'stripe.list_invoices', 'gmail.send'],
+      integrations: ['stripe'],
+    },
+  ],
+  workflows: [
+    { id: 'chase-overdue', steps: [{ id: 'collect', tool: 'app.list_overdue' }, { id: 'decide', agent: 'chaser' }] },
+  ],
+  triggers: [
+    { id: 'weekday-morning', type: 'SCHEDULE', workflow: 'chase-overdue' },
+    { id: 'on-invoice-paid', type: 'WEBHOOK', workflow: 'chase-overdue' },
+  ],
+};
+
 const fixtures: StudioApi = {
+  async manifest() {
+    return demoManifest;
+  },
+  async agents() {
+    return [
+      { id: 'claude', name: 'Claude Code', version: '2.1.4' },
+      { id: 'codex', name: 'Codex', version: '0.9.2' },
+    ];
+  },
   async listProjects() {
     return demoProjects;
   },

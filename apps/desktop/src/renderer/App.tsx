@@ -9,7 +9,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { api, isDemo, type Project, type Run, type Step, type Trigger } from './api.js';
+import { api, isDemo, type AgentInfo, type Project, type Run, type Step, type Trigger } from './api.js';
+import { Canvas } from './components/Canvas.js';
 import {
   Badge,
   Button,
@@ -128,6 +129,8 @@ function ProjectView({ project }: { project: Project }) {
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [spend, setSpend] = useState({ costMicros: 0, calls: 0 });
   const [openRunId, setOpenRunId] = useState<string | undefined>();
+  const [manifest, setManifest] = useState<Record<string, unknown> | undefined>();
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
 
   useEffect(() => {
     void api.listRuns(project.id).then((r) => {
@@ -136,6 +139,8 @@ function ProjectView({ project }: { project: Project }) {
     });
     void api.listTriggers(project.id).then(setTriggers);
     void api.spend(project.id, Date.now() - 7 * 86_400_000).then(setSpend);
+    void api.manifest(project.id).then(setManifest);
+    void api.agents().then(setAgents);
   }, [project.id]);
 
   const running = project.status === 'running';
@@ -188,6 +193,23 @@ function ProjectView({ project }: { project: Project }) {
           hint={triggers.find((t) => t.missedCount > 0) ? 'some windows missed' : undefined}
         />
       </div>
+
+      <Section
+        title="Structure"
+        action={
+          agents.length > 0 ? (
+            <span className="text-xs text-muted-foreground">
+              Author with {agents.map((a) => a.name).join(' or ')}
+            </span>
+          ) : undefined
+        }
+      >
+        {manifest ? (
+          <Canvas manifest={manifest} />
+        ) : (
+          <EmptyState title="No manifest" body="This project has no intelligence.yaml yet." />
+        )}
+      </Section>
 
       <Section title="Triggers">
         {triggers.length === 0 ? (

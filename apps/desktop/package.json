@@ -17,7 +17,9 @@
     "@claritty-studio/db": "workspace:*",
     "@claritty-studio/design": "workspace:*",
     "@claritty-studio/orchestrator": "workspace:*",
-    "@claritty-studio/scheduler": "workspace:*"
+    "@claritty-studio/scheduler": "workspace:*",
+    "@claritty-studio/graph": "workspace:*",
+    "@claritty-studio/agent-bridge": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

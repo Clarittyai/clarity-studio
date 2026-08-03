@@ -117,12 +117,33 @@ webhook ingress with an optional tunnel, delivery log with **replay**.
 
 *Demo: a 9am automation that actually fires, and a webhook you can replay.*
 
-## M5 — authoring
+## M5 — authoring (partly done)
 
-Embedded terminal, coding-agent detection and worktrees, manifest editor with
-the validation gates, intelligence canvas, verify-on-save.
+Done:
 
-*Demo: tell Claude Code "add a Slack step" and watch the canvas grow a node.*
+- `packages/graph` — `intelligence.yaml` → canvas nodes and edges, flowing the
+  way the automation runs. It renders **what is broken**, not only what exists:
+  a step pointing at a deleted agent becomes a dashed "not declared" node rather
+  than silently vanishing, which is the bug you opened the canvas to find.
+  Carries the same checks the runtime enforces at boot — agents with no
+  instructions, triggers firing nothing or two things, workflows with no steps,
+  and an agent calling an integration tool it never granted itself.
+- `packages/agent-bridge` — detects `claude`, `codex`, `gemini`, `cursor-agent`,
+  `opencode` and `aider`, and composes the opening prompt. The prompt is
+  deliberately short: the project already carries its rules in `CLAUDE.md` and
+  `AGENTS.md`, and a second copy would waste context and drift.
+- The canvas in the desktop app.
+
+Not done — **the embedded terminal**. A real terminal needs a pty, and
+`node-pty` is a native module, which cuts against the rule that made the store
+use `node:sqlite`. The resolution is that they serve different audiences:
+`node-pty` will be a dependency of the **desktop app only**, where people
+install a signed binary with prebuilds inside and never run `npm install`. The
+CLI and everything it depends on stay native-free. Until that lands, Studio
+detects your agent and tells you what to run; it does not host it.
+
+Also outstanding: worktree isolation per session, the manifest editor, and
+verify-on-save.
 
 ## M6 — import, convert, ship
 

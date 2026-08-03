@@ -57,6 +57,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@claritty-studio/agent-bridge':
+        specifier: workspace:*
+        version: link:../../packages/agent-bridge
       '@claritty-studio/control-plane':
         specifier: workspace:*
         version: link:../../packages/control-plane
@@ -66,6 +69,9 @@ importers:
       '@claritty-studio/design':
         specifier: workspace:*
         version: link:../../packages/design
+      '@claritty-studio/graph':
+        specifier: workspace:*
+        version: link:../../packages/graph
       '@claritty-studio/orchestrator':
         specifier: workspace:*
         version: link:../../packages/orchestrator
@@ -112,6 +118,18 @@ importers:
       vite:
         specifier: ^5.4.11
         version: 5.4.21(@types/node@22.20.1)
+
+  packages/agent-bridge:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
 
   packages/connectors:
     devDependencies:
@@ -161,6 +179,18 @@ importers:
       tailwindcss:
         specifier: ^3.4.17
         version: 3.4.19(tsx@4.23.5)
+
+  packages/graph:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
 
   packages/orchestrator:
     devDependencies:
