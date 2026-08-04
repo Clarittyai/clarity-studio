@@ -15,7 +15,7 @@
 
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
 import { spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -70,6 +70,40 @@ function db(): Store {
 const runtime = new RuntimeHost(db);
 /** Holds the coding-agent pty sessions. */
 const terminals = new TerminalHost();
+
+/**
+ * Window preferences.
+ *
+ * A small JSON beside the store rather than a table: this is a handful of paths
+ * a person set once, and adding a migration to the database for it would be
+ * more machinery than the thing deserves. Unreadable or corrupt falls back to
+ * the defaults rather than refusing to open.
+ */
+interface Settings {
+  automationsRoot?: string;
+}
+
+function settingsFile(): string {
+  return join(dataDir(), 'settings.json');
+}
+
+function readSettings(): Settings {
+  try {
+    return JSON.parse(readFileSync(settingsFile(), 'utf8')) as Settings;
+  } catch {
+    return {};
+  }
+}
+
+function writeSettings(next: Settings): void {
+  mkdirSync(dataDir(), { recursive: true });
+  writeFileSync(settingsFile(), JSON.stringify(next, null, 2));
+}
+
+/** Where new automations go unless one is chosen for a particular build. */
+function automationsRoot(): string {
+  return readSettings().automationsRoot ?? join(app.getPath('home'), 'Automations');
+}
 
 /**
  * Secrets go through the OS keyring. There is no passphrase prompt: a desktop
@@ -331,7 +365,7 @@ function registerIpc(): void {
         .slice(0, 60);
       if (!slug) throw new Error('Give the automation a name.');
 
-      const root = dir ? String(dir) : join(app.getPath('home'), 'Automations');
+      const root = dir ? String(dir) : automationsRoot();
       mkdirSync(root, { recursive: true });
       const target = join(root, slug);
       if (existsSync(target)) {
@@ -349,6 +383,23 @@ function registerIpc(): void {
       return { ...created, request: request ? String(request) : undefined };
     },
   );
+
+  ipcMain.handle('settings:get', () => ({ automationsRoot: automationsRoot() }));
+
+  /** Pick the folder new automations go into, and remember it. */
+  ipcMain.handle('settings:choose-automations-root', async () => {
+    const picked = await dialog.showOpenDialog({
+      title: 'Where should new automations go?',
+      defaultPath: automationsRoot(),
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (picked.canceled || !picked.filePaths[0]) return undefined;
+    // Only the default for NEW ones. Automations already in the library keep
+    // their own paths — moving somebody's folders because they changed a
+    // preference would be a surprise, and a destructive one.
+    writeSettings({ ...readSettings(), automationsRoot: picked.filePaths[0] });
+    return picked.filePaths[0];
+  });
 
   /** Only when someone explicitly wants them somewhere else. */
   ipcMain.handle('project:choose-folder', async () => {

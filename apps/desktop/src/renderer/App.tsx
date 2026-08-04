@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { Plus, Settings, Sparkles, Trash2 } from 'lucide-react';
+import { FolderOpen, Plus, Settings, Sparkles, Trash2 } from 'lucide-react';
 
 import {
   api,
@@ -994,8 +994,17 @@ function NewAutomation({
   const [name, setName] = useState('');
   const [request, setRequest] = useState('');
   const [dir, setDir] = useState<string | undefined>();
+  const [root, setRoot] = useState('~/Automations');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
+
+  // Show the real destination, not a guess — the folder is a setting now.
+  useEffect(() => {
+    void api
+      .getSettings()
+      .then((s2) => setRoot(s2.automationsRoot))
+      .catch(() => undefined);
+  }, []);
 
   const create = useCallback(async () => {
     if (!name.trim() || busy) return;
@@ -1050,7 +1059,7 @@ function NewAutomation({
 
         <div className="mt-3 flex items-center gap-2 text-[11.5px] text-muted-foreground">
           <span className="truncate font-mono">
-            {(dir ?? '~/Automations')}/{slugify(name) || '…'}
+            {(dir ?? root)}/{slugify(name) || '…'}
           </span>
           <button
             type="button"
@@ -1103,6 +1112,13 @@ function SettingsView() {
           Everything here stays on this machine.
         </p>
       </header>
+
+      <Band
+        title="Library"
+        subtitle="Where new automations are created. Existing ones keep the folder they are already in."
+      >
+        <AutomationsFolder />
+      </Band>
 
       <Band
         title="Model"
@@ -1178,5 +1194,44 @@ Content-Type: application/json
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Where new automations are created.
+ *
+ * Changing it moves nothing: automations already in the library keep their own
+ * paths, because relocating somebody's folders on a preference change would be
+ * a surprise, and an irreversible one. It is the default for what comes next.
+ */
+function AutomationsFolder() {
+  const [root, setRoot] = useState<string | undefined>();
+
+  useEffect(() => {
+    void api
+      .getSettings()
+      .then((s) => setRoot(s.automationsRoot))
+      .catch(() => undefined);
+  }, []);
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <code className="min-w-0 flex-1 truncate font-mono text-[12.5px]" data-selectable>
+          {root ?? '…'}
+        </code>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={async () => {
+            const picked = await api.chooseAutomationsRoot();
+            if (picked) setRoot(picked);
+          }}
+        >
+          Change
+        </Button>
+      </div>
+    </Card>
   );
 }

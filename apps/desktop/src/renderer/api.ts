@@ -127,6 +127,9 @@ export interface StudioApi {
   ): Promise<{ id: string; request?: string } | undefined>;
   /** Only used when someone explicitly changes where automations live. */
   chooseFolder(): Promise<string | undefined>;
+  /** Window preferences — currently just where new automations go. */
+  getSettings(): Promise<{ automationsRoot: string }>;
+  chooseAutomationsRoot(): Promise<string | undefined>;
   /** Forget an automation, and optionally erase it. Confirmed in the main process. */
   deleteProject(projectId: string): Promise<{ removed: boolean; deletedFiles?: boolean }>;
   /** Adopt a folder that already has an intelligence.yaml. */
@@ -365,6 +368,12 @@ const fixtures: StudioApi = {
     return undefined;
   },
   async chooseFolder() {
+    return undefined;
+  },
+  async getSettings() {
+    return { automationsRoot: '~/Automations' };
+  },
+  async chooseAutomationsRoot() {
     return undefined;
   },
   async deleteProject() {
