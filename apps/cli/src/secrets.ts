@@ -55,6 +55,13 @@ export class VaultSecretSource implements SecretSource {
     return this.env.providerKey(providerId);
   }
 
+  async providerBaseUrl(providerId: string): Promise<string | undefined> {
+    return (
+      this.vault.get({ kind: 'provider', id: providerId, field: 'base_url' }) ??
+      (await this.env.providerBaseUrl?.(providerId))
+    );
+  }
+
   async integrationCredentials(
     projectId: string,
     integrationId: string,

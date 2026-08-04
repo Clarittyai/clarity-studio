@@ -789,13 +789,7 @@ function ModelBand() {
   const [providers, setProviders] = useState<ProviderKey[]>([]);
   const [editing, setEditing] = useState<string | undefined>();
   const [value, setValue] = useState('');
-  /**
-   * Key only, for now. Storing a base URL already works, and the providers
-   * accept `ctx.baseUrl` — but `control-plane/src/server.ts` never passes it,
-   * so a custom endpoint would be saved and then silently ignored at run time.
-   * Offering the control before it routes would be worse than not offering it.
-   */
-  const field = 'api_key' as const;
+  const [field, setField] = useState<'api_key' | 'base_url'>('api_key');
   const [error, setError] = useState<string | undefined>();
 
   const reload = useCallback(async () => {
@@ -845,6 +839,7 @@ function ModelBand() {
                 variant="ghost"
                 onClick={() => {
                   setEditing(editing === provider.id ? undefined : provider.id);
+                  setField('api_key');
                   setValue('');
                 }}
               >
@@ -866,9 +861,26 @@ function ModelBand() {
 
             {editing === provider.id && (
               <div className="flex w-full flex-col gap-2 pt-1">
+                <div className="flex items-center gap-1">
+                  {(['api_key', 'base_url'] as const).map((which) => (
+                    <button
+                      key={which}
+                      type="button"
+                      onClick={() => setField(which)}
+                      className={cn(
+                        'rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-colors',
+                        which === field
+                          ? 'bg-accent text-accent-foreground'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {which === 'api_key' ? 'API key' : 'Your own endpoint'}
+                    </button>
+                  ))}
+                </div>
                 <div className="flex items-center gap-2">
                   <input
-                    type="password"
+                    type={field === 'api_key' ? 'password' : 'text'}
                     value={value}
                     autoFocus
                     onChange={(e) => setValue(e.target.value)}
@@ -876,7 +888,7 @@ function ModelBand() {
                       if (e.key === 'Enter' && value.trim()) void save(provider.id);
                       if (e.key === 'Escape') setEditing(undefined);
                     }}
-                    placeholder="sk-…"
+                    placeholder={field === 'api_key' ? 'sk-…' : 'http://localhost:11434/v1'}
                     className="min-w-0 flex-1 rounded-full border border-border bg-background px-3 py-1.5 font-mono text-[12px] text-foreground outline-none focus:border-accent"
                   />
                   <Button

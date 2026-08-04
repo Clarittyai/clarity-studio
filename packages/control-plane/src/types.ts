@@ -76,6 +76,12 @@ export interface SecretSource {
     integrationId: string,
     userId: string,
   ): Promise<Record<string, unknown> | undefined>;
+  /**
+   * Where to send this provider's calls, when it is not the vendor's own API —
+   * a local model, or a gateway. Optional: a source that does not implement it
+   * simply has no custom endpoints.
+   */
+  providerBaseUrl?(providerId: string): Promise<string | undefined>;
   /** Every literal secret value currently held, for exact-match redaction. */
   allSecretValues(): Promise<string[]>;
 }

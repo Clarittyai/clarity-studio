@@ -350,8 +350,13 @@ export class ControlPlane {
         );
       }
 
+      // A configured base URL is what makes "bring your own model" real: the
+      // providers have always accepted it, but nothing used to supply one, so a
+      // self-hosted endpoint was stored and then silently ignored.
+      const baseUrl = await this.secrets.providerBaseUrl?.(provider.id);
+
       const startedAt = Date.now();
-      const result = await provider.complete({ ...body, model }, { apiKey });
+      const result = await provider.complete({ ...body, model }, { apiKey, baseUrl });
       const latencyMs = Date.now() - startedAt;
 
       const micros = costMicros(

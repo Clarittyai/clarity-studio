@@ -60,6 +60,14 @@ class VaultSecretSource implements SecretSource {
     );
   }
 
+  /** A stored endpoint wins over the environment, same order as keys. */
+  async providerBaseUrl(providerId: string): Promise<string | undefined> {
+    return (
+      this.vault.get({ kind: 'provider', id: providerId, field: 'base_url' }) ??
+      (await this.env.providerBaseUrl?.(providerId))
+    );
+  }
+
   async integrationCredentials(
     projectId: string,
     integrationId: string,

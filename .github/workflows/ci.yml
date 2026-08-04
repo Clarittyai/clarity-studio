@@ -48,6 +48,9 @@ jobs:
       # The M3 proof: an automation reaching a real HTTP service through the
       # vault and the connector engine, with the credential never leaving the host.
       - run: pnpm proof:integrations
+      # "Bring your own model" is a promise too: a configured endpoint must
+      # actually receive the run's model call.
+      - run: pnpm proof:byom
 
   # The design system is generated from clarity-platform. If someone edits the
   # generated files by hand, or upstream moves a load-bearing value, this fails

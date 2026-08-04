@@ -39,6 +39,14 @@ export class EnvSecretSource implements SecretSource {
     return this.env[name] || undefined;
   }
 
+  async providerBaseUrl(providerId: string): Promise<string | undefined> {
+    const name = PROVIDER_ENV[providerId];
+    if (!name) return undefined;
+    // ANTHROPIC_API_KEY → ANTHROPIC_BASE_URL, which is the convention every
+    // one of these SDKs already uses.
+    return this.env[name.replace(/_API_KEY$/, '_BASE_URL')] || undefined;
+  }
+
   async integrationCredentials(
     _projectId: string,
     integrationId: string,

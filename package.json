@@ -19,7 +19,8 @@
     "design:sync": "pnpm --filter @clarity-studio/design sync",
     "shot": "node scripts/screenshot-app.mjs",
     "proof:integrations": "node scripts/m3-integration-proof.mjs",
-    "postinstall": "node scripts/fix-pty-permissions.mjs"
+    "postinstall": "node scripts/fix-pty-permissions.mjs",
+    "proof:byom": "node scripts/byom-proof.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
