@@ -115,8 +115,14 @@ export interface StudioApi {
   onProjectChanged(handler: (projectId: string, file: string) => void): () => void;
   /** What the automation's own agents actually asked the model, per run. */
   llmCalls(runId: string): Promise<LlmCall[]>;
-  /** Scaffold from the seed. Resolves undefined if the user cancels the dialog. */
-  createProject(): Promise<{ id: string } | undefined>;
+  /**
+   * Scaffold from the seed. `request` is what the person says it should do; it
+   * is handed to the coding agent as its opening instruction.
+   * Resolves undefined if they cancel the location dialog.
+   */
+  createProject(request?: string): Promise<{ id: string; request?: string } | undefined>;
+  /** Forget an automation, and optionally erase it. Confirmed in the main process. */
+  deleteProject(projectId: string): Promise<{ removed: boolean; deletedFiles?: boolean }>;
   /** Adopt a folder that already has an intelligence.yaml. */
   importProject(): Promise<{ id: string } | undefined>;
   start(projectId: string): Promise<void>;
@@ -351,6 +357,9 @@ const fixtures: StudioApi = {
   },
   async createProject() {
     return undefined;
+  },
+  async deleteProject() {
+    return { removed: false };
   },
   async importProject() {
     return undefined;

@@ -15,7 +15,7 @@
 
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
 import { spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -311,7 +311,7 @@ function registerIpc(): void {
   });
 
   /** Scaffold a new automation from the seed, then adopt it. */
-  ipcMain.handle('project:create', async () => {
+  ipcMain.handle('project:create', async (_event, request?: string) => {
     const picked = await dialog.showSaveDialog({
       title: 'New automation',
       message: 'Where should the automation live?',
@@ -329,7 +329,50 @@ function registerIpc(): void {
       recursive: true,
       filter: (src) => !src.includes('/.studio') && !src.includes('__pycache__'),
     });
-    return adopt(picked.filePath);
+    const created = adopt(picked.filePath);
+    // Carried back so the window can hand it straight to the coding agent:
+    // "what should it do" is the one thing only the person knows.
+    return { ...created, request: request ? String(request) : undefined };
+  });
+
+  /**
+   * Forget an automation, and optionally delete it.
+   *
+   * Two separate things, asked as two separate choices, because they are not
+   * equally reversible: removing it from the library is undone by opening the
+   * folder again, and deleting the folder is undone by nothing. Files are never
+   * removed unless that button is the one pressed.
+   */
+  ipcMain.handle('project:delete', async (_event, projectId: string) => {
+    const id = String(projectId);
+    const project = db().getProject(id);
+    if (!project) return { removed: false };
+
+    const { response } = await dialog.showMessageBox({
+      type: 'warning',
+      buttons: ['Cancel', 'Remove from Studio', 'Delete folder too'],
+      defaultId: 1,
+      cancelId: 0,
+      title: 'Delete automation',
+      message: `Delete “${project.name}”?`,
+      detail:
+        `Remove from Studio keeps the folder at ${project.path} — you can open it again later.\n\n` +
+        'Delete folder too erases the code, its runs and its history from disk. That cannot be undone.',
+    });
+    if (response === 0) return { removed: false };
+
+    // Stop it before forgetting it, or a runner keeps a port for something the
+    // library no longer lists.
+    await runtime.stop(id).catch(() => undefined);
+    terminals.close(id);
+    watchers.get(id)?.close();
+    watchers.delete(id);
+
+    if (response === 2) {
+      rmSync(project.path, { recursive: true, force: true });
+    }
+    db().deleteProject(id);
+    return { removed: true, deletedFiles: response === 2 };
   });
 }
 

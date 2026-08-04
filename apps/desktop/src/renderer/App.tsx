@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { Plus, Sparkles } from 'lucide-react';
+import { Plus, Settings, Sparkles, Trash2 } from 'lucide-react';
 
 import {
   api,
@@ -43,6 +43,7 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
+  const [pendingRequest, setPendingRequest] = useState<Record<string, string>>({});
 
   // Every load has a `catch`. Without one a rejected promise left the window on
   // an empty list forever with nothing said — indistinguishable from "you have
@@ -61,15 +62,40 @@ export default function App() {
     void refresh();
   }, [refresh]);
 
-  const onNew = useCallback(async () => {
-    setError(undefined);
-    try {
-      const created = await api.createProject();
-      if (created) await refresh(created.id);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }, [refresh]);
+  const onNew = useCallback(
+    async (request?: string) => {
+      setError(undefined);
+      try {
+        const created = await api.createProject(request);
+        if (!created) return;
+        // Remembered per project, so the agent's first instruction is the thing
+        // the person actually asked for rather than a generic "build something".
+        if (created.request) {
+          setPendingRequest((prev) => ({ ...prev, [created.id]: created.request! }));
+        }
+        await refresh(created.id);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [refresh],
+  );
+
+  const onDelete = useCallback(
+    async (projectId: string) => {
+      setError(undefined);
+      try {
+        const result = await api.deleteProject(projectId);
+        if (result.removed) {
+          setSelectedId(undefined);
+          await refresh();
+        }
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [refresh],
+  );
 
   const onImport = useCallback(async () => {
     setError(undefined);
@@ -81,17 +107,18 @@ export default function App() {
     }
   }, [refresh]);
 
+  const [showSettings, setShowSettings] = useState(false);
   const selected = projects.find((p) => p.id === selectedId);
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <TitleBar />
+      <TitleBar onSettings={() => setShowSettings((v) => !v)} settingsOpen={showSettings} />
       <div className="flex min-h-0 flex-1">
         <Sidebar
           projects={projects}
           selectedId={selectedId}
           onSelect={setSelectedId}
-          onNew={onNew}
+          onNew={() => void onNew()}
         />
         <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
           {/* Failures are shown, never swallowed. A dismissible strip rather
@@ -106,19 +133,21 @@ export default function App() {
               </Button>
             </div>
           )}
-          {selected ? (
-            <ProjectView project={selected} />
+          {showSettings ? (
+            <SettingsView />
+          ) : selected ? (
+            <ProjectView
+              project={selected}
+              request={pendingRequest[selected.id]}
+              onDelete={() => void onDelete(selected.id)}
+            />
           ) : (
             <EmptyState
               size="page"
               scene={<AutomationGraphScene />}
               title="No automations yet"
               body="Start one from the seed, or open a repo that already has an intelligence.yaml. Studio runs it, keeps it on schedule, and shows you what it did."
-              action={
-                <Button variant="accent" className="min-h-11" onClick={onNew}>
-                  New automation
-                </Button>
-              }
+              action={<NewAutomation onCreate={onNew} />}
               secondary={
                 <>
                   Everything stays on this machine.{' '}
@@ -150,7 +179,13 @@ const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
-function TitleBar() {
+function TitleBar({
+  onSettings,
+  settingsOpen,
+}: {
+  onSettings: () => void;
+  settingsOpen: boolean;
+}) {
   return (
     <header
       className={cn(
@@ -169,9 +204,18 @@ function TitleBar() {
           </span>
         )}
       </div>
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground" style={NO_DRAG}>
         {/* Said plainly, and true. It is the product's main promise. */}
         <span>local only · no account</span>
+        <Button
+          size="sm"
+          variant="ghost"
+          title="Settings"
+          onClick={onSettings}
+          className={settingsOpen ? 'text-accent' : undefined}
+        >
+          <Settings className="h-4 w-4" />
+        </Button>
       </div>
     </header>
   );
@@ -224,7 +268,15 @@ function Sidebar({
 
 // ── project ──────────────────────────────────────────────────────────────────
 
-function ProjectView({ project }: { project: Project }) {
+function ProjectView({
+  project,
+  request,
+  onDelete,
+}: {
+  project: Project;
+  request?: string;
+  onDelete: () => void;
+}) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [spend, setSpend] = useState({ costMicros: 0, calls: 0 });
@@ -352,6 +404,9 @@ function ProjectView({ project }: { project: Project }) {
           <Button variant="accent" disabled={busy !== undefined} onClick={() => act('run')}>
             {busy === 'run' ? 'Running…' : 'Run now'}
           </Button>
+          <Button variant="ghost" title="Delete automation" onClick={onDelete}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </header>
 
@@ -446,13 +501,6 @@ function ProjectView({ project }: { project: Project }) {
       </Band>
 
       <Band
-        title="Model"
-        subtitle="What the agents in this automation call when it runs. Your own key, or your own endpoint."
-      >
-        <ModelBand />
-      </Band>
-
-      <Band
         title="Build it"
         subtitle={
           codingAgents.length > 0
@@ -460,7 +508,7 @@ function ProjectView({ project }: { project: Project }) {
             : 'Write this automation with a coding agent, in the project folder.'
         }
       >
-        <TerminalPanel projectId={project.id} />
+        <TerminalPanel projectId={project.id} request={request} />
       </Band>
 
       <Band title="Triggers" subtitle="What starts it, without you.">
@@ -909,6 +957,141 @@ function ModelBand() {
       <p className="text-xs text-muted-foreground">
         Stored in this machine&rsquo;s keyring. Runs spend it; the Build-it terminal never does.
       </p>
+    </div>
+  );
+}
+
+/**
+ * The first-run call to action.
+ *
+ * It asks what the automation should do before creating anything, because that
+ * sentence is the one thing only the person knows — and it becomes the coding
+ * agent's opening instruction. Scaffolding first and asking later means the
+ * agent starts with "replace the example with something, ask me what", which
+ * wastes the turn that mattered.
+ *
+ * Optional on purpose: someone who wants to poke at the seed should not be made
+ * to write a brief first.
+ */
+function NewAutomation({ onCreate }: { onCreate: (request?: string) => Promise<void> }) {
+  const [request, setRequest] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const create = useCallback(async () => {
+    setBusy(true);
+    try {
+      await onCreate(request.trim() || undefined);
+    } finally {
+      setBusy(false);
+    }
+  }, [onCreate, request]);
+
+  return (
+    <div className="flex w-full max-w-md flex-col items-center gap-2.5">
+      <input
+        value={request}
+        onChange={(e) => setRequest(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !busy) void create();
+        }}
+        placeholder="What should it do? e.g. every Monday, email me last week's signups"
+        className="w-full rounded-full border border-border bg-background px-4 py-2.5 text-center text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-accent"
+      />
+      <Button variant="accent" className="min-h-11" disabled={busy} onClick={() => void create()}>
+        {busy ? 'Creating…' : 'New automation'}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Settings. Machine-wide, which is why it is not on a project screen: a key is
+ * stored once (`provider:*:…`) and every automation on this machine uses it, so
+ * showing it per-automation implied a per-automation setting that never existed.
+ */
+function SettingsView() {
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-10 p-8">
+      <header>
+        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Everything here stays on this machine.
+        </p>
+      </header>
+
+      <Band
+        title="Model"
+        subtitle="What your automations call when they run. A hosted provider's key, or your own model."
+      >
+        <ModelBand />
+      </Band>
+
+      <Band
+        title="Using a local model"
+        subtitle="Anything speaking the OpenAI chat-completions API works. Point OpenAI at its address and runs go there instead."
+      >
+        <LocalModelHelp />
+      </Band>
+    </div>
+  );
+}
+
+/** The servers people actually run, and the one call Studio makes to them. */
+const LOCAL_SERVERS: Array<{ name: string; url: string; note: string }> = [
+  { name: 'Ollama', url: 'http://localhost:11434/v1', note: 'ollama serve' },
+  { name: 'LM Studio', url: 'http://localhost:1234/v1', note: 'Local Server tab' },
+  { name: 'vLLM', url: 'http://localhost:8000/v1', note: 'vllm serve <model>' },
+  { name: 'llama.cpp', url: 'http://localhost:8080/v1', note: 'llama-server' },
+];
+
+function LocalModelHelp() {
+  return (
+    <div className="flex flex-col gap-4">
+      <Card className="divide-y divide-border">
+        {LOCAL_SERVERS.map((server) => (
+          <div key={server.name} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+            <span className="w-24 shrink-0 text-sm font-semibold text-foreground">
+              {server.name}
+            </span>
+            <code className="font-mono text-[12px] text-accent" data-selectable>
+              {server.url}
+            </code>
+            <span className="ml-auto font-mono text-[11px] text-muted-foreground/80">
+              {server.note}
+            </span>
+          </div>
+        ))}
+      </Card>
+
+      <div>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Studio sends exactly this — no proprietary fields, so any compatible server answers it:
+        </p>
+        {/* The real request shape, so it can be checked with curl before trusting a run. */}
+        <pre
+          className="overflow-x-auto rounded-2xl border border-border bg-foreground/[0.03] p-4 font-mono text-[11.5px] leading-relaxed text-muted-foreground"
+          data-selectable
+        >
+{`POST {your-endpoint}/chat/completions
+Authorization: Bearer {key, or anything if your server ignores it}
+Content-Type: application/json
+
+{
+  "model": "llama3.1:8b",
+  "messages": [{ "role": "user", "content": "…" }],
+  "tools": [ … ]            // only when the agent has tools
+}
+
+→ { "choices": [ { "message": { "role": "assistant", "content": "…" } } ],
+    "usage": { "prompt_tokens": 0, "completion_tokens": 0 } }`}
+        </pre>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Set the endpoint above under <span className="text-foreground">Openai → Your own
+          endpoint</span>, and put the model id in your manifest. A server that ignores the
+          Authorization header needs no key at all — the run precheck accepts an endpoint on its
+          own.
+        </p>
+      </div>
     </div>
   );
 }

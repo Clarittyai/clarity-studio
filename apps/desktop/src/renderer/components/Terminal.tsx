@@ -44,7 +44,14 @@ function themeFromTokens(): Record<string, string> {
   };
 }
 
-export function TerminalPanel({ projectId }: { projectId: string }) {
+export function TerminalPanel({
+  projectId,
+  request,
+}: {
+  projectId: string;
+  /** What the person said it should do, handed to the agent as its first instruction. */
+  request?: string;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | undefined>(undefined);
   const fitRef = useRef<FitAddon | undefined>(undefined);
@@ -92,7 +99,7 @@ export function TerminalPanel({ projectId }: { projectId: string }) {
     ro.observe(hostRef.current);
 
     void api
-      .openTerminal(projectId)
+      .openTerminal(projectId, request)
       .then((result) => {
         setAgentName(result?.agent?.name);
         setStarted(true);
@@ -110,6 +117,10 @@ export function TerminalPanel({ projectId }: { projectId: string }) {
       term.dispose();
       termRef.current = undefined;
     };
+    // `request` is deliberately not a dependency: it is the opening instruction
+    // for a session that has already started, and re-running this would kill a
+    // live conversation to say the same thing again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   return (
