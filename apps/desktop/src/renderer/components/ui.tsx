@@ -13,6 +13,8 @@
  */
 
 import type { ReactNode } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import type { LucideIcon } from 'lucide-react';
 
 export function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
@@ -151,14 +153,102 @@ export function Badge({ children, tone = 'muted' }: { children: ReactNode; tone?
 
 // ── empty state ──────────────────────────────────────────────────────────────
 
-export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
+/**
+ * Ported from the platform's `ui/empty-state.tsx`, including the rule that
+ * matters most: **no border, no card, no dashed box.** An empty state is open
+ * space with something living in it, not a plate. (Studio's first version was a
+ * dashed rectangle, which is exactly what the platform removed ~35 of.)
+ *
+ * Three sizes:
+ *   page    — a first-run moment. Full-bleed, centered, usually with a `scene`.
+ *   section — a block inside a populated screen. Quieter.
+ *   inline  — one line (an empty sub-list). No scene, no CTA.
+ *
+ * Pass `scene` for first-run surfaces, `icon` everywhere else — never both.
+ */
+export function EmptyState({
+  size = 'section',
+  scene,
+  icon: Icon,
+  title,
+  body,
+  action,
+  secondary,
+  className,
+}: {
+  size?: 'page' | 'section' | 'inline';
+  scene?: ReactNode;
+  icon?: LucideIcon;
+  title: string;
+  body?: string;
+  action?: ReactNode;
+  secondary?: ReactNode;
+  className?: string;
+}) {
+  const reduce = useReducedMotion() ?? false;
+
+  // An empty sub-list doesn't deserve a stage and a headline — just say it.
+  if (size === 'inline') {
+    return (
+      <p className={cn('py-3 text-center text-xs text-muted-foreground', className)}>
+        {title}
+        {body ? <span className="mt-0.5 block">{body}</span> : null}
+      </p>
+    );
+  }
+
+  const isPage = size === 'page';
+
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-8 py-14 text-center">
-      <p className="text-sm font-semibold">{title}</p>
-      {/* Never invent a false CTA: if there is nothing useful to do here, the
-          empty state says so rather than offering a dead button. */}
-      <p className="max-w-md text-sm text-muted-foreground">{body}</p>
-      {action}
+    <div
+      className={cn(
+        'relative flex flex-col items-center text-center',
+        // `min-h-full` rather than a viewport fraction: a first-run moment should
+        // sit in the middle of the space it actually has, and in a desktop window
+        // that space is the pane, not the viewport.
+        isPage ? 'min-h-full flex-1 justify-center px-6 py-10' : 'px-6 py-12',
+        className,
+      )}
+    >
+      {scene ? (
+        <div className="relative mb-6 w-full max-w-sm">
+          {/* Soft spotlight — the scene sits in light, not on a plate. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-4 h-40 w-72 -translate-x-1/2 rounded-full bg-accent/10 blur-3xl"
+          />
+          <div className="relative">{scene}</div>
+        </div>
+      ) : Icon ? (
+        <motion.div
+          initial={reduce ? false : { opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent"
+        >
+          <Icon className="h-7 w-7" />
+        </motion.div>
+      ) : null}
+
+      <motion.div
+        initial={reduce ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: scene ? 0.35 : 0.1, duration: 0.45 }}
+        className="relative flex flex-col items-center"
+      >
+        <h3 className={cn('font-semibold text-foreground', isPage ? 'text-lg' : 'text-base')}>
+          {title}
+        </h3>
+
+        {/* Never invent a false CTA: if there is nothing useful to do here, the
+            empty state says so rather than offering a dead button. */}
+        {body ? (
+          <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">{body}</p>
+        ) : null}
+
+        {action ? <div className="mt-6">{action}</div> : null}
+        {secondary ? <div className="mt-3 text-xs text-muted-foreground">{secondary}</div> : null}
+      </motion.div>
     </div>
   );
 }

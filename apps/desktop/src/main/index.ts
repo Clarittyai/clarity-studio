@@ -13,15 +13,35 @@
  * - a CSP that permits nothing but self
  */
 
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
-import { existsSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
+import { spawn } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import { parse as parseYaml } from 'yaml';
 
+import { detectAgents } from '@clarity-studio/agent-bridge';
 import { Store } from '@clarity-studio/db';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEV_SERVER = process.env.STUDIO_DEV_SERVER;
+
+/**
+ * The product is one-`t` Clarity Studio, but it belongs to the two-`t` Claritty
+ * brand, and the brand is what a person recognises in a dock. See CLAUDE.md for
+ * which spelling goes where.
+ *
+ * This has to run before `whenReady`: Electron derives the menu-bar name, the
+ * dock label *and* `getPath('userData')` from it. Without it the name falls back
+ * to the package name, which put the store in a directory literally called
+ * `@clarity-studio/desktop` — an npm scope leaking into a filesystem path.
+ */
+const APP_NAME = 'Claritty Studio';
+app.setName(APP_NAME);
+
+/** Bundled at `assets/icon.png`, three levels up from `dist/main`. */
+const ICON_PATH = join(HERE, '../../assets/icon.png');
 
 function dataDir(): string {
   return process.env.STUDIO_HOME ?? app.getPath('userData');
@@ -83,15 +103,125 @@ function registerIpc(): void {
     db().spendSince(String(projectId), Number(sinceMs)),
   );
 
-  // Lifecycle is stubbed until the runner is hosted in-process. Returning a
-  // clear "not wired yet" beats a button that silently does nothing.
+  // Still hosted by the CLI rather than in-process. Kept as explicit handlers
+  // with an actionable message — an unregistered channel rejects with Electron's
+  // opaque "No handler registered", which tells nobody what to do next.
   for (const channel of ['project:start', 'project:stop', 'workflow:run']) {
     ipcMain.handle(channel, () => {
       throw new Error(
-        `${channel} is not wired to the desktop app yet — use the CLI: clarity-studio serve`,
+        'Running an automation is not hosted in the desktop app yet. ' +
+          'Use the CLI meanwhile: clarity-studio serve',
       );
     });
   }
+
+  /**
+   * The project's manifest, for the canvas. Read fresh each time rather than
+   * cached: the whole point of Studio is that you edit the automation in your
+   * editor and see the change here.
+   */
+  ipcMain.handle('manifest:get', (_event, projectId: string) => {
+    const project = db().getProject(String(projectId));
+    if (!project) return undefined;
+    const file = manifestIn(project.path);
+    if (!file) return undefined;
+    try {
+      return parseYaml(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    } catch {
+      // A manifest mid-edit is a normal state, not an error worth a dialog.
+      return undefined;
+    }
+  });
+
+  /** Coding agents installed on this machine, for the "author with…" hint. */
+  ipcMain.handle('agents:list', async () => {
+    const probe = (bin: string, args: string[]) =>
+      new Promise<{ code: number; output: string }>((resolveProbe) => {
+        const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+        let output = '';
+        child.stdout?.on('data', (d) => (output += String(d)));
+        child.stderr?.on('data', (d) => (output += String(d)));
+        child.on('error', () => resolveProbe({ code: 1, output: '' }));
+        child.on('close', (code) => resolveProbe({ code: code ?? 1, output }));
+      });
+    const found = await detectAgents(probe);
+    return found.map((a) => ({ id: a.id, name: a.name, version: a.version }));
+  });
+
+  /** Adopt an automation that already exists on disk. */
+  ipcMain.handle('project:import', async () => {
+    const picked = await dialog.showOpenDialog({
+      title: 'Open an automation',
+      message: 'Choose a folder containing an intelligence.yaml',
+      properties: ['openDirectory'],
+    });
+    if (picked.canceled || !picked.filePaths[0]) return undefined;
+    return adopt(picked.filePaths[0]);
+  });
+
+  /** Scaffold a new automation from the seed, then adopt it. */
+  ipcMain.handle('project:create', async () => {
+    const picked = await dialog.showSaveDialog({
+      title: 'New automation',
+      message: 'Where should the automation live?',
+      nameFieldLabel: 'Name:',
+      defaultPath: join(app.getPath('home'), 'my-automation'),
+      buttonLabel: 'Create',
+    });
+    if (picked.canceled || !picked.filePath) return undefined;
+    if (existsSync(picked.filePath)) {
+      throw new Error(`${picked.filePath} already exists — pick a name that is not taken.`);
+    }
+    const seed = seedDir();
+    if (!seed) throw new Error('Could not find the automation seed — is the install complete?');
+    cpSync(seed, picked.filePath, {
+      recursive: true,
+      filter: (src) => !src.includes('/.studio') && !src.includes('__pycache__'),
+    });
+    return adopt(picked.filePath);
+  });
+}
+
+/** Both `intelligence.yaml` and the older `app.yaml` count as a manifest. */
+function manifestIn(dir: string): string | undefined {
+  for (const name of ['intelligence.yaml', 'app.yaml']) {
+    if (existsSync(join(dir, name))) return join(dir, name);
+  }
+  return undefined;
+}
+
+/**
+ * The automation seed, resolved the same way the CLI resolves it — from the
+ * checkout when running from source, from the bundled copy otherwise.
+ */
+function seedDir(): string | undefined {
+  const candidates = [
+    resolve(HERE, '../../../../packages/automation-seed'),
+    resolve(HERE, '../../seed'),
+  ];
+  return candidates.find((dir) => existsSync(join(dir, 'intelligence.yaml')));
+}
+
+/**
+ * Record a folder as a project. Refuses anything without a manifest rather than
+ * adding a row that can only ever fail to start.
+ */
+function adopt(path: string): { id: string } {
+  if (!manifestIn(path)) {
+    throw new Error(`No intelligence.yaml in ${path} — that folder is not an automation.`);
+  }
+  const slug = basename(path);
+  const existing = db().getProjectBySlug(slug);
+  const id = existing?.id ?? randomUUID();
+  db().upsertProject({
+    id,
+    name: slug,
+    slug,
+    path,
+    runtime: existing?.runtime ?? 'native',
+    status: 'stopped',
+  });
+  return { id };
 }
 
 function describe(schedule: unknown, type: string): string {
@@ -112,6 +242,10 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     show: false,
+    title: APP_NAME,
+    // Windows and Linux take the icon from the window; macOS takes it from the
+    // bundle, so in an unpackaged dev run it is set on the dock below instead.
+    ...(process.platform === 'darwin' ? {} : { icon: ICON_PATH }),
     backgroundColor: '#0F0F10',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
@@ -167,6 +301,14 @@ void app.whenReady().then(() => {
       });
     });
   });
+
+  // Unpackaged macOS runs (`electron .`) show the Electron binary's own icon,
+  // because the dock reads the .app bundle rather than the window. Setting it
+  // explicitly means `pnpm start` looks like the product, not like a toolchain.
+  if (process.platform === 'darwin' && app.dock && existsSync(ICON_PATH)) {
+    const image = nativeImage.createFromPath(ICON_PATH);
+    if (!image.isEmpty()) app.dock.setIcon(image);
+  }
 
   registerIpc();
   createWindow();

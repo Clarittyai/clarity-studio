@@ -73,6 +73,10 @@ export interface StudioApi {
   listSteps(runId: string): Promise<Step[]>;
   listTriggers(projectId: string): Promise<Trigger[]>;
   spend(projectId: string, sinceMs: number): Promise<{ costMicros: number; calls: number }>;
+  /** Scaffold from the seed. Resolves undefined if the user cancels the dialog. */
+  createProject(): Promise<{ id: string } | undefined>;
+  /** Adopt a folder that already has an intelligence.yaml. */
+  importProject(): Promise<{ id: string } | undefined>;
   start(projectId: string): Promise<void>;
   stop(projectId: string): Promise<void>;
   runWorkflow(projectId: string, workflowId?: string): Promise<void>;
@@ -273,6 +277,12 @@ const fixtures: StudioApi = {
   },
   async spend() {
     return { costMicros: 89_100, calls: 12 };
+  },
+  async createProject() {
+    return undefined;
+  },
+  async importProject() {
+    return undefined;
   },
   async start() {},
   async stop() {},

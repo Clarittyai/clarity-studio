@@ -113,6 +113,11 @@ jobs:
           allowed="$allowed"'|claritty-proxy|claritty\.(step|workflow|agent|tool|run|user|idempotency)\.'
           allowed="$allowed"'|Clarittyai|claritty\.ai|create-claritty-app|\.claritty-allowlist'
           allowed="$allowed"'|_claritty_redactor|claritty_user_context'
+          # The *brand* is two-`t` and always capitalised — it is what the app
+          # calls itself and what the wordmark spells. Repo-owned identifiers are
+          # lowercase or kebab, so allowing only the capitalised form still
+          # catches `claritty-studio`, `claritty_foo` and friends.
+          allowed="$allowed"'|Claritty'
           # This file is skipped because the check's own pattern would match it.
           stray=$(grep -rIn -i 'claritty' \
                     --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist \

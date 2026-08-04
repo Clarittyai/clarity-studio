@@ -7,10 +7,13 @@
  * it configured".
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { Plus } from 'lucide-react';
 
 import { api, isDemo, type AgentInfo, type Project, type Run, type Step, type Trigger } from './api.js';
+import { BrandLockup } from './components/Brand.js';
 import { Canvas } from './components/Canvas.js';
+import { AutomationGraphScene } from './components/live/AutomationGraphScene.js';
 import {
   Badge,
   Button,
@@ -28,13 +31,44 @@ import {
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>();
+  const [error, setError] = useState<string | undefined>();
+
+  // Every load has a `catch`. Without one a rejected promise left the window on
+  // an empty list forever with nothing said — indistinguishable from "you have
+  // no automations", which is how a broken app looks like a working one.
+  const refresh = useCallback(async (select?: string) => {
+    try {
+      const p = await api.listProjects();
+      setProjects(p);
+      setSelectedId((current) => select ?? current ?? p[0]?.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, []);
 
   useEffect(() => {
-    void api.listProjects().then((p) => {
-      setProjects(p);
-      setSelectedId((current) => current ?? p[0]?.id);
-    });
-  }, []);
+    void refresh();
+  }, [refresh]);
+
+  const onNew = useCallback(async () => {
+    setError(undefined);
+    try {
+      const created = await api.createProject();
+      if (created) await refresh(created.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [refresh]);
+
+  const onImport = useCallback(async () => {
+    setError(undefined);
+    try {
+      const opened = await api.importProject();
+      if (opened) await refresh(opened.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [refresh]);
 
   const selected = projects.find((p) => p.id === selectedId);
 
@@ -42,18 +76,51 @@ export default function App() {
     <div className="flex h-full flex-col bg-background">
       <TitleBar />
       <div className="flex min-h-0 flex-1">
-        <Sidebar projects={projects} selectedId={selectedId} onSelect={setSelectedId} />
-        <main className="min-w-0 flex-1 overflow-y-auto">
+        <Sidebar
+          projects={projects}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onNew={onNew}
+        />
+        <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+          {/* Failures are shown, never swallowed. A dismissible strip rather
+              than a modal: it must not block the rest of the window. */}
+          {error && (
+            <div className="mx-6 mt-4 flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3">
+              <p className="min-w-0 flex-1 text-sm text-destructive" data-selectable>
+                {error}
+              </p>
+              <Button size="sm" variant="ghost" onClick={() => setError(undefined)}>
+                Dismiss
+              </Button>
+            </div>
+          )}
           {selected ? (
             <ProjectView project={selected} />
           ) : (
-            <div className="p-10">
-              <EmptyState
-                title="No automations yet"
-                body="Create one from the seed, or import a repo that already has an intelligence.yaml. Studio will run it, schedule it, and show you what it did."
-                action={<Button variant="accent">New automation</Button>}
-              />
-            </div>
+            <EmptyState
+              size="page"
+              scene={<AutomationGraphScene />}
+              title="No automations yet"
+              body="Start one from the seed, or open a repo that already has an intelligence.yaml. Studio runs it, keeps it on schedule, and shows you what it did."
+              action={
+                <Button variant="accent" className="min-h-11" onClick={onNew}>
+                  New automation
+                </Button>
+              }
+              secondary={
+                <>
+                  Everything stays on this machine.{' '}
+                  <button
+                    type="button"
+                    onClick={onImport}
+                    className="rounded-full text-accent underline-offset-4 transition-colors hover:underline"
+                  >
+                    Or open an existing folder
+                  </button>
+                </>
+              }
+            />
           )}
         </main>
       </div>
@@ -63,13 +130,33 @@ export default function App() {
 
 // ── chrome ───────────────────────────────────────────────────────────────────
 
+/**
+ * On macOS the window is `titleBarStyle: 'hiddenInset'`, so the traffic lights
+ * float over the top-left of our own content. Without an inset they land on top
+ * of the logo. 78px clears them at the standard control size.
+ */
+const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
+const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
+const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
+
 function TitleBar() {
   return (
-    <header className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4">
+    <header
+      className={cn(
+        'flex h-11 shrink-0 items-center justify-between border-b border-border px-4',
+        isMac && 'pl-[78px]',
+      )}
+      style={DRAG}
+    >
+      {/* Mark + wordmark, at the platform's own proportions. The badge opts out
+          of the drag region so it stays clickable. */}
       <div className="flex items-center gap-2">
-        <span className="h-2.5 w-2.5 rounded-[3px] bg-accent" />
-        <span className="text-[13px] font-semibold tracking-tight">Clarity Studio</span>
-        {isDemo && <Badge tone="warning">sample data</Badge>}
+        <BrandLockup />
+        {isDemo && (
+          <span style={NO_DRAG}>
+            <Badge tone="warning">sample data</Badge>
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         {/* Said plainly, and true. It is the product's main promise. */}
@@ -83,10 +170,12 @@ function Sidebar({
   projects,
   selectedId,
   onSelect,
+  onNew,
 }: {
   projects: Project[];
   selectedId?: string;
   onSelect: (id: string) => void;
+  onNew: () => void;
 }) {
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-1 border-r border-border p-3">
@@ -94,8 +183,8 @@ function Sidebar({
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Automations
         </span>
-        <Button size="sm" variant="ghost" title="New automation">
-          +
+        <Button size="sm" variant="ghost" title="New automation" onClick={onNew}>
+          <Plus className="h-4 w-4" />
         </Button>
       </div>
 

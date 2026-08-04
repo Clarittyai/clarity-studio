@@ -13,27 +13,30 @@
     "start": "electron ."
   },
   "dependencies": {
+    "@clarity-studio/agent-bridge": "workspace:*",
     "@clarity-studio/control-plane": "workspace:*",
     "@clarity-studio/db": "workspace:*",
     "@clarity-studio/design": "workspace:*",
+    "@clarity-studio/graph": "workspace:*",
     "@clarity-studio/orchestrator": "workspace:*",
     "@clarity-studio/scheduler": "workspace:*",
-    "@clarity-studio/graph": "workspace:*",
-    "@clarity-studio/agent-bridge": "workspace:*"
+    "framer-motion": "^12.43.0",
+    "lucide-react": "^1.28.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
+    "@fontsource-variable/inter": "^5.1.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "electron": "^37.10.3",
     "postcss": "^8.4.49",
+    "postcss-import": "^16.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11",
-    "postcss-import": "^16.1.0",
-    "@fontsource-variable/inter": "^5.1.0"
+    "vite": "^5.4.11"
   }
 }
