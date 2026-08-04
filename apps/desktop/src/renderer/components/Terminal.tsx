@@ -118,7 +118,9 @@ export function TerminalPanel({ projectId }: { projectId: string }) {
         {agentName ? (
           <>
             <span className="text-xs text-muted-foreground">
-              {agentName} is running in this folder and has already read its instructions. Try:
+              {agentName} is signed in as you, running in this folder, with the project&rsquo;s
+              instructions and skills already loaded. Your automation&rsquo;s API key is not used
+              here. Try:
             </span>
             {COMMANDS.map(({ cmd, hint }) => (
               <button

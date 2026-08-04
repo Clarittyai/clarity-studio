@@ -54,6 +54,38 @@ const probe = (bin: string, args: string[]) =>
     child.on('close', (code) => resolve({ code: code ?? 1, output }));
   });
 
+/**
+ * Provider keys that must NOT reach the authoring session.
+ *
+ * Writing an automation and running one are paid for by different people in
+ * different ways, and conflating them is a real cost bug. A run spends the key
+ * in the vault, metered per step. Authoring is the user's own Claude Code
+ * session, on whatever plan they already signed in with.
+ *
+ * Inheriting the shell's environment wholesale breaks that: with
+ * `ANTHROPIC_API_KEY` exported, Claude Code silently bills that key instead of
+ * the subscription the user is sitting in front of — and the automation's run
+ * budget quietly pays for the conversation that wrote it. So the keys are
+ * stripped here rather than trusted not to matter.
+ */
+const PROVIDER_KEYS = [
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'OPENAI_API_KEY',
+  'GEMINI_API_KEY',
+  'GOOGLE_API_KEY',
+];
+
+function authoringEnv(): Record<string, string> {
+  const env: Record<string, string> = { TERM: 'xterm-256color' };
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value === undefined) continue;
+    if (PROVIDER_KEYS.includes(key)) continue;
+    env[key] = value;
+  }
+  return env;
+}
+
 export class TerminalHost {
   private readonly sessions = new Map<string, Session>();
 
@@ -100,7 +132,7 @@ export class TerminalHost {
       cols: 100,
       rows: 24,
       cwd: existsSync(opts.cwd) ? opts.cwd : process.env.HOME,
-      env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
+      env: authoringEnv(),
     });
 
     proc.onData((data) => {
