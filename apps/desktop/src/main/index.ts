@@ -311,28 +311,52 @@ function registerIpc(): void {
   });
 
   /** Scaffold a new automation from the seed, then adopt it. */
-  ipcMain.handle('project:create', async (_event, request?: string) => {
-    const picked = await dialog.showSaveDialog({
-      title: 'New automation',
-      message: 'Where should the automation live?',
-      nameFieldLabel: 'Name:',
-      defaultPath: join(app.getPath('home'), 'my-automation'),
-      buttonLabel: 'Create',
+  /**
+   * Scaffold a new automation.
+   *
+   * Deliberately NOT a native save panel. That panel asks "where should this
+   * file go" — with a Tags field, a Finder browser and no room for the one
+   * question that matters — and it is the wrong first impression for a product
+   * whose pitch is that it writes the automation for you. The window asks what
+   * it should do; this just puts it somewhere sensible.
+   */
+  ipcMain.handle(
+    'project:create',
+    async (_event, name: string, request?: string, dir?: string) => {
+      const slug = String(name)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60);
+      if (!slug) throw new Error('Give the automation a name.');
+
+      const root = dir ? String(dir) : join(app.getPath('home'), 'Automations');
+      mkdirSync(root, { recursive: true });
+      const target = join(root, slug);
+      if (existsSync(target)) {
+        throw new Error(`${target} already exists — pick another name.`);
+      }
+
+      const seed = seedDir();
+      if (!seed) throw new Error('Could not find the automation seed — is the install complete?');
+      cpSync(seed, target, {
+        recursive: true,
+        filter: (src) => !src.includes('/.studio') && !src.includes('__pycache__'),
+      });
+
+      const created = adopt(target);
+      return { ...created, request: request ? String(request) : undefined };
+    },
+  );
+
+  /** Only when someone explicitly wants them somewhere else. */
+  ipcMain.handle('project:choose-folder', async () => {
+    const picked = await dialog.showOpenDialog({
+      title: 'Where should automations live?',
+      properties: ['openDirectory', 'createDirectory'],
     });
-    if (picked.canceled || !picked.filePath) return undefined;
-    if (existsSync(picked.filePath)) {
-      throw new Error(`${picked.filePath} already exists — pick a name that is not taken.`);
-    }
-    const seed = seedDir();
-    if (!seed) throw new Error('Could not find the automation seed — is the install complete?');
-    cpSync(seed, picked.filePath, {
-      recursive: true,
-      filter: (src) => !src.includes('/.studio') && !src.includes('__pycache__'),
-    });
-    const created = adopt(picked.filePath);
-    // Carried back so the window can hand it straight to the coding agent:
-    // "what should it do" is the one thing only the person knows.
-    return { ...created, request: request ? String(request) : undefined };
+    return picked.canceled ? undefined : picked.filePaths[0];
   });
 
   /**

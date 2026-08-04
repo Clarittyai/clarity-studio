@@ -22,7 +22,9 @@ contextBridge.exposeInMainWorld('studio', {
   // TypeError took the whole view down. Bridged now.
   manifest: (projectId: string) => ipcRenderer.invoke('manifest:get', projectId),
   agents: () => ipcRenderer.invoke('agents:list'),
-  createProject: (request?: string) => ipcRenderer.invoke('project:create', request),
+  createProject: (name: string, request?: string, dir?: string) =>
+    ipcRenderer.invoke('project:create', name, request, dir),
+  chooseFolder: () => ipcRenderer.invoke('project:choose-folder'),
   deleteProject: (projectId: string) => ipcRenderer.invoke('project:delete', projectId),
   importProject: () => ipcRenderer.invoke('project:import'),
   // The terminal. `onData` returns its own unsubscribe rather than exposing

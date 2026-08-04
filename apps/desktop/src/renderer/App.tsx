@@ -62,20 +62,24 @@ export default function App() {
     void refresh();
   }, [refresh]);
 
+  const [composing, setComposing] = useState(false);
+
   const onNew = useCallback(
-    async (request?: string) => {
+    async (name: string, request?: string, dir?: string) => {
       setError(undefined);
       try {
-        const created = await api.createProject(request);
+        const created = await api.createProject(name, request, dir);
         if (!created) return;
         // Remembered per project, so the agent's first instruction is the thing
         // the person actually asked for rather than a generic "build something".
         if (created.request) {
           setPendingRequest((prev) => ({ ...prev, [created.id]: created.request! }));
         }
+        setComposing(false);
         await refresh(created.id);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
+        throw cause;
       }
     },
     [refresh],
@@ -113,12 +117,15 @@ export default function App() {
   return (
     <div className="flex h-full flex-col bg-background">
       <TitleBar onSettings={() => setShowSettings((v) => !v)} settingsOpen={showSettings} />
+      {composing && (
+        <NewAutomation onCreate={onNew} onCancel={() => setComposing(false)} />
+      )}
       <div className="flex min-h-0 flex-1">
         <Sidebar
           projects={projects}
           selectedId={selectedId}
           onSelect={setSelectedId}
-          onNew={() => void onNew()}
+          onNew={() => setComposing(true)}
         />
         <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
           {/* Failures are shown, never swallowed. A dismissible strip rather
@@ -147,7 +154,11 @@ export default function App() {
               scene={<AutomationGraphScene />}
               title="No automations yet"
               body="Start one from the seed, or open a repo that already has an intelligence.yaml. Studio runs it, keeps it on schedule, and shows you what it did."
-              action={<NewAutomation onCreate={onNew} />}
+              action={
+                <Button variant="accent" className="min-h-11" onClick={() => setComposing(true)}>
+                  New automation
+                </Button>
+              }
               secondary={
                 <>
                   Everything stays on this machine.{' '}
@@ -962,46 +973,120 @@ function ModelBand() {
 }
 
 /**
- * The first-run call to action.
+ * Starting an automation.
  *
- * It asks what the automation should do before creating anything, because that
- * sentence is the one thing only the person knows — and it becomes the coding
- * agent's opening instruction. Scaffolding first and asking later means the
- * agent starts with "replace the example with something, ask me what", which
- * wastes the turn that mattered.
+ * In the window, not in a Finder save panel. The native panel asked "where
+ * should this file go", offered a Tags field that means nothing here, and left
+ * no room for the only question worth asking — which is what the thing should
+ * do. That sentence becomes the coding agent's opening instruction, so it is
+ * the first field, not an afterthought.
  *
- * Optional on purpose: someone who wants to poke at the seed should not be made
- * to write a brief first.
+ * Location is a default, not a prompt: ~/Automations/<name>, changeable for
+ * people who care and invisible to people who do not.
  */
-function NewAutomation({ onCreate }: { onCreate: (request?: string) => Promise<void> }) {
+function NewAutomation({
+  onCreate,
+  onCancel,
+}: {
+  onCreate: (name: string, request?: string, dir?: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState('');
   const [request, setRequest] = useState('');
+  const [dir, setDir] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | undefined>();
 
   const create = useCallback(async () => {
+    if (!name.trim() || busy) return;
     setBusy(true);
+    setError(undefined);
     try {
-      await onCreate(request.trim() || undefined);
+      await onCreate(name, request.trim() || undefined, dir);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(false);
     }
-  }, [onCreate, request]);
+  }, [name, request, dir, busy, onCreate]);
 
   return (
-    <div className="flex w-full max-w-md flex-col items-center gap-2.5">
-      <input
-        value={request}
-        onChange={(e) => setRequest(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !busy) void create();
-        }}
-        placeholder="What should it do? e.g. every Monday, email me last week's signups"
-        className="w-full rounded-full border border-border bg-background px-4 py-2.5 text-center text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-accent"
-      />
-      <Button variant="accent" className="min-h-11" disabled={busy} onClick={() => void create()}>
-        {busy ? 'Creating…' : 'New automation'}
-      </Button>
+    // Escape closes; a click on the scrim does not, because a half-typed brief
+    // is easy to lose and annoying to retype.
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-background/70 p-10 backdrop-blur-sm"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onCancel();
+      }}
+    >
+      <div className="mt-16 w-full max-w-lg rounded-3xl border border-border bg-background p-6 shadow-2xl">
+        <h2 className="text-lg font-semibold tracking-tight">New automation</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Say what it should do and Claude Code starts on exactly that.
+        </p>
+
+        <label className="mt-5 block text-xs font-medium text-muted-foreground">
+          What should it do?
+        </label>
+        <textarea
+          value={request}
+          autoFocus
+          rows={3}
+          onChange={(e) => setRequest(e.target.value)}
+          placeholder="Every Monday, email me last week's signups grouped by source."
+          className="mt-1.5 w-full resize-none rounded-2xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-accent"
+        />
+
+        <label className="mt-4 block text-xs font-medium text-muted-foreground">Name</label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void create();
+          }}
+          placeholder="signup-digest"
+          className="mt-1.5 w-full rounded-full border border-border bg-background px-3.5 py-2 font-mono text-[13px] outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-accent"
+        />
+
+        <div className="mt-3 flex items-center gap-2 text-[11.5px] text-muted-foreground">
+          <span className="truncate font-mono">
+            {(dir ?? '~/Automations')}/{slugify(name) || '…'}
+          </span>
+          <button
+            type="button"
+            onClick={async () => {
+              const picked = await api.chooseFolder();
+              if (picked) setDir(picked);
+            }}
+            className="rounded-full text-accent underline-offset-4 hover:underline"
+          >
+            Change
+          </button>
+        </div>
+
+        {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="accent" disabled={!name.trim() || busy} onClick={() => void create()}>
+            {busy ? 'Creating…' : 'Create'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
+}
+
+/** Mirrors the slug the main process derives, so the preview is the real path. */
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
 }
 
 /**

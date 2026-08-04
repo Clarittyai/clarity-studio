@@ -120,7 +120,13 @@ export interface StudioApi {
    * is handed to the coding agent as its opening instruction.
    * Resolves undefined if they cancel the location dialog.
    */
-  createProject(request?: string): Promise<{ id: string; request?: string } | undefined>;
+  createProject(
+    name: string,
+    request?: string,
+    dir?: string,
+  ): Promise<{ id: string; request?: string } | undefined>;
+  /** Only used when someone explicitly changes where automations live. */
+  chooseFolder(): Promise<string | undefined>;
   /** Forget an automation, and optionally erase it. Confirmed in the main process. */
   deleteProject(projectId: string): Promise<{ removed: boolean; deletedFiles?: boolean }>;
   /** Adopt a folder that already has an intelligence.yaml. */
@@ -356,6 +362,9 @@ const fixtures: StudioApi = {
     return [];
   },
   async createProject() {
+    return undefined;
+  },
+  async chooseFolder() {
     return undefined;
   },
   async deleteProject() {
