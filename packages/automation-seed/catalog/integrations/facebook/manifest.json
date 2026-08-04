@@ -1,0 +1,16 @@
+{
+  "id": "facebook",
+  "kind": "integration",
+  "category": "social",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Facebook",
+  "vendor": "Meta",
+  "description": "Publish to and read the posts of a Facebook Page you administer.",
+  "intentHints": ["post to our facebook page", "read our facebook page posts", "facebook page content"],
+  "authType": "oauth2",
+  "providedTools": [
+    { "id": "facebook.create_post", "description": "Publish a post to a Facebook Page (text, optional link, or an image via image_url).", "input": { "text": { "type": "string", "required": false }, "image_url": { "type": "string", "required": false }, "link": { "type": "string", "required": false }, "page_id": { "type": "string", "required": false } }, "output": { "post_id": { "type": "string", "required": true } } },
+    { "id": "facebook.fetch_page_posts", "description": "Read a Page's own published posts.", "input": { "page_id": { "type": "string", "required": false }, "limit": { "type": "number", "required": false } }, "output": { "posts": { "type": "array", "required": true } } }
+  ]
+}

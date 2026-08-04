@@ -1,0 +1,16 @@
+{
+  "id": "x-twitter",
+  "kind": "integration",
+  "category": "social",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "X (Twitter)",
+  "vendor": "X",
+  "description": "Post tweets and search recent tweets.",
+  "intentHints": ["post a tweet", "search tweets"],
+  "authType": "oauth2",
+  "providedTools": [
+    { "id": "x.post_tweet", "description": "Post a tweet.", "input": { "text": { "type": "string", "required": true } }, "output": { "tweet_id": { "type": "string", "required": true } } },
+    { "id": "x.search_tweets", "description": "Search tweets.", "input": { "query": { "type": "string", "required": true } }, "output": { "tweets": { "type": "array", "required": true } } }
+  ]
+}

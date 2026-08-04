@@ -1,0 +1,53 @@
+{
+  "id": "clickup",
+  "kind": "integration",
+  "category": "productivity",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "ClickUp",
+  "vendor": "ClickUp",
+  "description": "Create and list tasks in ClickUp.",
+  "intentHints": [
+    "clickup task",
+    "list clickup tasks"
+  ],
+  "authType": "apiKey",
+  "providedTools": [
+    {
+      "id": "clickup.create_task",
+      "description": "Create a task.",
+      "input": {
+        "list_id": {
+          "type": "string",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "task_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "clickup.list_tasks",
+      "description": "List tasks.",
+      "input": {
+        "list_id": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "tasks": {
+          "type": "array",
+          "required": true
+        }
+      }
+    }
+  ]
+}

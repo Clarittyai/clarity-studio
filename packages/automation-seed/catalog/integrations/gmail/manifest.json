@@ -1,0 +1,292 @@
+{
+  "id": "gmail",
+  "kind": "integration",
+  "category": "email",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Gmail",
+  "vendor": "Google",
+  "description": "Send and read email through the authenticated user's Gmail account.",
+  "intentHints": [
+    "send an email",
+    "search my inbox",
+    "reply to a thread",
+    "label messages"
+  ],
+  "authType": "oauth2",
+  "_authNote": "OAuth endpoints, scopes, client secret ref and any identity step are PLATFORM-OWNED \u2014 they live in the private clarity-api (integrations-v2/config/oauth-configs.ts), never in this public repo. This manifest only declares that the integration uses oauth2 and which tools it provides.",
+  "providedTools": [
+    {
+      "id": "gmail.send",
+      "description": "Send an email (optionally as a reply in a thread). To send a LIST of records, bind `report.rows` to the structured data and it is delivered as a formatted table with a chart \u2014 do not flatten a list into prose.",
+      "input": {
+        "to": {
+          "type": "string",
+          "required": true
+        },
+        "subject": {
+          "type": "string",
+          "required": true
+        },
+        "body": {
+          "type": "string",
+          "required": true
+        },
+        "report": {
+          "type": "object",
+          "required": false
+        },
+        "html": {
+          "type": "string",
+          "required": false
+        },
+        "threadId": {
+          "type": "string",
+          "required": false
+        },
+        "inReplyTo": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "message_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "gmail.list_messages",
+      "description": "List messages, newest first; supports paging. Each result already carries id, thread_id, sender, sender_email, sender_name, subject, date and snippet. Bind them directly. Do NOT add a step to extract those fields; they are not in the message body.",
+      "input": {
+        "limit": {
+          "type": "integer",
+          "required": false
+        },
+        "query": {
+          "type": "string",
+          "required": false
+        },
+        "pageToken": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "messages": {
+          "type": "array",
+          "required": true,
+          "description": "Rows of {id, thread_id, sender, sender_email, sender_name, subject, date, snippet, label_ids}."
+        },
+        "nextPageToken": {
+          "type": "string",
+          "required": false
+        },
+        "matched": {
+          "type": "integer",
+          "required": false,
+          "description": "How many messages matched the query."
+        },
+        "truncated": {
+          "type": "boolean",
+          "required": false,
+          "description": "True when matched exceeded returned. A total over these rows counts `returned`, not `matched` \u2014 bind a headline total to `matched` and say \"the most recent N of M\". Use nextPageToken for the rest."
+        },
+        "returned": {
+          "type": "integer",
+          "required": false,
+          "description": "How many came back. Every returned row is a full record; unreadable rows are not returned."
+        }
+      }
+    },
+    {
+      "id": "gmail.search",
+      "description": "Search messages by query (Gmail syntax); supports paging. Each result already carries id, thread_id, sender, sender_email, sender_name, subject, date and snippet. Bind them directly. Do NOT add a step to extract those fields; they are not in the message body.",
+      "input": {
+        "query": {
+          "type": "string",
+          "required": true
+        },
+        "limit": {
+          "type": "integer",
+          "required": false
+        },
+        "pageToken": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "messages": {
+          "type": "array",
+          "required": true,
+          "description": "Rows of {id, thread_id, sender, sender_email, sender_name, subject, date, snippet, label_ids}."
+        },
+        "nextPageToken": {
+          "type": "string",
+          "required": false
+        },
+        "matched": {
+          "type": "integer",
+          "required": false,
+          "description": "How many messages matched the query."
+        },
+        "truncated": {
+          "type": "boolean",
+          "required": false,
+          "description": "True when matched exceeded returned. A total over these rows counts `returned`, not `matched` \u2014 bind a headline total to `matched` and say \"the most recent N of M\". Use nextPageToken for the rest."
+        },
+        "returned": {
+          "type": "integer",
+          "required": false,
+          "description": "How many came back. Every returned row is a full record; unreadable rows are not returned."
+        }
+      }
+    },
+    {
+      "id": "gmail.get_message",
+      "description": "Fetch one message's parsed metadata (sender, subject, snippet, ids).",
+      "input": {
+        "message_id": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "id": {
+          "type": "string",
+          "required": true
+        },
+        "thread_id": {
+          "type": "string",
+          "required": false
+        },
+        "snippet": {
+          "type": "string",
+          "required": false
+        },
+        "label_ids": {
+          "type": "array",
+          "required": false
+        },
+        "sender": {
+          "type": "string",
+          "required": false
+        },
+        "subject": {
+          "type": "string",
+          "required": false
+        },
+        "rfc822_msgid": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    {
+      "id": "gmail.count",
+      "description": "Estimated count of messages matching a query.",
+      "input": {
+        "query": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "count": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "gmail.add_label",
+      "description": "Add a label to a message (created if it doesn't exist).",
+      "input": {
+        "message_id": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "ok": {
+          "type": "boolean",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "gmail.modify_labels",
+      "description": "Add and/or remove labels by name; remove INBOX to archive.",
+      "input": {
+        "message_id": {
+          "type": "string",
+          "required": true
+        },
+        "add": {
+          "type": "array",
+          "required": false
+        },
+        "remove": {
+          "type": "array",
+          "required": false
+        }
+      },
+      "output": {
+        "ok": {
+          "type": "boolean",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "gmail.trash",
+      "description": "Move a message to Trash.",
+      "input": {
+        "message_id": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "ok": {
+          "type": "boolean",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "gmail.batch_modify",
+      "description": "Add/remove labels across up to 1000 messages in one call (bulk trash: add TRASH; archive: remove INBOX).",
+      "input": {
+        "ids": {
+          "type": "array",
+          "required": true
+        },
+        "add": {
+          "type": "array",
+          "required": false
+        },
+        "remove": {
+          "type": "array",
+          "required": false
+        }
+      },
+      "output": {
+        "ok": {
+          "type": "boolean",
+          "required": true
+        },
+        "modified": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    }
+  ]
+}

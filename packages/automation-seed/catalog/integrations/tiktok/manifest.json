@@ -1,0 +1,16 @@
+{
+  "id": "tiktok",
+  "kind": "integration",
+  "category": "social",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "TikTok",
+  "vendor": "TikTok",
+  "description": "Publish videos to and list the videos of your connected TikTok creator account.",
+  "intentHints": ["post to tiktok", "read our tiktok videos", "tiktok content"],
+  "authType": "oauth2",
+  "providedTools": [
+    { "id": "tiktok.create_post", "description": "Publish a video to TikTok from a public video_url (text becomes the title). Unaudited apps post privately to the creator only.", "input": { "video_url": { "type": "string", "required": true }, "text": { "type": "string", "required": false }, "privacy_level": { "type": "string", "required": false } }, "output": { "post_id": { "type": "string", "required": true } } },
+    { "id": "tiktok.fetch_videos", "description": "List the creator's own videos.", "input": { "limit": { "type": "number", "required": false } }, "output": { "videos": { "type": "array", "required": true } } }
+  ]
+}

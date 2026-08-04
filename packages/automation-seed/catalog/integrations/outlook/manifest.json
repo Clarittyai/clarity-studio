@@ -1,0 +1,74 @@
+{
+  "id": "outlook",
+  "kind": "integration",
+  "category": "email",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Outlook",
+  "vendor": "Microsoft",
+  "description": "Send and read email through the authenticated user's Outlook (Microsoft 365) account.",
+  "intentHints": [
+    "send an outlook email",
+    "search my outlook inbox"
+  ],
+  "authType": "oauth2",
+  "_authNote": "OAuth endpoints, scopes, client secret ref and any identity step are PLATFORM-OWNED \u2014 they live in the private clarity-api (integrations-v2/config/oauth-configs.ts), never in this public repo. This manifest only declares that the integration uses oauth2 and which tools it provides.",
+  "providedTools": [
+    {
+      "id": "outlook.send",
+      "description": "Send an email.",
+      "input": {
+        "to": {
+          "type": "string",
+          "required": true
+        },
+        "subject": {
+          "type": "string",
+          "required": true
+        },
+        "body": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "message_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "outlook.list_messages",
+      "description": "List recent messages.",
+      "input": {
+        "limit": {
+          "type": "integer",
+          "required": false
+        }
+      },
+      "output": {
+        "messages": {
+          "type": "array",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "outlook.search",
+      "description": "Search messages.",
+      "input": {
+        "query": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "messages": {
+          "type": "array",
+          "required": true
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "openai",
+  "kind": "integration",
+  "category": "ai",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "OpenAI",
+  "vendor": "OpenAI",
+  "description": "Call OpenAI chat completions, embeddings, and image generation. Routed via the Claritty proxy when no key is configured.",
+  "intentHints": ["openai chat", "embedding", "generate an image"],
+  "authType": "apiKey",
+  "providedTools": [
+    { "id": "openai.chat", "description": "Chat completion.", "input": { "model": { "type": "string", "required": true }, "messages": { "type": "array", "required": true } }, "output": { "content": { "type": "string", "required": true } } },
+    { "id": "openai.embeddings", "description": "Generate embeddings.", "input": { "model": { "type": "string", "required": true }, "input": { "type": "string", "required": true } }, "output": { "embedding": { "type": "array", "required": true } } },
+    { "id": "openai.image_generate", "description": "Generate an image.", "input": { "prompt": { "type": "string", "required": true }, "size": { "type": "string", "required": false } }, "output": { "url": { "type": "string", "required": true } } }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "id": "twilio",
+  "kind": "integration",
+  "category": "communication",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Twilio",
+  "vendor": "Twilio",
+  "description": "Send SMS and place voice calls.",
+  "intentHints": [
+    "text me",
+    "send an sms",
+    "call a number"
+  ],
+  "authType": "apiKey",
+  "providedTools": [
+    {
+      "id": "twilio.send_sms",
+      "description": "Send an SMS.",
+      "input": {
+        "to": {
+          "type": "string",
+          "required": true
+        },
+        "body": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "sid": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "twilio.make_call",
+      "description": "Place a voice call.",
+      "input": {
+        "to": {
+          "type": "string",
+          "required": true
+        },
+        "twiml_url": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "sid": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "twilio.send_whatsapp",
+      "description": "Send a WhatsApp message (via a WhatsApp-enabled Twilio sender).",
+      "input": {
+        "to": {
+          "type": "string",
+          "required": true
+        },
+        "body": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "sid": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  ],
+  "credentialFields": [
+    {
+      "key": "account_sid",
+      "label": "Account SID",
+      "type": "text",
+      "required": true,
+      "placeholder": "ACxxxxxxxx",
+      "help": "Twilio Console \u2192 Account Info."
+    },
+    {
+      "key": "auth_token",
+      "label": "Auth Token",
+      "type": "password",
+      "required": true,
+      "help": "Twilio Console \u2192 Account Info (kept secret)."
+    },
+    {
+      "key": "from_number",
+      "label": "From number",
+      "type": "text",
+      "required": true,
+      "placeholder": "+14155551234",
+      "help": "A Twilio phone number you own."
+    }
+  ]
+}

@@ -17,7 +17,7 @@
  * agent in the right directory with the right first sentence.
  */
 
-import { spawn as spawnProcess } from 'node:child_process';
+import { spawn as spawnProcess, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
 import { AGENTS, composeOpeningPrompt, detectAgents, looksFresh } from '@clarity-studio/agent-bridge';
@@ -44,9 +44,51 @@ interface Session {
   rows: number;
 }
 
+/**
+ * The PATH the user actually has, not the one macOS hands a GUI app.
+ *
+ * A double-clicked .app inherits roughly `/usr/bin:/bin:/usr/sbin:/sbin` — it
+ * never sources a profile. Claude Code installs to `~/.local/bin`, Homebrew to
+ * `/opt/homebrew/bin`, and neither is on that list, so detection reported "no
+ * coding agent found" on machines that plainly had one. The terminal still
+ * worked, because its fallback is a LOGIN shell which does source the profile,
+ * which made the bug look like a UI problem rather than a PATH one.
+ *
+ * Asked once, from the user's own login shell, and cached for the session.
+ */
+let cachedPath: string | undefined;
+
+function loginPath(): string {
+  if (cachedPath !== undefined) return cachedPath;
+  const shell = process.env.SHELL ?? '/bin/zsh';
+  try {
+    const out = spawnSync(shell, ['-lc', 'printf %s "$PATH"'], {
+      encoding: 'utf8',
+      timeout: 4000,
+    });
+    const resolved = (out.stdout ?? '').trim();
+    cachedPath = resolved.includes('/') ? resolved : (process.env.PATH ?? '');
+  } catch {
+    cachedPath = process.env.PATH ?? '';
+  }
+  // Belt and braces: the common install locations, in case the profile is
+  // unusual or the shell refused to run interactively.
+  const extra = [
+    `${process.env.HOME}/.local/bin`,
+    `${process.env.HOME}/.bun/bin`,
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+  ].filter((dir) => !cachedPath!.split(':').includes(dir));
+  if (extra.length) cachedPath = [cachedPath, ...extra].filter(Boolean).join(':');
+  return cachedPath;
+}
+
 const probe = (bin: string, args: string[]) =>
   new Promise<{ code: number; output: string }>((resolve) => {
-    const child = spawnProcess(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawnProcess(bin, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, PATH: loginPath() },
+    });
     let output = '';
     child.stdout?.on('data', (d) => (output += String(d)));
     child.stderr?.on('data', (d) => (output += String(d)));
@@ -77,10 +119,11 @@ const PROVIDER_KEYS = [
 ];
 
 function authoringEnv(): Record<string, string> {
-  const env: Record<string, string> = { TERM: 'xterm-256color' };
+  const env: Record<string, string> = { TERM: 'xterm-256color', PATH: loginPath() };
   for (const [key, value] of Object.entries(process.env)) {
     if (value === undefined) continue;
     if (PROVIDER_KEYS.includes(key)) continue;
+    if (key === 'PATH') continue; // loginPath() wins
     env[key] = value;
   }
   return env;
@@ -88,6 +131,9 @@ function authoringEnv(): Record<string, string> {
 
 export class TerminalHost {
   private readonly sessions = new Map<string, Session>();
+
+  /** Shared so detection and launching can never disagree about PATH. */
+  readonly probe = probe;
 
   /**
    * Start (or reuse) a session for a project. Returns which agent it started, so

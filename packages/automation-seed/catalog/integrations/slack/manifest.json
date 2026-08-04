@@ -1,0 +1,74 @@
+{
+  "id": "slack",
+  "kind": "integration",
+  "category": "communication",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Slack",
+  "vendor": "Slack",
+  "description": "Post messages and read conversations across the authenticated user's Slack workspace.",
+  "intentHints": [
+    "post to a slack channel",
+    "alert the team in slack",
+    "search slack messages"
+  ],
+  "authType": "oauth2",
+  "_authNote": "OAuth endpoints, scopes, client secret ref and any identity step are PLATFORM-OWNED \u2014 they live in the private clarity-api (integrations-v2/config/oauth-configs.ts), never in this public repo. This manifest only declares that the integration uses oauth2 and which tools it provides.",
+  "providedTools": [
+    {
+      "id": "slack.post_message",
+      "description": "Post a message to a channel. To post a LIST of records, bind `report.rows` to the structured data and it is delivered as an aligned table with a chart — do not flatten a list into prose.",
+      "input": {
+        "channel": {
+          "type": "string",
+          "required": true
+        },
+        "text": {
+          "type": "string",
+          "required": true
+        },
+        "report": {
+          "type": "object",
+          "required": false
+        },
+        "blocks": {
+          "type": "array",
+          "required": false
+        }
+      },
+      "output": {
+        "ts": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "slack.list_channels",
+      "description": "List channels in the workspace.",
+      "input": {},
+      "output": {
+        "channels": {
+          "type": "array",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "slack.lookup_user",
+      "description": "Find a user by email.",
+      "input": {
+        "email": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "user_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  ]
+}

@@ -24,6 +24,20 @@ at. If a change is not reflected in the manifest, it does not exist at runtime.
 - **`triggers`** — what starts a workflow without a person: a schedule, or a
   webhook.
 
+## Where the integrations are
+
+`catalog/integrations/` in THIS repo, one directory per service, each with a
+`manifest.json` describing the tools it offers and the arguments they take.
+Read the manifest for the service you need — `catalog/integrations/gmail/manifest.json`
+for `gmail.send`, and so on — and declare the integration in `intelligence.yaml`
+before an agent may call its tools.
+
+Everything needed to build an automation is in this repo. There is no other
+checkout to consult and no local Claritty API to run: the catalog ships here,
+the runtime is the published `claritty-sdk`, and the host executes brokered
+tools on your behalf. If a service is not in `catalog/integrations/`, it is not
+available — say so rather than inventing a tool id.
+
 ## Contracts that are easy to break silently
 
 - **Every id referenced must be declared.** An agent listing a tool that no

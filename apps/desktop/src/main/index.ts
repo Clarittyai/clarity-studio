@@ -352,18 +352,16 @@ function registerIpc(): void {
     }
   });
 
-  /** Coding agents installed on this machine, for the "author with…" hint. */
+  /**
+   * Coding agents installed on this machine.
+   *
+   * Detection goes through the same login PATH the terminal uses. Its own probe
+   * here used the process PATH, which in a double-clicked .app does not include
+   * ~/.local/bin — so this reported "none installed" on machines where Claude
+   * Code was sitting right there.
+   */
   ipcMain.handle('agents:list', async () => {
-    const probe = (bin: string, args: string[]) =>
-      new Promise<{ code: number; output: string }>((resolveProbe) => {
-        const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-        let output = '';
-        child.stdout?.on('data', (d) => (output += String(d)));
-        child.stderr?.on('data', (d) => (output += String(d)));
-        child.on('error', () => resolveProbe({ code: 1, output: '' }));
-        child.on('close', (code) => resolveProbe({ code: code ?? 1, output }));
-      });
-    const found = await detectAgents(probe);
+    const found = await detectAgents(terminals.probe);
     return found.map((a) => ({ id: a.id, name: a.name, version: a.version }));
   });
 

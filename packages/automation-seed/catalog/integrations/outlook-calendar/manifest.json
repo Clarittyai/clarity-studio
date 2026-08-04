@@ -1,0 +1,62 @@
+{
+  "id": "outlook-calendar",
+  "kind": "integration",
+  "category": "calendar",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Outlook Calendar",
+  "vendor": "Microsoft",
+  "description": "Read and write events on the user's Outlook calendar.",
+  "intentHints": [
+    "outlook calendar",
+    "schedule a meeting in outlook"
+  ],
+  "authType": "oauth2",
+  "_authNote": "OAuth endpoints, scopes, client secret ref and any identity step are PLATFORM-OWNED \u2014 they live in the private clarity-api (integrations-v2/config/oauth-configs.ts), never in this public repo. This manifest only declares that the integration uses oauth2 and which tools it provides.",
+  "providedTools": [
+    {
+      "id": "outcal.list_events",
+      "description": "List events.",
+      "input": {
+        "from": {
+          "type": "string",
+          "required": true
+        },
+        "to": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "events": {
+          "type": "array",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "outcal.create_event",
+      "description": "Create an event.",
+      "input": {
+        "subject": {
+          "type": "string",
+          "required": true
+        },
+        "start": {
+          "type": "string",
+          "required": true
+        },
+        "end": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "event_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  ]
+}

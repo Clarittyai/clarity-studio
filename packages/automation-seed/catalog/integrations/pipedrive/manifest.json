@@ -1,0 +1,52 @@
+{
+  "id": "pipedrive",
+  "kind": "integration",
+  "category": "crm",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Pipedrive",
+  "vendor": "Pipedrive",
+  "description": "List and create deals in Pipedrive.",
+  "intentHints": [
+    "pipedrive deals",
+    "create a pipedrive deal"
+  ],
+  "authType": "apiKey",
+  "providedTools": [
+    {
+      "id": "pipedrive.list_deals",
+      "description": "List deals.",
+      "input": {},
+      "output": {
+        "deals": {
+          "type": "array",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "pipedrive.create_deal",
+      "description": "Create a deal.",
+      "input": {
+        "title": {
+          "type": "string",
+          "required": true
+        },
+        "value": {
+          "type": "number",
+          "required": false
+        },
+        "currency": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "deal_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  ]
+}

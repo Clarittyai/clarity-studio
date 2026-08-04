@@ -1,0 +1,48 @@
+{
+  "id": "discord",
+  "kind": "integration",
+  "category": "communication",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Discord",
+  "vendor": "Discord",
+  "description": "Send messages to Discord channels and list guilds.",
+  "intentHints": [
+    "post to discord",
+    "alert a discord channel"
+  ],
+  "authType": "apiKey",
+  "providedTools": [
+    {
+      "id": "discord.send_message",
+      "description": "Send a message to a channel.",
+      "input": {
+        "channel_id": {
+          "type": "string",
+          "required": true
+        },
+        "content": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "message_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "discord.list_guilds",
+      "description": "List guilds the bot is in.",
+      "input": {},
+      "output": {
+        "guilds": {
+          "type": "array",
+          "required": true
+        }
+      }
+    }
+  ]
+}

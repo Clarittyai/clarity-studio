@@ -1,0 +1,44 @@
+{
+  "id": "xero",
+  "kind": "integration",
+  "category": "accounting",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Xero",
+  "vendor": "Xero",
+  "description": "Read supplier bills (accounts payable) and contacts from the authenticated user's Xero organisation.",
+  "intentHints": [
+    "pull my supplier bills",
+    "list accounts payable",
+    "read invoices from Xero",
+    "sync bills for overbilling checks"
+  ],
+  "authType": "oauth2",
+  "_authNote": "OAuth endpoints, scopes, client secret ref, offline_access and the tenant_id capture are PLATFORM-OWNED — they live in the private clarity-api (integrations-v2/config/oauth-configs.ts + integration-http-specs.ts), never in this public repo. This manifest only declares that the integration uses oauth2 and which tools it provides.",
+  "providedTools": [
+    {
+      "id": "xero.list_bills",
+      "description": "List supplier bills (AP invoices, Type=ACCPAY) for the connected org.",
+      "input": {},
+      "output": { "bills": { "type": "array" } }
+    },
+    {
+      "id": "xero.list_vendors",
+      "description": "List supplier contacts for the connected org.",
+      "input": {},
+      "output": { "vendors": { "type": "array" } }
+    },
+    {
+      "id": "xero.get_bill",
+      "description": "Fetch a single supplier bill by id.",
+      "input": { "bill_id": { "type": "string", "required": true } },
+      "output": { "bill": { "type": "object" } }
+    },
+    {
+      "id": "xero.list_vendor_credits",
+      "description": "List supplier (AP) credit notes — the confirmation a vendor actually credited back an overbilling.",
+      "input": {},
+      "output": { "credits": { "type": "array" } }
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "id": "salesforce",
+  "kind": "integration",
+  "category": "crm",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Salesforce",
+  "vendor": "Salesforce",
+  "description": "Run SOQL, create leads, and update opportunities in Salesforce.",
+  "intentHints": [
+    "soql",
+    "create a salesforce lead",
+    "update an opportunity"
+  ],
+  "authType": "oauth2",
+  "_authNote": "OAuth endpoints, scopes, client secret ref and any identity step are PLATFORM-OWNED \u2014 they live in the private clarity-api (integrations-v2/config/oauth-configs.ts), never in this public repo. This manifest only declares that the integration uses oauth2 and which tools it provides.",
+  "providedTools": [
+    {
+      "id": "sfdc.soql_query",
+      "description": "Run a SOQL query.",
+      "input": {
+        "soql": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "records": {
+          "type": "array",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "sfdc.create_lead",
+      "description": "Create a Lead.",
+      "input": {
+        "first_name": {
+          "type": "string",
+          "required": false
+        },
+        "last_name": {
+          "type": "string",
+          "required": true
+        },
+        "email": {
+          "type": "string",
+          "required": false
+        },
+        "company": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "lead_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "sfdc.update_opportunity",
+      "description": "Update an Opportunity.",
+      "input": {
+        "opportunity_id": {
+          "type": "string",
+          "required": true
+        },
+        "fields": {
+          "type": "object",
+          "required": true
+        }
+      },
+      "output": {
+        "ok": {
+          "type": "boolean",
+          "required": true
+        }
+      }
+    }
+  ]
+}

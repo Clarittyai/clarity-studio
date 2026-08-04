@@ -1,0 +1,15 @@
+{
+  "id": "dropbox",
+  "kind": "integration",
+  "category": "files",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Dropbox",
+  "vendor": "Dropbox",
+  "description": "List and upload files in Dropbox.",
+  "intentHints": ["upload to dropbox", "list dropbox files"],
+  "authType": "oauth2",
+  "providedTools": [
+    { "id": "dropbox.list_files", "description": "List files in a folder.", "input": { "path": { "type": "string", "required": false } }, "output": { "files": { "type": "array", "required": true } } }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "anthropic",
+  "kind": "integration",
+  "category": "ai",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Anthropic",
+  "vendor": "Anthropic",
+  "description": "Call Anthropic Messages directly. Most apps use the Claritty proxy instead and get this for free.",
+  "intentHints": ["call claude", "anthropic chat"],
+  "authType": "apiKey",
+  "providedTools": [
+    { "id": "anthropic.chat", "description": "Claude Messages chat.", "input": { "model": { "type": "string", "required": true }, "messages": { "type": "array", "required": true }, "system": { "type": "string", "required": false } }, "output": { "content": { "type": "string", "required": true } } },
+    { "id": "anthropic.with_tools", "description": "Claude Messages with tool use.", "input": { "model": { "type": "string", "required": true }, "messages": { "type": "array", "required": true }, "tools": { "type": "array", "required": true } }, "output": { "content": { "type": "string", "required": true }, "tool_calls": { "type": "array", "required": false } } }
+  ]
+}

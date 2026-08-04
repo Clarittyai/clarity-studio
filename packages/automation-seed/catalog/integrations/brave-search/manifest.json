@@ -1,0 +1,30 @@
+{
+  "id": "brave-search",
+  "kind": "integration",
+  "category": "productivity",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Brave Search",
+  "vendor": "Brave",
+  "description": "Search the web with Brave Search to ground content in current results. Uses an API key (X-Subscription-Token).",
+  "intentHints": [
+    "web search",
+    "search the web",
+    "current results",
+    "ground in web results"
+  ],
+  "authType": "apiKey",
+  "providedTools": [
+    {
+      "id": "brave-search.search",
+      "description": "Search the web and return current results.",
+      "input": {
+        "query": { "type": "string", "required": true },
+        "count": { "type": "number", "required": false }
+      },
+      "output": {
+        "results": { "type": "array", "required": true }
+      }
+    }
+  ]
+}

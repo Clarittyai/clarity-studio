@@ -1,0 +1,61 @@
+{
+  "id": "airtable",
+  "kind": "integration",
+  "category": "data",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Airtable",
+  "vendor": "Airtable",
+  "description": "Read and write records in Airtable bases.",
+  "intentHints": [
+    "airtable records",
+    "create an airtable row"
+  ],
+  "authType": "apiKey",
+  "providedTools": [
+    {
+      "id": "airtable.list_records",
+      "description": "List records in a table.",
+      "input": {
+        "base_id": {
+          "type": "string",
+          "required": true
+        },
+        "table_id": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "records": {
+          "type": "array",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "airtable.create_record",
+      "description": "Create a record.",
+      "input": {
+        "base_id": {
+          "type": "string",
+          "required": true
+        },
+        "table_id": {
+          "type": "string",
+          "required": true
+        },
+        "fields": {
+          "type": "object",
+          "required": true
+        }
+      },
+      "output": {
+        "record_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  ]
+}

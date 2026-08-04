@@ -1,0 +1,107 @@
+{
+  "id": "github",
+  "kind": "integration",
+  "category": "dev",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "GitHub",
+  "vendor": "GitHub",
+  "description": "List + create issues, open PRs, and search code in GitHub repos.",
+  "intentHints": [
+    "open a github issue",
+    "create a pull request",
+    "search github code"
+  ],
+  "authType": "oauth2",
+  "_authNote": "OAuth endpoints, scopes, client secret ref and any identity step are PLATFORM-OWNED \u2014 they live in the private clarity-api (integrations-v2/config/oauth-configs.ts), never in this public repo. This manifest only declares that the integration uses oauth2 and which tools it provides.",
+  "providedTools": [
+    {
+      "id": "github.list_issues",
+      "description": "List issues in a repo.",
+      "input": {
+        "repo": {
+          "type": "string",
+          "required": true
+        },
+        "state": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "issues": {
+          "type": "array",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "github.create_issue",
+      "description": "Create an issue.",
+      "input": {
+        "repo": {
+          "type": "string",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "required": true
+        },
+        "body": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "number": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "github.create_pr",
+      "description": "Open a pull request.",
+      "input": {
+        "repo": {
+          "type": "string",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "required": true
+        },
+        "head": {
+          "type": "string",
+          "required": true
+        },
+        "base": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "number": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "github.search_code",
+      "description": "Code search.",
+      "input": {
+        "query": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "matches": {
+          "type": "array",
+          "required": true
+        }
+      }
+    }
+  ]
+}

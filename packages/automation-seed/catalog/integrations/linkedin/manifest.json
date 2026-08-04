@@ -1,0 +1,56 @@
+{
+  "id": "linkedin",
+  "kind": "integration",
+  "category": "social",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "LinkedIn",
+  "vendor": "LinkedIn",
+  "description": "Read the authenticated user's LinkedIn feed and publish posts to their personal feed or a Company Page they administer.",
+  "intentHints": [
+    "summarize my linkedin feed",
+    "post a daily linkedin digest",
+    "monitor linkedin notifications",
+    "read what's happening on linkedin"
+  ],
+  "authType": "oauth2",
+  "_authNote": "OAuth endpoints, scopes, client secret ref and the identity step are PLATFORM-OWNED — they live in the private clarity-api (integrations-v2/config/oauth-configs.ts), never in this public repo. This manifest only declares that LinkedIn uses oauth2 and which tools it provides.",
+  "providedTools": [
+    {
+      "id": "linkedin.fetch_posts",
+      "description": "Fetch the most recent N posts from the authenticated user's home feed.",
+      "input": {
+        "limit": { "type": "integer", "required": false, "default": 20 },
+        "since": { "type": "string", "required": false }
+      },
+      "output": {
+        "posts": { "type": "array", "required": true }
+      }
+    },
+    {
+      "id": "linkedin.create_post",
+      "description": "Publish a post to LinkedIn. Posts to the member's own feed by default; pass org_id to post as a Company Page the member administers (falls back to the personal feed if page posting isn't authorized). To publish a CHART with the post, bind `report.rows` to the structured data and the platform draws it as the post image; do not flatten a list into prose. Pass image_base64 instead when you already have the exact bytes (base64 PNG, no data: prefix). Describe either in image_alt.",
+      "input": {
+        "text": { "type": "string", "required": true },
+        "org_id": { "type": "string", "required": false },
+        "report": { "type": "object", "required": false },
+        "image_base64": { "type": "string", "required": false },
+        "image_alt": { "type": "string", "required": false }
+      },
+      "output": {
+        "post_id": { "type": "string", "required": true },
+        "posted_as": { "type": "string", "required": false }
+      }
+    },
+    {
+      "id": "linkedin.list_organizations",
+      "description": "List the LinkedIn Company Pages the authenticated member administers (for a page picker). Returns [] if Company Page access isn't authorized.",
+      "input": {},
+      "output": {
+        "organizations": { "type": "array", "required": true }
+      }
+    }
+  ],
+  "providedWebhooks": [],
+  "setupGuide": "https://docs.claritty.ai/integrations/linkedin"
+}

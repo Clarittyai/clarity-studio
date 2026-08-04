@@ -1,0 +1,17 @@
+{
+  "id": "stripe",
+  "kind": "integration",
+  "category": "payments",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Stripe",
+  "vendor": "Stripe",
+  "description": "Create customers, list charges, and generate payment links.",
+  "intentHints": ["create a stripe customer", "issue a payment link", "list charges"],
+  "authType": "apiKey",
+  "providedTools": [
+    { "id": "stripe.create_customer", "description": "Create a customer.", "input": { "email": { "type": "string", "required": true }, "name": { "type": "string", "required": false } }, "output": { "customer_id": { "type": "string", "required": true } } },
+    { "id": "stripe.list_charges", "description": "List recent charges.", "input": { "limit": { "type": "integer", "required": false } }, "output": { "charges": { "type": "array", "required": true } } },
+    { "id": "stripe.create_payment_link", "description": "Create a payment link.", "input": { "price_id": { "type": "string", "required": true } }, "output": { "url": { "type": "string", "required": true } } }
+  ]
+}

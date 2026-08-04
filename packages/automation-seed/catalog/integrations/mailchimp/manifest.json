@@ -1,0 +1,70 @@
+{
+  "id": "mailchimp",
+  "kind": "integration",
+  "category": "marketing",
+  "transport": "native",
+  "version": "0.1.0",
+  "name": "Mailchimp",
+  "vendor": "Mailchimp",
+  "description": "Add subscribers and send campaigns.",
+  "intentHints": [
+    "add a subscriber",
+    "send a campaign"
+  ],
+  "authType": "apiKey",
+  "providedTools": [
+    {
+      "id": "mailchimp.add_subscriber",
+      "description": "Add a subscriber to an audience.",
+      "input": {
+        "audience_id": {
+          "type": "string",
+          "required": true
+        },
+        "email": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "ok": {
+          "type": "boolean",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "mailchimp.send_campaign",
+      "description": "Send a prepared campaign.",
+      "input": {
+        "campaign_id": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "ok": {
+          "type": "boolean",
+          "required": true
+        }
+      }
+    }
+  ],
+  "credentialFields": [
+    {
+      "key": "api_key",
+      "label": "API Key",
+      "type": "password",
+      "required": true,
+      "help": "Account \u2192 Extras \u2192 API keys."
+    },
+    {
+      "key": "server_prefix",
+      "label": "Server prefix",
+      "type": "text",
+      "required": true,
+      "placeholder": "us21",
+      "help": "The data-center suffix of your API key (the part after the dash)."
+    }
+  ]
+}

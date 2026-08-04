@@ -1,11 +1,59 @@
 {
-  "$comment": "A catalog integration. The SDK reads providedTools at boot and registers a handler for each that forwards to the host's /internal/integrations/tools/<id>/<tool>/execute — so the automation itself never holds a credential or knows a provider's URL.",
   "id": "outbound-webhook",
-  "name": "Outbound webhook",
-  "version": "1.0.0",
+  "kind": "integration",
+  "category": "dev",
   "transport": "native",
-  "authType": "none",
+  "version": "1.0.0",
+  "name": "Outbound webhook",
+  "vendor": "Claritty",
+  "description": "POST results to any webhook URL you own — Zapier, Make, n8n, or your platform's own automations.",
+  "intentHints": [
+    "notify my system",
+    "send results to my platform",
+    "push to zapier",
+    "send to make.com",
+    "trigger my n8n workflow",
+    "post to a webhook",
+    "forward results to my automation"
+  ],
+  "authType": "apiKey",
   "providedTools": [
-    { "id": "post", "description": "POST a JSON payload to a URL." }
+    {
+      "id": "outbound-webhook.send",
+      "description": "POST a JSON payload to your configured webhook URL — plug this team into Zapier, Make, n8n, or your platform's own automations.",
+      "input": {
+        "payload": {
+          "type": "object",
+          "required": true
+        },
+        "event": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "ok": {
+          "type": "boolean",
+          "required": true
+        }
+      }
+    }
+  ],
+  "credentialFields": [
+    {
+      "key": "url",
+      "label": "Webhook URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "https://hooks.zapier.com/hooks/catch/...",
+      "help": "The public HTTPS endpoint to POST to (Zapier/Make/n8n catch hook or your own API)."
+    },
+    {
+      "key": "secret",
+      "label": "Signing secret (optional)",
+      "type": "password",
+      "required": false,
+      "help": "Optional shared secret so your receiver can verify calls came from Claritty."
+    }
   ]
 }

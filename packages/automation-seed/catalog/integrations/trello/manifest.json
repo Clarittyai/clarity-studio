@@ -1,0 +1,69 @@
+{
+  "id": "trello",
+  "kind": "integration",
+  "category": "productivity",
+  "transport": "native",
+  "version": "0.1.0",
+  "name": "Trello",
+  "vendor": "Atlassian",
+  "description": "Create cards and list cards across Trello boards.",
+  "intentHints": [
+    "create a trello card",
+    "list trello cards"
+  ],
+  "authType": "apiKey",
+  "providedTools": [
+    {
+      "id": "trello.create_card",
+      "description": "Create a card.",
+      "input": {
+        "list_id": {
+          "type": "string",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "card_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "trello.list_cards",
+      "description": "List cards on a board.",
+      "input": {
+        "board_id": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "cards": {
+          "type": "array",
+          "required": true
+        }
+      }
+    }
+  ],
+  "credentialFields": [
+    {
+      "key": "app_key",
+      "label": "API Key",
+      "type": "text",
+      "required": true,
+      "help": "trello.com/app-key (the public application key)."
+    },
+    {
+      "key": "token",
+      "label": "Token",
+      "type": "password",
+      "required": true,
+      "help": "The user token generated from your API key."
+    }
+  ]
+}

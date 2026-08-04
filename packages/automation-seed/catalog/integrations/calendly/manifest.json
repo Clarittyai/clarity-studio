@@ -1,0 +1,46 @@
+{
+  "id": "calendly",
+  "kind": "integration",
+  "category": "calendar",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Calendly",
+  "vendor": "Calendly",
+  "description": "List scheduled meetings and cancel events with a Calendly personal access token.",
+  "intentHints": ["calendly meetings", "cancel a calendly event", "list scheduled events"],
+  "authType": "apiKey",
+  "providedTools": [
+    {
+      "id": "calendly.list_events",
+      "description": "List active scheduled events for your organization.",
+      "input": {},
+      "output": { "events": { "type": "array", "required": true } }
+    },
+    {
+      "id": "calendly.cancel_event",
+      "description": "Cancel a scheduled event by its id.",
+      "input": {
+        "event_id": { "type": "string", "required": true },
+        "reason": { "type": "string", "required": false }
+      },
+      "output": { "ok": { "type": "boolean", "required": true } }
+    }
+  ],
+  "credentialFields": [
+    {
+      "key": "api_key",
+      "label": "Personal access token",
+      "type": "password",
+      "required": true,
+      "help": "Calendly → Integrations → API & webhooks → Personal access tokens."
+    },
+    {
+      "key": "organization_uri",
+      "label": "Organization URI",
+      "type": "text",
+      "required": true,
+      "placeholder": "https://api.calendly.com/organizations/XXXXXXXX",
+      "help": "From GET https://api.calendly.com/users/me → current_organization."
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "id": "telegram",
+  "kind": "integration",
+  "category": "communication",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Telegram",
+  "vendor": "Telegram",
+  "description": "Send messages to a Telegram chat or channel via a bot.",
+  "intentHints": [
+    "message me on telegram",
+    "send a telegram",
+    "alert telegram"
+  ],
+  "authType": "apiKey",
+  "providedTools": [
+    {
+      "id": "telegram.send_message",
+      "description": "Send a message to a Telegram chat. To send a LIST of records, bind `report.rows` to the structured data and it is delivered as an aligned table — do not flatten a list into prose.",
+      "input": {
+        "chat_id": {
+          "type": "string",
+          "required": true
+        },
+        "text": {
+          "type": "string",
+          "required": true
+        },
+        "report": {
+          "type": "object",
+          "required": false
+        }
+      },
+      "output": {
+        "message_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  ],
+  "credentialFields": [
+    {
+      "key": "bot_token",
+      "label": "Bot Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "123456:ABC-DEF...",
+      "help": "Create a bot with @BotFather on Telegram and paste its token."
+    }
+  ]
+}
