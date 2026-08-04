@@ -1,18 +1,34 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { _electron as electron } from 'playwright';
 import { Store } from '../packages/db/dist/index.js';
+
+const ROOT = new URL('..', import.meta.url).pathname;
+
+// The check builds its own fixture rather than depending on a folder somebody
+// scaffolded earlier — a harness that only passes on the machine that set it up
+// is not a check.
+const PROJECT = process.env.PROJECT_DIR ?? '/tmp/studio-full-project';
+if (!process.env.PROJECT_DIR) {
+  rmSync(PROJECT, { recursive: true, force: true });
+  cpSync(join(ROOT, 'packages/automation-seed'), PROJECT, {
+    recursive: true,
+    filter: (src) => !src.includes('/.studio') && !src.includes('__pycache__'),
+  });
+}
+if (!existsSync(join(PROJECT, 'intelligence.yaml'))) {
+  throw new Error(`no manifest in ${PROJECT} — the fixture is wrong, not the app`);
+}
 
 const HOME = '/tmp/studio-full';
 rmSync(HOME, { recursive: true, force: true });
 mkdirSync(HOME, { recursive: true });
 const s = new Store(join(HOME, 'studio.db'));
 const id = randomUUID();
-s.upsertProject({ id, name: 'fresh-auto', slug: 'fresh-auto', path: process.env.PROJECT_DIR ?? join(process.cwd(), 'fresh-auto'), runtime: 'native', status: 'stopped' });
+s.upsertProject({ id, name: 'fresh-auto', slug: 'fresh-auto', path: PROJECT, runtime: 'native', status: 'stopped' });
 s.close();
 
-const ROOT = new URL('..', import.meta.url).pathname;
 const app = await electron.launch({ args: ['.'], cwd: join(ROOT, 'apps/desktop'), env: { ...process.env, STUDIO_HOME: HOME } });
 const win = await app.firstWindow();
 const errs = [];

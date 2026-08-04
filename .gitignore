@@ -29,3 +29,4 @@ release/
 # Spike scratch
 .venv-probe/
 .spike-data/
+release/

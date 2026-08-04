@@ -16,7 +16,16 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { ChevronDown, FolderOpen, Plus, Settings, Sparkles, TerminalSquare, Trash2 } from 'lucide-react';
+import {
+  ChevronDown,
+  ExternalLink,
+  FolderOpen,
+  Plus,
+  Settings,
+  Sparkles,
+  TerminalSquare,
+  Trash2,
+} from 'lucide-react';
 
 import {
   api,
@@ -33,6 +42,7 @@ import { BrandLockup } from './components/Brand.js';
 import { AutomationFlow, type StepStatus } from './components/flow/AutomationFlow.js';
 import { toFlow } from './components/flow/blocks.js';
 import { AutomationGraphScene } from './components/live/AutomationGraphScene.js';
+import { CLOUD_LINKS, CONTRIBUTE } from './components/cloud-links.js';
 import { TerminalPanel } from './components/Terminal.js';
 import {
   Badge,
@@ -156,6 +166,8 @@ export default function App() {
               request={pendingRequest[selected.id]}
               onDelete={() => void onDelete(selected.id)}
             />
+          ) : projects.length > 0 ? (
+            <HomeView projects={projects} onSelect={setSelectedId} onNew={() => setComposing(true)} />
           ) : (
             <EmptyState
               size="page"
@@ -1384,5 +1396,150 @@ function AutomationsFolder() {
         </Button>
       </div>
     </Card>
+  );
+}
+
+/**
+ * Home.
+ *
+ * What is actually true on this machine first — how many automations, what they
+ * ran, what it cost — because a dashboard that leads with promotion is an
+ * advert with a chart on it. The hosted product is mentioned underneath, and
+ * only mentioned: nothing here is fetched, so an offline Studio shows the same
+ * page as an online one.
+ */
+function HomeView({
+  projects,
+  onSelect,
+  onNew,
+}: {
+  projects: Project[];
+  onSelect: (id: string) => void;
+  onNew: () => void;
+}) {
+  const [totals, setTotals] = useState({ runs: 0, costMicros: 0, failures: 0 });
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const since = Date.now() - 7 * 86_400_000;
+      let runs = 0;
+      let costMicros = 0;
+      let failures = 0;
+      for (const project of projects) {
+        const list = await api.listRuns(project.id).catch(() => []);
+        for (const run of list) {
+          if (run.startedAt < since) continue;
+          runs += 1;
+          costMicros += run.costMicros;
+          if (run.status === 'failed') failures += 1;
+        }
+      }
+      if (!cancelled) setTotals({ runs, costMicros, failures });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projects]);
+
+  const running = projects.filter((p) => p.status === 'running').length;
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex max-w-5xl flex-col gap-10 p-8">
+        <header>
+          <h1 className="text-2xl font-bold tracking-tight">Your automations</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Everything here runs on this machine, with your keys.
+          </p>
+        </header>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Stat label="Automations" value={String(projects.length)} hint={`${running} running`} />
+          <Stat label="Runs, 7 days" value={String(totals.runs)} />
+          <Stat label="Spend, 7 days" value={formatUsd(totals.costMicros)} />
+          <Stat
+            label="Failed"
+            value={String(totals.failures)}
+            hint={totals.failures > 0 ? 'check the timeline' : 'all clean'}
+          />
+        </div>
+
+        <Band title="Automations" subtitle="What is on this machine.">
+          {projects.length === 0 ? (
+            <EmptyState
+              size="section"
+              title="Nothing yet"
+              body="Start one from the seed and Claude Code writes it for you."
+              action={
+                <Button variant="accent" className="min-h-11" onClick={onNew}>
+                  New automation
+                </Button>
+              }
+            />
+          ) : (
+            <Card className="divide-y divide-border">
+              {projects.map((project) => (
+                <button
+                  key={project.id}
+                  type="button"
+                  onClick={() => onSelect(project.id)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
+                >
+                  <StatusDot status={project.status as Status} />
+                  <span className="text-sm font-semibold">{project.name}</span>
+                  <span className="truncate font-mono text-[11px] text-muted-foreground">
+                    {project.path}
+                  </span>
+                  <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                    {project.runtime === 'docker' ? 'docker' : 'venv'}
+                  </span>
+                </button>
+              ))}
+            </Card>
+          )}
+        </Band>
+
+        <Band
+          title="There is a hosted version"
+          subtitle="Same automations, same manifest — running when this window is not."
+        >
+          <div className="grid gap-3 md:grid-cols-3">
+            {CLOUD_LINKS.map((link) => (
+              <div
+                key={link.id}
+                className="flex flex-col gap-2 rounded-2xl border border-border p-4"
+              >
+                <span className="text-sm font-semibold text-foreground">{link.title}</span>
+                <p className="flex-1 text-[12.5px] leading-relaxed text-muted-foreground">
+                  {link.body}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => api.openExternal(link.href)}
+                  className="flex items-center gap-1 self-start rounded-full text-[12.5px] font-medium text-accent underline-offset-4 hover:underline"
+                >
+                  {link.cta}
+                  <ExternalLink className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+          {/* Said plainly rather than hidden: these open a browser, nothing is
+              sent, and the page looks the same offline. */}
+          <p className="text-xs text-muted-foreground">
+            These open your browser. Studio itself still talks to nobody —{' '}
+            <button
+              type="button"
+              onClick={() => api.openExternal(CONTRIBUTE.repo)}
+              className="rounded-full text-accent underline-offset-4 hover:underline"
+            >
+              it is open source, come and read it
+            </button>
+            .
+          </p>
+        </Band>
+      </div>
+    </div>
   );
 }

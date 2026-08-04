@@ -23,7 +23,8 @@
     "proof:byom": "node scripts/byom-proof.mjs",
     "start": "pnpm --filter @clarity-studio/desktop exec electron .",
     "app": "pnpm start",
-    "check:app": "node scripts/full-check.mjs"
+    "check:app": "node scripts/full-check.mjs",
+    "package": "pnpm --filter @clarity-studio/desktop package"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
