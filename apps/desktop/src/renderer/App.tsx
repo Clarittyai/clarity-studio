@@ -18,8 +18,8 @@ import {
 } from 'react';
 import {
   ChevronDown,
-  ExternalLink,
   FolderOpen,
+  Home,
   Plus,
   Settings,
   Sparkles,
@@ -42,7 +42,8 @@ import { BrandLockup } from './components/Brand.js';
 import { AutomationFlow, type StepStatus } from './components/flow/AutomationFlow.js';
 import { toFlow } from './components/flow/blocks.js';
 import { AutomationGraphScene } from './components/live/AutomationGraphScene.js';
-import { CLOUD_LINKS, CONTRIBUTE } from './components/cloud-links.js';
+import { CONTRIBUTE } from './components/cloud-links.js';
+import { CloudShowcase } from './components/CloudShowcase.js';
 import { TerminalPanel } from './components/Terminal.js';
 import {
   Badge,
@@ -53,6 +54,7 @@ import {
   formatUsd,
   StatusDot,
   timeAgo,
+  timeUntil,
   cn,
   type Status,
 } from './components/ui.js';
@@ -70,7 +72,9 @@ export default function App() {
     try {
       const p = await api.listProjects();
       setProjects(p);
-      setSelectedId((current) => select ?? current ?? p[0]?.id);
+      // No `?? p[0]?.id`: opening an automation is a click, so Home is where
+      // you land and the dashboard is actually reachable.
+      setSelectedId((current) => select ?? current);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
@@ -95,6 +99,7 @@ export default function App() {
         }
         setComposing(false);
         await refresh(created.id);
+        setView('project');
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
         throw cause;
@@ -110,6 +115,7 @@ export default function App() {
         const result = await api.deleteProject(projectId);
         if (result.removed) {
           setSelectedId(undefined);
+          setView('home');
           await refresh();
         }
       } catch (cause) {
@@ -129,12 +135,26 @@ export default function App() {
     }
   }, [refresh]);
 
-  const [showSettings, setShowSettings] = useState(false);
+  /**
+   * The screen, named. It used to be inferred from `selectedId` and
+   * `showSettings` through chained ternaries — which is exactly how Home ended
+   * up unreachable: a project was auto-selected on load, so the Home branch
+   * could never be taken.
+   */
+  const [view, setView] = useState<'home' | 'project' | 'settings'>('home');
   const selected = projects.find((p) => p.id === selectedId);
+
+  const openProject = useCallback((id: string) => {
+    setSelectedId(id);
+    setView('project');
+  }, []);
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <TitleBar onSettings={() => setShowSettings((v) => !v)} settingsOpen={showSettings} />
+      <TitleBar
+        onSettings={() => setView((v) => (v === 'settings' ? 'home' : 'settings'))}
+        settingsOpen={view === 'settings'}
+      />
       {composing && (
         <NewAutomation onCreate={onNew} onCancel={() => setComposing(false)} />
       )}
@@ -142,8 +162,10 @@ export default function App() {
         <Sidebar
           projects={projects}
           selectedId={selectedId}
-          onSelect={setSelectedId}
+          onSelect={openProject}
           onNew={() => setComposing(true)}
+          onHome={() => setView('home')}
+          atHome={view === 'home'}
         />
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Failures are shown, never swallowed. A dismissible strip rather
@@ -158,16 +180,16 @@ export default function App() {
               </Button>
             </div>
           )}
-          {showSettings ? (
+          {view === 'settings' ? (
             <SettingsView />
-          ) : selected ? (
+          ) : view === 'project' && selected ? (
             <ProjectView
               project={selected}
               request={pendingRequest[selected.id]}
               onDelete={() => void onDelete(selected.id)}
             />
           ) : projects.length > 0 ? (
-            <HomeView projects={projects} onSelect={setSelectedId} onNew={() => setComposing(true)} />
+            <HomeView projects={projects} onSelect={openProject} onNew={() => setComposing(true)} />
           ) : (
             <EmptyState
               size="page"
@@ -256,11 +278,15 @@ function Sidebar({
   selectedId,
   onSelect,
   onNew,
+  onHome,
+  atHome,
 }: {
   projects: Project[];
   selectedId?: string;
   onSelect: (id: string) => void;
   onNew: () => void;
+  onHome: () => void;
+  atHome: boolean;
 }) {
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border">
@@ -270,7 +296,27 @@ function Sidebar({
         <BrandLockup />
       </div>
 
-      <div className="flex flex-col gap-1 p-3">
+      {/* Home is pinned above the list and separated from it: it is a place,
+          not one of the automations. */}
+      <div className="flex flex-col gap-1 p-3 pb-0">
+        <button
+          type="button"
+          onClick={onHome}
+          className={cn(
+            'flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors',
+            atHome
+              ? 'bg-foreground/[0.06] text-foreground'
+              : 'text-muted-foreground hover:bg-foreground/[0.03] hover:text-foreground',
+          )}
+        >
+          <Home className="h-4 w-4 shrink-0" />
+          <span className="text-[13px] font-medium">Home</span>
+        </button>
+      </div>
+
+      <div className="mx-3 my-3 border-t border-border/60" />
+
+      <div className="flex flex-col gap-1 px-3 pb-3">
       <div className="flex items-center justify-between px-2 pb-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Automations
@@ -1418,6 +1464,9 @@ function HomeView({
   onNew: () => void;
 }) {
   const [totals, setTotals] = useState({ runs: 0, costMicros: 0, failures: 0 });
+  const [nextRunAt, setNextRunAt] = useState<number | undefined>();
+  /** Per project: its most recent run, for the row's status line. */
+  const [lastRun, setLastRun] = useState<Record<string, Run | undefined>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -1426,27 +1475,54 @@ function HomeView({
       let runs = 0;
       let costMicros = 0;
       let failures = 0;
+      let soonest: number | undefined;
+      const latest: Record<string, Run | undefined> = {};
+
       for (const project of projects) {
         const list = await api.listRuns(project.id).catch(() => []);
+        latest[project.id] = list[0];
         for (const run of list) {
           if (run.startedAt < since) continue;
           runs += 1;
           costMicros += run.costMicros;
           if (run.status === 'failed') failures += 1;
         }
+        // "Is anything going to happen without me" is the question a dashboard
+        // for scheduled work has to answer.
+        const triggers = await api.listTriggers(project.id).catch(() => []);
+        for (const trigger of triggers) {
+          if (!trigger.enabled || !trigger.nextRunAt) continue;
+          if (soonest === undefined || trigger.nextRunAt < soonest) soonest = trigger.nextRunAt;
+        }
       }
-      if (!cancelled) setTotals({ runs, costMicros, failures });
+
+      if (cancelled) return;
+      setTotals({ runs, costMicros, failures });
+      setNextRunAt(soonest);
+      setLastRun(latest);
     })();
     return () => {
       cancelled = true;
     };
   }, [projects]);
 
+  /**
+   * Anything broken sorts to the top. A dashboard that hides the failed run
+   * under alphabetical order is decoration.
+   */
+  const ordered = useMemo(() => {
+    const rank = (p: Project) =>
+      p.status === 'crashed' || lastRun[p.id]?.status === 'failed' ? 0 : 1;
+    return [...projects].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  }, [projects, lastRun]);
+
   const running = projects.filter((p) => p.status === 'running').length;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex max-w-5xl flex-col gap-10 p-8">
+        <CloudShowcase />
+
         <header>
           <h1 className="text-2xl font-bold tracking-tight">Your automations</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -1454,7 +1530,7 @@ function HomeView({
           </p>
         </header>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Stat label="Automations" value={String(projects.length)} hint={`${running} running`} />
           <Stat label="Runs, 7 days" value={String(totals.runs)} />
           <Stat label="Spend, 7 days" value={formatUsd(totals.costMicros)} />
@@ -1462,6 +1538,11 @@ function HomeView({
             label="Failed"
             value={String(totals.failures)}
             hint={totals.failures > 0 ? 'check the timeline' : 'all clean'}
+          />
+          <Stat
+            label="Next run"
+            value={nextRunAt ? timeUntil(nextRunAt) : '—'}
+            hint={nextRunAt ? 'while Studio is open' : 'nothing scheduled'}
           />
         </div>
 
@@ -1479,66 +1560,64 @@ function HomeView({
             />
           ) : (
             <Card className="divide-y divide-border">
-              {projects.map((project) => (
-                <button
-                  key={project.id}
-                  type="button"
-                  onClick={() => onSelect(project.id)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
-                >
-                  <StatusDot status={project.status as Status} />
-                  <span className="text-sm font-semibold">{project.name}</span>
-                  <span className="truncate font-mono text-[11px] text-muted-foreground">
-                    {project.path}
-                  </span>
-                  <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground/70">
-                    {project.runtime === 'docker' ? 'docker' : 'venv'}
-                  </span>
-                </button>
-              ))}
+              {ordered.map((project) => {
+                const run = lastRun[project.id];
+                const broken = project.status === 'crashed' || run?.status === 'failed';
+                return (
+                  <button
+                    key={project.id}
+                    type="button"
+                    onClick={() => onSelect(project.id)}
+                    className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
+                  >
+                    <StatusDot status={project.status as Status} className="mt-1.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="text-sm font-semibold">{project.name}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {run
+                            ? `last run ${run.status} · ${timeAgo(run.startedAt)}`
+                            : 'never run'}
+                        </span>
+                      </div>
+                      {/* The reason, in the place you would look for it. */}
+                      {broken && (project.lastError ?? run?.error) && (
+                        <p className="mt-0.5 truncate font-mono text-[11px] text-destructive">
+                          {project.lastError ?? run?.error}
+                        </p>
+                      )}
+                    </div>
+                    <span className="mt-0.5 shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                      {project.runtime === 'docker' ? 'docker' : 'venv'}
+                    </span>
+                  </button>
+                );
+              })}
             </Card>
           )}
         </Band>
 
-        <Band
-          title="There is a hosted version"
-          subtitle="Same automations, same manifest — running when this window is not."
-        >
-          <div className="grid gap-3 md:grid-cols-3">
-            {CLOUD_LINKS.map((link) => (
-              <div
-                key={link.id}
-                className="flex flex-col gap-2 rounded-2xl border border-border p-4"
-              >
-                <span className="text-sm font-semibold text-foreground">{link.title}</span>
-                <p className="flex-1 text-[12.5px] leading-relaxed text-muted-foreground">
-                  {link.body}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => api.openExternal(link.href)}
-                  className="flex items-center gap-1 self-start rounded-full text-[12.5px] font-medium text-accent underline-offset-4 hover:underline"
-                >
-                  {link.cta}
-                  <ExternalLink className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-          {/* Said plainly rather than hidden: these open a browser, nothing is
-              sent, and the page looks the same offline. */}
-          <p className="text-xs text-muted-foreground">
-            These open your browser. Studio itself still talks to nobody —{' '}
-            <button
-              type="button"
-              onClick={() => api.openExternal(CONTRIBUTE.repo)}
-              className="rounded-full text-accent underline-offset-4 hover:underline"
-            >
-              it is open source, come and read it
-            </button>
-            .
-          </p>
-        </Band>
+        {/* The showcase at the top does the telling now. This is the honest
+            footnote under it, plus the way in for anyone who wants to help. */}
+        <p className="text-xs text-muted-foreground">
+          The showcase above opens your browser. Studio itself still talks to nobody —{' '}
+          <button
+            type="button"
+            onClick={() => api.openExternal(CONTRIBUTE.repo)}
+            className="rounded-full text-accent underline-offset-4 hover:underline"
+          >
+            it is open source, come and read it
+          </button>
+          {' · '}
+          <button
+            type="button"
+            onClick={() => api.openExternal(CONTRIBUTE.issues)}
+            className="rounded-full text-accent underline-offset-4 hover:underline"
+          >
+            report an issue
+          </button>
+          .
+        </p>
       </div>
     </div>
   );

@@ -262,6 +262,16 @@ export function formatUsd(micros: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
+/** The mirror of timeAgo, for something that has not happened yet. */
+export function timeUntil(ts: number): string {
+  const s = Math.round((ts - Date.now()) / 1000);
+  if (s <= 0) return 'due';
+  if (s < 60) return `in ${s}s`;
+  if (s < 3600) return `in ${Math.round(s / 60)}m`;
+  if (s < 86_400) return `in ${Math.round(s / 3600)}h`;
+  return `in ${Math.round(s / 86_400)}d`;
+}
+
 export function timeAgo(ts: number): string {
   const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
   if (s < 60) return `${s}s ago`;

@@ -19,7 +19,7 @@
  * than from a preview.
  */
 
-import { Check, Clock, Loader2, Repeat, Sparkles, Webhook, X } from 'lucide-react';
+import { Check, Clock, Globe, Loader2, Sparkles, Webhook, X } from 'lucide-react';
 
 import { cn } from '../ui.js';
 import type { Flow, FlowStep, Tier } from './blocks.js';
@@ -31,6 +31,7 @@ export type StepStatus = 'idle' | 'running' | 'ok' | 'failed';
 /** Provider tier → the word shown on the badge. */
 const TIER_WORD: Record<Tier, string> = {
   integration: 'Connect',
+  vision: 'Browser',
   platform: 'Built-in',
   mcp: 'MCP',
   agent: 'Built-in',
@@ -39,6 +40,7 @@ const TIER_WORD: Record<Tier, string> = {
 /** Provider tier → badge tone. Semantic and dark-aware, as upstream. */
 const TIER_TONE: Record<Tier, string> = {
   integration: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  vision: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
   platform: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
   mcp: 'bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300',
   agent: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
@@ -84,12 +86,6 @@ export function AutomationFlow({
       {flow.steps.map((step, i) => (
         <div key={step.id} className="flex w-full flex-col items-center">
           <Gap />
-          {step.forEach && (
-            <>
-              <Chip icon={Repeat}>For each {step.forEach}</Chip>
-              <Gap />
-            </>
-          )}
           <Node status={status[step.id] ?? 'idle'}>{i + 1}</Node>
           <Gap />
           <div className="w-full max-w-[340px]">
@@ -139,15 +135,6 @@ function Node({
   );
 }
 
-function Chip({ icon: Icon, children }: { icon: typeof Repeat; children: React.ReactNode }) {
-  return (
-    <div className="relative z-[1] inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11.5px] font-semibold text-muted-foreground">
-      <Icon className="h-3 w-3" strokeWidth={2.6} />
-      {children}
-    </div>
-  );
-}
-
 function StepCard({ step, status }: { step: FlowStep; status: StepStatus }) {
   const violet = step.isAgent;
   return (
@@ -170,6 +157,23 @@ function StepCard({ step, status }: { step: FlowStep; status: StepStatus }) {
 
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
         <span className="text-sm font-semibold text-foreground">{step.action}</span>
+
+        {/* This step runs once per item. The single most important thing about a
+            loop, and a flow that omits it makes 50 messages look like one. */}
+        {step.forEach && (
+          <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">
+            once per {step.forEach}
+          </span>
+        )}
+
+        {/* WHERE it runs, on the step that runs there. */}
+        {step.site && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Globe className="h-3 w-3" />
+            {step.site}
+          </span>
+        )}
+
         {step.detail && <span className="text-[12.5px] text-muted-foreground">{step.detail}</span>}
 
         <span
@@ -182,13 +186,36 @@ function StepCard({ step, status }: { step: FlowStep; status: StepStatus }) {
           <span className="font-normal opacity-60">· {TIER_WORD[step.tier]}</span>
         </span>
 
-        {step.isAgent && (
+        {/* It changes something outside the automation. */}
+        {step.writes && (
+          <span className="rounded-md bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-600 dark:text-violet-300">
+            Write
+          </span>
+        )}
+
+        {/* Where Claritty decides on the data, or reasons over it. */}
+        {step.intelligence && (
           <span className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-violet-700 dark:text-violet-300">
             <Sparkles className="h-3 w-3" strokeWidth={2.4} />
-            Claritty decides
+            {step.intelligence.kind === 'decides' ? 'Claritty decides' : 'Claritty reasons'}
           </span>
         )}
       </div>
+
+      {/* The target itself — a URL is worth its own line, not a truncated chip. */}
+      {step.target && (
+        <p className="mt-1.5 truncate font-mono text-[12px] text-muted-foreground/90" data-selectable>
+          {step.target}
+        </p>
+      )}
+
+      {/* The "why it is intelligent": what it actually decides, in plain words. */}
+      {step.intelligence?.explains && (
+        <p className="mt-1.5 flex items-start gap-1.5 text-[12.5px] text-violet-700/90 dark:text-violet-300/90">
+          <Sparkles className="mt-[1px] h-3 w-3 shrink-0 opacity-80" strokeWidth={2.2} />
+          {step.intelligence.explains}
+        </p>
+      )}
 
       {/* Only the manifest's own words — never a generated sentence. */}
       {step.purpose && (

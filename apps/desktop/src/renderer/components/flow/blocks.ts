@@ -13,7 +13,7 @@
  */
 
 /** Which badge a step's work carries. Mirrors the platform's tiers. */
-export type Tier = 'integration' | 'platform' | 'mcp' | 'agent';
+export type Tier = 'integration' | 'vision' | 'platform' | 'mcp' | 'agent';
 
 export interface FlowStep {
   /** The step's own id — the bold word on the card. */
@@ -27,8 +27,16 @@ export interface FlowStep {
   provider?: string;
   /** An agent step is where the model decides — the violet chip. */
   isAgent: boolean;
-  /** Present when the step repeats over a collection. */
+  /** Present when the step repeats over a collection — "once per item". */
   forEach?: string;
+  /** The host a browser/HTTP step touches, shown beside a globe. */
+  site?: string;
+  /** The step's real target: a URL, a query, the thing it acts on. */
+  target?: string;
+  /** Where the model decides. `decides` picks a path, `reasons` reads and drafts. */
+  intelligence?: { kind: 'decides' | 'reasons'; explains?: string };
+  /** True when the step changes something outside the automation. */
+  writes?: boolean;
   /** Only ever the manifest's own words. */
   purpose?: string;
 }
@@ -53,6 +61,8 @@ interface ManifestLike {
       forEach?: string;
       for_each?: string;
       description?: string;
+      input?: unknown;
+      with?: unknown;
     }>;
   }>;
   triggers?: Array<{
@@ -62,6 +72,30 @@ interface ManifestLike {
     name?: string;
     schedule?: { time?: string; timezone?: string; mode?: string; everyMinutes?: number };
   }>;
+}
+
+/**
+ * The thing a step acts on, read from its declared inputs.
+ *
+ * The platform's flow shows a browser step's site and target because a recorder
+ * step carries them. A manifest step carries `input`, so the same facts are
+ * there — a `url` argument is the target, and its host is the site. Anything
+ * else is left blank rather than filled with a guess.
+ */
+function targetOf(input: unknown): { site?: string; target?: string } {
+  if (!input || typeof input !== 'object') return {};
+  const values = Object.entries(input as Record<string, unknown>);
+  const urlEntry = values.find(
+    ([key, value]) =>
+      typeof value === 'string' && (/^https?:\/\//.test(value) || /url|link|endpoint/i.test(key)),
+  );
+  const url = urlEntry?.[1];
+  if (typeof url !== 'string') return {};
+  try {
+    return { site: new URL(url).hostname, target: url };
+  } catch {
+    return { target: url };
+  }
 }
 
 const idOf = (v: { id?: string } | string | undefined): string | undefined =>
@@ -92,11 +126,14 @@ export function toFlow(manifest: unknown, workflowId?: string): Flow | undefined
       return {
         id: step.id ?? `step-${i + 1}`,
         action: step.agent,
-        detail: 'decides what to do',
         tier: 'agent',
         isAgent: true,
         forEach,
-        purpose: step.description ?? agent?.description,
+        // An agent step is where Claritty reasons. The explanation is the
+        // agent's own description — never a sentence invented here.
+        intelligence: { kind: 'reasons', explains: agent?.description },
+        purpose: step.description,
+        ...targetOf(step.input ?? step.with),
       };
     }
 
@@ -111,12 +148,17 @@ export function toFlow(manifest: unknown, workflowId?: string): Flow | undefined
     return {
       id: step.id ?? `step-${i + 1}`,
       action: toolId ? (provider ? toolId.slice(toolId.indexOf('.') + 1) : toolId) : (step.id ?? ''),
-      detail: undefined,
       tier,
       provider,
       isAgent: false,
       forEach,
+      // Inferred from the tool's own verb, not guessed at per-automation: these
+      // are the words the catalog uses for tools that change something.
+      writes: /^(send|create|post|update|delete|save|write|add|move|archive)/.test(
+        provider ? toolId.slice(toolId.indexOf('.') + 1) : toolId,
+      ),
       purpose: step.description ?? tool?.description,
+      ...targetOf(step.input ?? step.with),
     };
   });
 
