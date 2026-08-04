@@ -220,19 +220,57 @@ function ProjectView({ project }: { project: Project }) {
   const [openRunId, setOpenRunId] = useState<string | undefined>();
   const [manifest, setManifest] = useState<Record<string, unknown> | undefined>();
   const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [busy, setBusy] = useState<'start' | 'stop' | 'run' | undefined>();
+  const [actionError, setActionError] = useState<string | undefined>();
 
-  useEffect(() => {
-    void api.listRuns(project.id).then((r) => {
-      setRuns(r);
-      setOpenRunId(r[0]?.id);
-    });
-    void api.listTriggers(project.id).then(setTriggers);
-    void api.spend(project.id, Date.now() - 7 * 86_400_000).then(setSpend);
-    void api.manifest(project.id).then(setManifest);
-    void api.agents().then(setAgents);
+  const load = useCallback(async () => {
+    // Settled, not `all`: one unavailable source (no manifest on disk, no
+    // coding agent installed) must not blank the whole screen.
+    const [r, t, s, m, a] = await Promise.allSettled([
+      api.listRuns(project.id),
+      api.listTriggers(project.id),
+      api.spend(project.id, Date.now() - 7 * 86_400_000),
+      api.manifest(project.id),
+      api.agents(),
+    ]);
+    if (r.status === 'fulfilled') {
+      setRuns(r.value);
+      setOpenRunId((current) => current ?? r.value[0]?.id);
+    }
+    if (t.status === 'fulfilled') setTriggers(t.value);
+    if (s.status === 'fulfilled') setSpend(s.value);
+    if (m.status === 'fulfilled') setManifest(m.value);
+    if (a.status === 'fulfilled') setAgents(a.value);
   }, [project.id]);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   const running = project.status === 'running';
+
+  /**
+   * Lifecycle actions. Each reports its own failure inline instead of throwing
+   * into the void, and refreshes afterwards so the timeline reflects what just
+   * happened rather than waiting for a poll.
+   */
+  const act = useCallback(
+    async (what: 'start' | 'stop' | 'run') => {
+      setBusy(what);
+      setActionError(undefined);
+      try {
+        if (what === 'start') await api.start(project.id);
+        else if (what === 'stop') await api.stop(project.id);
+        else await api.runWorkflow(project.id);
+        await load();
+      } catch (cause) {
+        setActionError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        setBusy(undefined);
+      }
+    },
+    [project.id, load],
+  );
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 p-8">
@@ -248,11 +286,31 @@ function ProjectView({ project }: { project: Project }) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button variant="outline">{running ? 'Stop' : 'Start'}</Button>
-          {/* The single accent action on this screen. */}
-          <Button variant="accent">Run now</Button>
+          <Button
+            variant="outline"
+            disabled={busy !== undefined}
+            onClick={() => act(running ? 'stop' : 'start')}
+          >
+            {busy === 'start' ? 'Starting…' : busy === 'stop' ? 'Stopping…' : running ? 'Stop' : 'Start'}
+          </Button>
+          {/* The single accent action on this screen. Starts the automation
+              first if it is not up — nobody should have to know Start exists. */}
+          <Button variant="accent" disabled={busy !== undefined} onClick={() => act('run')}>
+            {busy === 'run' ? 'Running…' : 'Run now'}
+          </Button>
         </div>
       </header>
+
+      {actionError && (
+        <div className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3">
+          <p className="min-w-0 flex-1 text-sm text-destructive" data-selectable>
+            {actionError}
+          </p>
+          <Button size="sm" variant="ghost" onClick={() => setActionError(undefined)}>
+            Dismiss
+          </Button>
+        </div>
+      )}
 
       {project.status === 'crashed' && project.lastError && (
         <Card className="border-l-2 border-l-destructive p-4">

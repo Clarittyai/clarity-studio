@@ -20,6 +20,7 @@
     "@clarity-studio/graph": "workspace:*",
     "@clarity-studio/orchestrator": "workspace:*",
     "@clarity-studio/scheduler": "workspace:*",
+    "@clarity-studio/vault": "workspace:*",
     "framer-motion": "^12.43.0",
     "lucide-react": "^1.28.0",
     "yaml": "^2.9.0"

@@ -78,6 +78,9 @@ importers:
       '@clarity-studio/scheduler':
         specifier: workspace:*
         version: link:../../packages/scheduler
+      '@clarity-studio/vault':
+        specifier: workspace:*
+        version: link:../../packages/vault
       framer-motion:
         specifier: ^12.43.0
         version: 12.43.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

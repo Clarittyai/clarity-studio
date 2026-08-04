@@ -24,6 +24,8 @@ import { parse as parseYaml } from 'yaml';
 import { detectAgents } from '@clarity-studio/agent-bridge';
 import { Store } from '@clarity-studio/db';
 
+import { RuntimeHost } from './runtime.js';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEV_SERVER = process.env.STUDIO_DEV_SERVER;
 
@@ -57,6 +59,9 @@ function db(): Store {
   }
   return store;
 }
+
+/** Holds the control plane and the running automations for this window. */
+const runtime = new RuntimeHost(db);
 
 // ── IPC ──────────────────────────────────────────────────────────────────────
 
@@ -103,17 +108,17 @@ function registerIpc(): void {
     db().spendSince(String(projectId), Number(sinceMs)),
   );
 
-  // Still hosted by the CLI rather than in-process. Kept as explicit handlers
-  // with an actionable message — an unregistered channel rejects with Electron's
-  // opaque "No handler registered", which tells nobody what to do next.
-  for (const channel of ['project:start', 'project:stop', 'workflow:run']) {
-    ipcMain.handle(channel, () => {
-      throw new Error(
-        'Running an automation is not hosted in the desktop app yet. ' +
-          'Use the CLI meanwhile: clarity-studio serve',
-      );
-    });
-  }
+  ipcMain.handle('project:start', async (_event, projectId: string) => {
+    await runtime.start(String(projectId));
+  });
+
+  ipcMain.handle('project:stop', async (_event, projectId: string) => {
+    await runtime.stop(String(projectId));
+  });
+
+  ipcMain.handle('workflow:run', async (_event, projectId: string, workflowId?: string) => {
+    await runtime.runWorkflow(String(projectId), workflowId ? String(workflowId) : undefined);
+  });
 
   /**
    * The project's manifest, for the canvas. Read fresh each time rather than
@@ -318,7 +323,23 @@ void app.whenReady().then(() => {
   });
 });
 
+/**
+ * Quitting must take the automations with it. Without this, a container or a
+ * uvicorn process outlives the window that started it and keeps a port — and
+ * the next launch reports the port as taken by nothing visible.
+ */
+let shuttingDown = false;
+app.on('before-quit', (event) => {
+  if (shuttingDown) return;
+  event.preventDefault();
+  shuttingDown = true;
+  void runtime.shutdown().finally(() => {
+    store?.close();
+    store = undefined;
+    app.quit();
+  });
+});
+
 app.on('window-all-closed', () => {
-  store?.close();
   if (process.platform !== 'darwin') app.quit();
 });
