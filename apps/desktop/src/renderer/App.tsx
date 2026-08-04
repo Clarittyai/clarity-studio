@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { FolderOpen, Plus, Settings, Sparkles, Trash2 } from 'lucide-react';
+import { ChevronDown, FolderOpen, Plus, Settings, Sparkles, TerminalSquare, Trash2 } from 'lucide-react';
 
 import {
   api,
@@ -127,7 +127,7 @@ export default function App() {
           onSelect={setSelectedId}
           onNew={() => setComposing(true)}
         />
-        <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Failures are shown, never swallowed. A dismissible strip rather
               than a modal: it must not block the rest of the window. */}
           {error && (
@@ -205,10 +205,9 @@ function TitleBar({
       )}
       style={DRAG}
     >
-      {/* Mark + wordmark, at the platform's own proportions. The badge opts out
-          of the drag region so it stays clickable. */}
+      {/* The brand lives in the sidebar, under the traffic lights, exactly as
+          it does in the platform. This side is just the drag region. */}
       <div className="flex items-center gap-2">
-        <BrandLockup />
         {isDemo && (
           <span style={NO_DRAG}>
             <Badge tone="warning">sample data</Badge>
@@ -244,7 +243,14 @@ function Sidebar({
   onNew: () => void;
 }) {
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-1 border-r border-border p-3">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-border">
+      {/* The platform's own brand row: 64px tall, 32px mark, gap-3, hairline
+          under it. Sitting directly below the traffic lights, as it does there. */}
+      <div className="flex h-16 shrink-0 items-center border-b border-border/50 px-4">
+        <BrandLockup />
+      </div>
+
+      <div className="flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between px-2 pb-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Automations
@@ -273,6 +279,7 @@ function Sidebar({
           </span>
         </button>
       ))}
+      </div>
     </aside>
   );
 }
@@ -390,7 +397,9 @@ function ProjectView({
   );
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 p-8">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex max-w-6xl flex-col gap-8 p-8">
       <header className="flex items-start justify-between gap-6">
         <div className="min-w-0">
           <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight">
@@ -461,6 +470,7 @@ function ProjectView({
         />
       </div>
 
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.9fr)_minmax(260px,1fr)]">
       <Band
         title={tab === 'flow' ? 'Flow' : 'Executions'}
         subtitle={
@@ -504,22 +514,12 @@ function ProjectView({
         )}
       </Band>
 
+      <aside className="flex flex-col gap-8">
       <Band
         title="Agents"
-        subtitle="The ones inside this automation — what they are allowed to touch, and what they actually cost."
+        subtitle="What is inside, and what each one costs."
       >
         <AgentsBand manifest={manifest} calls={latestCalls} />
-      </Band>
-
-      <Band
-        title="Build it"
-        subtitle={
-          codingAgents.length > 0
-            ? `${codingAgents.map((a) => a.name).join(' or ')} runs here, in this folder, with the project's own instructions already loaded.`
-            : 'Write this automation with a coding agent, in the project folder.'
-        }
-      >
-        <TerminalPanel projectId={project.id} request={request} />
       </Band>
 
       <Band title="Triggers" subtitle="What starts it, without you.">
@@ -537,6 +537,66 @@ function ProjectView({
           </Card>
         )}
       </Band>
+      </aside>
+      </div>
+        </div>
+      </div>
+
+      {/*
+        The terminal is docked, not a section in the page.
+        It was the last band, so the moment the agent produced any output you
+        were scrolled away from the flow it was changing — and the flow redrawing
+        live is the whole point of having both in one window. Docked, it stays
+        put while the page above it scrolls, and it is collapsible because a
+        person reading a run does not always want a shell taking a third of the
+        window.
+      */}
+      <TerminalDock
+        projectId={project.id}
+        request={request}
+        agents={codingAgents}
+      />
+    </div>
+  );
+}
+
+/** The bottom dock: always there, collapsible, never scrolls away. */
+function TerminalDock({
+  projectId,
+  request,
+  agents,
+}: {
+  projectId: string;
+  request?: string;
+  agents: AgentInfo[];
+}) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div className="shrink-0 border-t border-border bg-background">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 px-6 py-2.5 text-left transition-colors hover:bg-foreground/[0.03]"
+      >
+        <TerminalSquare className="h-4 w-4 text-muted-foreground" />
+        <span className="text-[13px] font-semibold">Build it</span>
+        <span className="truncate text-xs text-muted-foreground">
+          {agents.length > 0
+            ? `${agents.map((a) => a.name).join(' or ')} runs here, signed in as you`
+            : 'Write this automation with a coding agent'}
+        </span>
+        <ChevronDown
+          className={cn(
+            'ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+            open ? '' : '-rotate-90',
+          )}
+        />
+      </button>
+      {/* Kept mounted when collapsed: unmounting would kill a live session. */}
+      <div className={cn('px-6 pb-5', open ? 'block' : 'hidden')}>
+        <TerminalPanel projectId={projectId} request={request} />
+      </div>
     </div>
   );
 }

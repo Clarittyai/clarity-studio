@@ -48,6 +48,29 @@ const DEV_SERVER = process.env.STUDIO_DEV_SERVER;
 const APP_NAME = 'Claritty Studio';
 app.setName(APP_NAME);
 
+/**
+ * One window, one runtime.
+ *
+ * A second instance is not a harmless duplicate here: each one opens the same
+ * SQLite store, each tries to bind the control plane's fixed port, and each
+ * spawns its own runners and ptys. The second loses the port race and reports a
+ * confusing failure for something the first is doing fine.
+ *
+ * So the second instance hands its argv to the first and exits, and the first
+ * surfaces its window — the behaviour people expect from clicking a dock icon.
+ */
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const [existing] = BrowserWindow.getAllWindows();
+    if (!existing) return;
+    if (existing.isMinimized()) existing.restore();
+    existing.show();
+    existing.focus();
+  });
+}
+
 /** Bundled at `assets/icon.png`, three levels up from `dist/main`. */
 const ICON_PATH = join(HERE, '../../assets/icon.png');
 

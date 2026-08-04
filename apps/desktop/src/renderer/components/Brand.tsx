@@ -88,9 +88,9 @@ export function BrandWordmark({ className }: { className?: string }) {
  */
 export function BrandLockup({ className }: { className?: string }) {
   return (
-    <div className={cn('flex items-center gap-2.5', className)} data-brand>
-      <BrandMark className="h-[22px] w-auto shrink-0" />
-      <BrandWordmark className="h-[15px] w-auto" />
+    <div className={cn('flex items-center gap-3', className)} data-brand>
+      <BrandMark className="h-8 w-8 shrink-0" />
+      <BrandWordmark className="h-5 w-auto" />
     </div>
   );
 }
