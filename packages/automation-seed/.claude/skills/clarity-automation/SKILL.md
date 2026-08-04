@@ -1,5 +1,5 @@
 ---
-name: claritty-automation
+name: clarity-automation
 description: How a Claritty automation is actually wired — intelligence.yaml, tools, agents, workflows, triggers — and the contracts that make one run instead of merely look right. Use whenever editing intelligence.yaml, adding or changing a tool or agent, wiring an integration, or diagnosing an automation that boots but does nothing.
 ---
 

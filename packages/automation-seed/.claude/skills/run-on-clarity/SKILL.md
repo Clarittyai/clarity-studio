@@ -1,5 +1,5 @@
 ---
-name: run-on-claritty
+name: run-on-clarity
 description: What an automation needs in order to run on Claritty's hosted platform rather than only on this machine — always-on schedules, brokered integration credentials, and per-run cost accounting. Use when the user asks to deploy, publish, host, or "make it run without my laptop open", or when deciding between the local runtime and the cloud.
 ---
 
