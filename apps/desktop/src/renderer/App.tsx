@@ -7,7 +7,15 @@
  * it configured".
  */
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { ChevronDown, FolderOpen, Plus, Settings, Sparkles, TerminalSquare, Trash2 } from 'lucide-react';
 
 import {
@@ -575,8 +583,54 @@ function TerminalDock({
   const [agentId, setAgentId] = useState<string | undefined>();
   const chosen = agentId ?? agents[0]?.id;
 
+  /**
+   * Drag the top edge to resize.
+   *
+   * Clamped: below MIN the terminal is too short to read a prompt in, and above
+   * MAX the flow it is meant to be changing is off screen — which is the reason
+   * the terminal is docked rather than inline in the first place.
+   */
+  const MIN = 140;
+  const [height, setHeight] = useState(320);
+  const drag = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      drag.current = { startY: e.clientY, startHeight: height };
+      if (!open) setOpen(true);
+    },
+    [height, open],
+  );
+
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    // Dragging up grows it, which is why the delta is inverted.
+    const next = drag.current.startHeight + (drag.current.startY - e.clientY);
+    const max = Math.max(MIN, window.innerHeight - 260);
+    setHeight(Math.min(max, Math.max(MIN, next)));
+  }, []);
+
+  const endDrag = useCallback(() => {
+    drag.current = null;
+  }, []);
+
   return (
     <div className="shrink-0 border-t border-border bg-background">
+      {/* The grab strip. Taller than it looks — a 1px border is a cruel target. */}
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onDoubleClick={() => setHeight(320)}
+        title="Drag to resize · double-click to reset"
+        className="group -mt-1 h-2 w-full cursor-row-resize"
+      >
+        <div className="mx-auto mt-[3px] h-[3px] w-16 rounded-full bg-border transition-colors group-hover:bg-accent/50" />
+      </div>
+
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -627,7 +681,12 @@ function TerminalDock({
       </button>
       {/* Kept mounted when collapsed: unmounting would kill a live session. */}
       <div className={cn(open ? 'block' : 'hidden')}>
-        <TerminalPanel projectId={projectId} request={request} agentId={chosen} />
+        <TerminalPanel
+          projectId={projectId}
+          request={request}
+          agentId={chosen}
+          height={height}
+        />
       </div>
     </div>
   );

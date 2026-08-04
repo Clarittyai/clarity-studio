@@ -48,12 +48,15 @@ export function TerminalPanel({
   projectId,
   request,
   agentId,
+  height = 320,
 }: {
   projectId: string;
   /** What the person said it should do, handed to the agent as its first instruction. */
   request?: string;
   /** Which coding agent to run. Changing it restarts the session. */
   agentId?: string;
+  /** Set by the dock's drag handle. */
+  height?: number;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | undefined>(undefined);
@@ -174,7 +177,7 @@ export function TerminalPanel({
 
       {/* Full-bleed on purpose: a terminal inside a rounded card reads as a
           widget, and this is a place you work. It spans the dock. */}
-      <div className="h-[320px] w-full">
+      <div className="w-full" style={{ height }}>
         <div ref={hostRef} className="h-full w-full" />
       </div>
     </div>
