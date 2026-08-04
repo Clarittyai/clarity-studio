@@ -45,6 +45,18 @@ contextBridge.exposeInMainWorld('studio', {
     return () => ipcRenderer.off('terminal:exit', listener);
   },
   openExternal: (url: string) => ipcRenderer.send('shell:open-external', url),
+  listKeys: () => ipcRenderer.invoke('keys:list'),
+  setKey: (providerId: string, field: string, value: string) =>
+    ipcRenderer.invoke('keys:set', providerId, field, value),
+  removeKey: (providerId: string, field: string) =>
+    ipcRenderer.invoke('keys:remove', providerId, field),
+  watchProject: (projectId: string) => ipcRenderer.invoke('project:watch', projectId),
+  unwatchProject: (projectId: string) => ipcRenderer.send('project:unwatch', projectId),
+  onProjectChanged: (handler: (projectId: string, file: string) => void) => {
+    const listener = (_e: unknown, projectId: string, file: string) => handler(projectId, file);
+    ipcRenderer.on('project:changed', listener);
+    return () => ipcRenderer.off('project:changed', listener);
+  },
   llmCalls: (runId: string) => ipcRenderer.invoke('llm:list', runId),
   start: (projectId: string) => ipcRenderer.invoke('project:start', projectId),
   stop: (projectId: string) => ipcRenderer.invoke('project:stop', projectId),

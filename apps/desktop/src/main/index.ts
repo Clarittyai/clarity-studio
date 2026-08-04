@@ -24,6 +24,11 @@ import { parse as parseYaml } from 'yaml';
 import { detectAgents } from '@clarity-studio/agent-bridge';
 import { Store } from '@clarity-studio/db';
 
+import { watch, type FSWatcher } from 'node:fs';
+
+import { SafeStorageBackend, Vault, VaultUnavailableError } from '@clarity-studio/vault';
+import { safeStorage } from 'electron';
+
 import { RuntimeHost } from './runtime.js';
 import { TerminalHost } from './terminal.js';
 
@@ -65,6 +70,52 @@ function db(): Store {
 const runtime = new RuntimeHost(db);
 /** Holds the coding-agent pty sessions. */
 const terminals = new TerminalHost();
+
+/**
+ * Secrets go through the OS keyring. There is no passphrase prompt: a desktop
+ * user is already authenticated to their machine, and inventing a second
+ * password is how people end up keeping keys in a text file instead.
+ */
+function vault(): Vault {
+  const store = db();
+  return new Vault(new SafeStorageBackend(safeStorage), {
+    put: (key, ciphertext, last4) => store.putSecret(key, ciphertext, last4),
+    get: (key) => store.getSecret(key),
+    remove: (key) => store.removeSecret(key),
+    list: () => store.listSecrets(),
+  });
+}
+
+/**
+ * Watch a project for edits so the window reflects what the coding agent just
+ * wrote. This is the whole point of having the terminal in the same window: you
+ * ask for a change, and the flow redraws — no refresh, no restart.
+ *
+ * Debounced because an editor save is several events, and recursive because the
+ * manifest is not the only thing that matters (a prompt file or a tool body
+ * changes what a step does).
+ */
+const watchers = new Map<string, FSWatcher>();
+
+function watchProject(projectId: string, path: string, send: Electron.WebContents): void {
+  watchers.get(projectId)?.close();
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const watcher = watch(path, { recursive: true }, (_event, filename) => {
+      const name = String(filename ?? '');
+      // Ignore the noise an automation makes about itself while running.
+      if (/node_modules|__pycache__|\.git\/|\.venv|\.data|\.studio/.test(name)) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!send.isDestroyed()) send.send('project:changed', projectId, name);
+      }, 200);
+    });
+    watchers.set(projectId, watcher);
+  } catch {
+    // A project on a volume that cannot be watched still works; it just does
+    // not live-update, which is better than failing to open.
+  }
+}
 
 // ── IPC ──────────────────────────────────────────────────────────────────────
 
@@ -110,6 +161,48 @@ function registerIpc(): void {
   ipcMain.handle('spend:get', (_event, projectId: string, sinceMs: number) =>
     db().spendSince(String(projectId), Number(sinceMs)),
   );
+
+  /** The providers a run can use, and whether a key is stored for each. Never
+   *  the key itself — only the last four, which is enough to recognise it. */
+  ipcMain.handle('keys:list', () => {
+    const stored = db().listSecrets();
+    return ['anthropic', 'openai'].map((id) => {
+      const entry = stored.find((s2) => s2.key === `provider:*:${id}:api_key`);
+      const base = stored.find((s2) => s2.key === `provider:*:${id}:base_url`);
+      return {
+        id,
+        last4: entry?.last4,
+        hasKey: Boolean(entry),
+        baseUrl: base ? vault().get({ kind: 'provider', id, field: 'base_url' }) : undefined,
+      };
+    });
+  });
+
+  ipcMain.handle('keys:set', (_event, providerId: string, field: string, value: string) => {
+    const id = String(providerId);
+    const which = String(field) === 'base_url' ? 'base_url' : 'api_key';
+    try {
+      vault().set({ kind: 'provider', id, field: which }, String(value));
+    } catch (cause) {
+      if (cause instanceof VaultUnavailableError) throw new Error(cause.message);
+      throw cause;
+    }
+  });
+
+  ipcMain.handle('keys:remove', (_event, providerId: string, field: string) => {
+    db().removeSecret(`provider:*:${String(providerId)}:${String(field) === 'base_url' ? 'base_url' : 'api_key'}`);
+  });
+
+  /** Start live-updating a project while its screen is open. */
+  ipcMain.handle('project:watch', (event, projectId: string) => {
+    const project = db().getProject(String(projectId));
+    if (project) watchProject(String(projectId), project.path, event.sender);
+  });
+
+  ipcMain.on('project:unwatch', (_event, projectId: string) => {
+    watchers.get(String(projectId))?.close();
+    watchers.delete(String(projectId));
+  });
 
   /** Links open in the real browser — never in a window that holds keys. */
   ipcMain.on('shell:open-external', (_event, url: string) => {
@@ -386,6 +479,8 @@ app.on('before-quit', (event) => {
   if (shuttingDown) return;
   event.preventDefault();
   shuttingDown = true;
+  for (const w of watchers.values()) w.close();
+  watchers.clear();
   terminals.shutdown();
   void runtime.shutdown().finally(() => {
     store?.close();

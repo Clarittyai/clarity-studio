@@ -71,6 +71,15 @@ export interface LlmCall {
   at: number;
 }
 
+/** A model provider, and whether this machine has a key for it. */
+export interface ProviderKey {
+  id: string;
+  hasKey: boolean;
+  last4?: string;
+  /** Set to point a provider at your own endpoint (an OpenAI-compatible server). */
+  baseUrl?: string;
+}
+
 export interface AgentInfo {
   id: string;
   name: string;
@@ -96,6 +105,14 @@ export interface StudioApi {
   onTerminalData(handler: (projectId: string, data: string) => void): () => void;
   onTerminalExit(handler: (projectId: string, code: number) => void): () => void;
   openExternal(url: string): void;
+  /** Providers and whether a key is stored — never the key itself. */
+  listKeys(): Promise<ProviderKey[]>;
+  setKey(providerId: string, field: 'api_key' | 'base_url', value: string): Promise<void>;
+  removeKey(providerId: string, field: 'api_key' | 'base_url'): Promise<void>;
+  /** Live-update this project's screen while it is open. */
+  watchProject(projectId: string): Promise<void>;
+  unwatchProject(projectId: string): void;
+  onProjectChanged(handler: (projectId: string, file: string) => void): () => void;
   /** What the automation's own agents actually asked the model, per run. */
   llmCalls(runId: string): Promise<LlmCall[]>;
   /** Scaffold from the seed. Resolves undefined if the user cancels the dialog. */
@@ -316,6 +333,19 @@ const fixtures: StudioApi = {
     return () => {};
   },
   openExternal() {},
+  async listKeys() {
+    return [
+      { id: 'anthropic', hasKey: true, last4: '7f3a' },
+      { id: 'openai', hasKey: false },
+    ];
+  },
+  async setKey() {},
+  async removeKey() {},
+  async watchProject() {},
+  unwatchProject() {},
+  onProjectChanged() {
+    return () => {};
+  },
   async llmCalls() {
     return [];
   },

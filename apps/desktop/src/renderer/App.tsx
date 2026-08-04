@@ -16,6 +16,7 @@ import {
   type AgentInfo,
   type LlmCall,
   type Project,
+  type ProviderKey,
   type Run,
   type Step,
   type Trigger,
@@ -285,6 +286,21 @@ function ProjectView({ project }: { project: Project }) {
     void load();
   }, [load]);
 
+  /**
+   * The point of having the terminal in this window: Claude Code writes a file,
+   * and the flow above it redraws. No refresh, no restart.
+   */
+  useEffect(() => {
+    void api.watchProject(project.id);
+    const off = api.onProjectChanged((id) => {
+      if (id === project.id) void load();
+    });
+    return () => {
+      off();
+      api.unwatchProject(project.id);
+    };
+  }, [project.id, load]);
+
   const running = project.status === 'running';
 
   /**
@@ -427,6 +443,13 @@ function ProjectView({ project }: { project: Project }) {
         subtitle="The ones inside this automation — what they are allowed to touch, and what they actually cost."
       >
         <AgentsBand manifest={manifest} calls={latestCalls} />
+      </Band>
+
+      <Band
+        title="Model"
+        subtitle="What the agents in this automation call when it runs. Your own key, or your own endpoint."
+      >
+        <ModelBand />
       </Band>
 
       <Band
@@ -747,5 +770,133 @@ function AgentsBand({
         );
       })}
     </Card>
+  );
+}
+
+/**
+ * Where a run's model access is configured.
+ *
+ * Deliberately separate from the terminal: authoring runs on the user's own
+ * Claude Code session, this is what the automation itself spends. Keys are
+ * written to the OS keyring and never read back into the window — only the last
+ * four, which is enough to recognise which key is in there.
+ *
+ * `baseUrl` is how "bring your own model" works: point a provider at an
+ * OpenAI-compatible server (a local one, or your own gateway) and runs go there
+ * instead.
+ */
+function ModelBand() {
+  const [providers, setProviders] = useState<ProviderKey[]>([]);
+  const [editing, setEditing] = useState<string | undefined>();
+  const [value, setValue] = useState('');
+  /**
+   * Key only, for now. Storing a base URL already works, and the providers
+   * accept `ctx.baseUrl` — but `control-plane/src/server.ts` never passes it,
+   * so a custom endpoint would be saved and then silently ignored at run time.
+   * Offering the control before it routes would be worse than not offering it.
+   */
+  const field = 'api_key' as const;
+  const [error, setError] = useState<string | undefined>();
+
+  const reload = useCallback(async () => {
+    setProviders(await api.listKeys().catch(() => []));
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const save = useCallback(
+    async (id: string) => {
+      setError(undefined);
+      try {
+        await api.setKey(id, field, value.trim());
+        setEditing(undefined);
+        setValue('');
+        await reload();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [field, value, reload],
+  );
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Card className="divide-y divide-border">
+        {providers.map((provider) => (
+          <div key={provider.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <span className="text-sm font-semibold capitalize text-foreground">{provider.id}</span>
+            {provider.hasKey ? (
+              <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[11px] text-emerald-700 dark:text-emerald-300">
+                ····{provider.last4}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">no key</span>
+            )}
+            {provider.baseUrl && (
+              <span className="truncate font-mono text-[11px] text-muted-foreground">
+                {provider.baseUrl}
+              </span>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setEditing(editing === provider.id ? undefined : provider.id);
+                  setValue('');
+                }}
+              >
+                {provider.hasKey ? 'Replace' : 'Add key'}
+              </Button>
+              {provider.hasKey && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    await api.removeKey(provider.id, 'api_key');
+                    await reload();
+                  }}
+                >
+                  Remove
+                </Button>
+              )}
+            </div>
+
+            {editing === provider.id && (
+              <div className="flex w-full flex-col gap-2 pt-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    value={value}
+                    autoFocus
+                    onChange={(e) => setValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && value.trim()) void save(provider.id);
+                      if (e.key === 'Escape') setEditing(undefined);
+                    }}
+                    placeholder="sk-…"
+                    className="min-w-0 flex-1 rounded-full border border-border bg-background px-3 py-1.5 font-mono text-[12px] text-foreground outline-none focus:border-accent"
+                  />
+                  <Button
+                    size="sm"
+                    variant="accent"
+                    disabled={!value.trim()}
+                    onClick={() => void save(provider.id)}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </Card>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <p className="text-xs text-muted-foreground">
+        Stored in this machine&rsquo;s keyring. Runs spend it; the Build-it terminal never does.
+      </p>
+    </div>
   );
 }

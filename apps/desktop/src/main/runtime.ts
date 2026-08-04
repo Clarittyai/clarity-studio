@@ -86,6 +86,7 @@ export class RuntimeHost {
   private plane?: ControlPlane;
   private planeUrl?: string;
   private secrets?: VaultSecretSource;
+  private vault?: Vault;
   private readonly live = new Map<string, Live>();
   /** Serialises start/stop per project so a double-click cannot race itself. */
   private readonly pending = new Map<string, Promise<unknown>>();
@@ -96,6 +97,7 @@ export class RuntimeHost {
     if (this.plane) return this.plane;
 
     const vault = new Vault(new SafeStorageBackend(safeStorage), vaultStorage(this.store()));
+    this.vault = vault;
     // Prefer the stable port; fall back only if something else holds it, in
     // which case webhook URLs move and the UI says so.
     const port = (await isFree(CONTROL_PLANE_PORT)) ? CONTROL_PLANE_PORT : 0;
@@ -243,11 +245,17 @@ export class RuntimeHost {
     return { runId };
   }
 
-  /** True when at least one provider this build knows about has a key. */
+  /**
+   * True when a run has somewhere to send model calls: a stored provider key,
+   * or a base URL pointing at the user's own OpenAI-compatible endpoint (a local
+   * model, or their gateway). A self-hosted endpoint may need no key at all,
+   * so requiring one would lock out exactly the people who brought their own.
+   */
   private async hasModelKey(): Promise<boolean> {
     if (!this.secrets) return true;
     for (const provider of ['anthropic', 'openai']) {
       if (await this.secrets.providerKey(provider)) return true;
+      if (this.vault?.get({ kind: 'provider', id: provider, field: 'base_url' })) return true;
     }
     return false;
   }
