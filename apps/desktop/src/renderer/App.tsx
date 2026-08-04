@@ -7,13 +7,24 @@
  * it configured".
  */
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { Plus } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Plus, Sparkles } from 'lucide-react';
 
-import { api, isDemo, type AgentInfo, type Project, type Run, type Step, type Trigger } from './api.js';
+import {
+  api,
+  isDemo,
+  type AgentInfo,
+  type LlmCall,
+  type Project,
+  type Run,
+  type Step,
+  type Trigger,
+} from './api.js';
 import { BrandLockup } from './components/Brand.js';
-import { Canvas } from './components/Canvas.js';
+import { AutomationFlow, type StepStatus } from './components/flow/AutomationFlow.js';
+import { toFlow } from './components/flow/blocks.js';
 import { AutomationGraphScene } from './components/live/AutomationGraphScene.js';
+import { TerminalPanel } from './components/Terminal.js';
 import {
   Badge,
   Button,
@@ -21,7 +32,6 @@ import {
   duration,
   EmptyState,
   formatUsd,
-  Section,
   StatusDot,
   timeAgo,
   cn,
@@ -219,9 +229,33 @@ function ProjectView({ project }: { project: Project }) {
   const [spend, setSpend] = useState({ costMicros: 0, calls: 0 });
   const [openRunId, setOpenRunId] = useState<string | undefined>();
   const [manifest, setManifest] = useState<Record<string, unknown> | undefined>();
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [codingAgents, setAgents] = useState<AgentInfo[]>([]);
   const [busy, setBusy] = useState<'start' | 'stop' | 'run' | undefined>();
   const [actionError, setActionError] = useState<string | undefined>();
+  const [tab, setTab] = useState<'flow' | 'runs'>('flow');
+  const [latestSteps, setLatestSteps] = useState<Step[]>([]);
+  const [latestCalls, setLatestCalls] = useState<LlmCall[]>([]);
+
+  const flow = useMemo(() => (manifest ? toFlow(manifest) : undefined), [manifest]);
+
+  /**
+   * The pipeline lights from the most recent run's real checkpoints — the thing
+   * the platform's page cannot do, because there the flow is a preview.
+   */
+  const flowStatus = useMemo(() => {
+    const map: Record<string, StepStatus> = {};
+    for (const step of latestSteps) {
+      map[step.stepId] =
+        step.status === 'success'
+          ? 'ok'
+          : step.status === 'failed'
+            ? 'failed'
+            : step.status === 'running'
+              ? 'running'
+              : 'idle';
+    }
+    return map;
+  }, [latestSteps]);
 
   const load = useCallback(async () => {
     // Settled, not `all`: one unavailable source (no manifest on disk, no
@@ -236,6 +270,10 @@ function ProjectView({ project }: { project: Project }) {
     if (r.status === 'fulfilled') {
       setRuns(r.value);
       setOpenRunId((current) => current ?? r.value[0]?.id);
+      // The newest run drives the pipeline's lit state.
+      const newest = r.value[0];
+      setLatestSteps(newest ? await api.listSteps(newest.id).catch(() => []) : []);
+      setLatestCalls(newest ? await api.llmCalls(newest.id).catch(() => []) : []);
     }
     if (t.status === 'fulfilled') setTriggers(t.value);
     if (s.status === 'fulfilled') setSpend(s.value);
@@ -341,41 +379,35 @@ function ProjectView({ project }: { project: Project }) {
         />
       </div>
 
-      <Section
-        title="Structure"
-        action={
-          agents.length > 0 ? (
-            <span className="text-xs text-muted-foreground">
-              Author with {agents.map((a) => a.name).join(' or ')}
-            </span>
-          ) : undefined
+      <Band
+        title={tab === 'flow' ? 'Flow' : 'Executions'}
+        subtitle={
+          tab === 'flow'
+            ? 'What runs, in order, each time it fires.'
+            : 'Every run, what it did, and what it cost.'
         }
+        action={<Segmented value={tab} onChange={setTab} options={[['flow', 'Flow'], ['runs', 'Executions']]} />}
       >
-        {manifest ? (
-          <Canvas manifest={manifest} />
-        ) : (
-          <EmptyState title="No manifest" body="This project has no intelligence.yaml yet." />
-        )}
-      </Section>
-
-      <Section title="Triggers">
-        {triggers.length === 0 ? (
+        {tab === 'flow' ? (
+          flow ? (
+            <AutomationFlow flow={flow} status={flowStatus} />
+          ) : (
+            <EmptyState
+              size="section"
+              title={manifest ? 'No workflow declared' : 'No manifest'}
+              body={
+                manifest
+                  ? 'This automation has an intelligence.yaml, but it declares no workflow to run.'
+                  : 'This folder has no intelligence.yaml yet.'
+              }
+            />
+          )
+        ) : runs.length === 0 ? (
           <EmptyState
-            title="Nothing scheduled"
-            body="This automation only runs when you press Run. Give it a schedule and it will run on its own — while Studio is open."
+            size="section"
+            title="No runs yet"
+            body="Press Run now to see what this automation does."
           />
-        ) : (
-          <Card className="divide-y divide-border">
-            {triggers.map((trigger) => (
-              <TriggerRow key={trigger.id} trigger={trigger} />
-            ))}
-          </Card>
-        )}
-      </Section>
-
-      <Section title="Runs">
-        {runs.length === 0 ? (
-          <EmptyState title="No runs yet" body="Press Run now to see what this automation does." />
         ) : (
           <div className="flex flex-col gap-2">
             {runs.map((run) => (
@@ -388,7 +420,98 @@ function ProjectView({ project }: { project: Project }) {
             ))}
           </div>
         )}
-      </Section>
+      </Band>
+
+      <Band
+        title="Agents"
+        subtitle="The ones inside this automation — what they are allowed to touch, and what they actually cost."
+      >
+        <AgentsBand manifest={manifest} calls={latestCalls} />
+      </Band>
+
+      <Band
+        title="Build it"
+        subtitle={
+          codingAgents.length > 0
+            ? `${codingAgents.map((a) => a.name).join(' or ')} runs here, in this folder, with the project's own instructions already loaded.`
+            : 'Write this automation with a coding agent, in the project folder.'
+        }
+      >
+        <TerminalPanel projectId={project.id} />
+      </Band>
+
+      <Band title="Triggers" subtitle="What starts it, without you.">
+        {triggers.length === 0 ? (
+          <EmptyState
+            size="section"
+            title="Nothing scheduled"
+            body="This automation only runs when you press Run. Give it a schedule and it will run on its own — while Studio is open."
+          />
+        ) : (
+          <Card className="divide-y divide-border">
+            {triggers.map((trigger) => (
+              <TriggerRow key={trigger.id} trigger={trigger} />
+            ))}
+          </Card>
+        )}
+      </Band>
+    </div>
+  );
+}
+
+/** An editorial section band — title + subtitle, no card and no icon. */
+function Band({
+  title,
+  subtitle,
+  action,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** The platform's pill segmented control. */
+function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (next: T) => void;
+  options: Array<[T, string]>;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-1 rounded-full bg-foreground/[0.04] p-1">
+      {options.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          className={cn(
+            'rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors',
+            key === value
+              ? 'bg-accent text-accent-foreground'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -528,5 +651,101 @@ function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
         {formatUsd(run.costMicros)}
       </p>
     </div>
+  );
+}
+
+/**
+ * The automation's OWN agents — the ones that run when it fires, not the coding
+ * agent that writes it. The manifest says what each may touch; the run ledger
+ * says what each actually cost. Both are real data; neither is estimated.
+ */
+function AgentsBand({
+  manifest,
+  calls,
+}: {
+  manifest?: Record<string, unknown>;
+  calls: LlmCall[];
+}) {
+  const agents = useMemo(() => {
+    const list = (manifest as { agents?: Array<Record<string, unknown>> } | undefined)?.agents ?? [];
+    return list.map((a) => ({
+      id: String(a.id ?? ''),
+      description: typeof a.description === 'string' ? a.description : undefined,
+      tools: Array.isArray(a.tools) ? (a.tools as string[]) : [],
+      integrations: Array.isArray(a.integrations) ? (a.integrations as string[]) : [],
+    }));
+  }, [manifest]);
+
+  // Per-agent totals from the last run's ledger.
+  const spent = useMemo(() => {
+    const acc = new Map<string, { calls: number; costMicros: number; tokens: number }>();
+    for (const call of calls) {
+      const key = call.agentId ?? '—';
+      const prev = acc.get(key) ?? { calls: 0, costMicros: 0, tokens: 0 };
+      acc.set(key, {
+        calls: prev.calls + 1,
+        costMicros: prev.costMicros + call.costMicros,
+        tokens: prev.tokens + call.promptTokens + call.completionTokens,
+      });
+    }
+    return acc;
+  }, [calls]);
+
+  if (agents.length === 0) {
+    return (
+      <EmptyState
+        size="section"
+        title="No agents in this automation"
+        body="Every step here is a plain tool call. Add an agent when a step needs judgement rather than a fixed rule."
+      />
+    );
+  }
+
+  return (
+    <Card className="divide-y divide-border">
+      {agents.map((agent) => {
+        const used = spent.get(agent.id);
+        return (
+          <div key={agent.id} className="flex items-start gap-3 px-4 py-3">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-sm font-semibold text-foreground">{agent.id}</span>
+                {agent.integrations.map((id) => (
+                  <span
+                    key={id}
+                    className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-700 dark:text-emerald-300"
+                  >
+                    {id}
+                  </span>
+                ))}
+              </div>
+              {agent.description && (
+                <p className="mt-0.5 text-[12.5px] text-muted-foreground">{agent.description}</p>
+              )}
+              {agent.tools.length > 0 && (
+                <p className="mt-1 font-mono text-[11px] text-muted-foreground/80">
+                  {agent.tools.join(' · ')}
+                </p>
+              )}
+            </div>
+            <div className="shrink-0 text-right">
+              {used ? (
+                <>
+                  <div className="text-sm font-semibold tabular-nums">
+                    {formatUsd(used.costMicros)}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {used.calls} call{used.calls === 1 ? '' : 's'} · {used.tokens.toLocaleString()} tok
+                  </div>
+                </>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">not used last run</span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </Card>
   );
 }

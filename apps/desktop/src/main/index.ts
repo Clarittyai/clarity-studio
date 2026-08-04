@@ -25,6 +25,7 @@ import { detectAgents } from '@clarity-studio/agent-bridge';
 import { Store } from '@clarity-studio/db';
 
 import { RuntimeHost } from './runtime.js';
+import { TerminalHost } from './terminal.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEV_SERVER = process.env.STUDIO_DEV_SERVER;
@@ -62,6 +63,8 @@ function db(): Store {
 
 /** Holds the control plane and the running automations for this window. */
 const runtime = new RuntimeHost(db);
+/** Holds the coding-agent pty sessions. */
+const terminals = new TerminalHost();
 
 // ── IPC ──────────────────────────────────────────────────────────────────────
 
@@ -107,6 +110,56 @@ function registerIpc(): void {
   ipcMain.handle('spend:get', (_event, projectId: string, sinceMs: number) =>
     db().spendSince(String(projectId), Number(sinceMs)),
   );
+
+  /** Links open in the real browser — never in a window that holds keys. */
+  ipcMain.on('shell:open-external', (_event, url: string) => {
+    const target = String(url);
+    // Only ever http(s). A `file:` or custom-scheme URL from the renderer is how
+    // "open a link" turns into "launch something".
+    if (/^https?:\/\//i.test(target)) void shell.openExternal(target);
+  });
+
+  /** What the automation's own agents asked the model during a run. */
+  ipcMain.handle('llm:list', (_event, runId: string) => db().getLlmCalls(String(runId)));
+
+  ipcMain.handle('terminal:open', async (event, projectId: string, request?: string) => {
+    const project = db().getProject(String(projectId));
+    if (!project) throw new Error('That automation is no longer in the library.');
+    const file = manifestIn(project.path);
+    let manifestId: string | undefined;
+    let agentIds: string[] = [];
+    if (file) {
+      try {
+        const parsed = parseYaml(readFileSync(file, 'utf8')) as {
+          id?: string;
+          agents?: Array<{ id?: string }>;
+        };
+        manifestId = parsed?.id;
+        agentIds = (parsed?.agents ?? []).map((a) => a?.id ?? '').filter(Boolean);
+      } catch {
+        // A manifest mid-edit still deserves a terminal.
+      }
+    }
+    return terminals.open(
+      {
+        projectId: String(projectId),
+        cwd: project.path,
+        hasManifest: Boolean(file),
+        manifestId,
+        agentIds,
+        request: request ? String(request) : undefined,
+      },
+      event.sender,
+    );
+  });
+
+  ipcMain.on('terminal:write', (_event, projectId: string, data: string) =>
+    terminals.write(String(projectId), String(data)),
+  );
+  ipcMain.on('terminal:resize', (_event, projectId: string, cols: number, rows: number) =>
+    terminals.resize(String(projectId), Number(cols), Number(rows)),
+  );
+  ipcMain.on('terminal:close', (_event, projectId: string) => terminals.close(String(projectId)));
 
   ipcMain.handle('project:start', async (_event, projectId: string) => {
     await runtime.start(String(projectId));
@@ -333,6 +386,7 @@ app.on('before-quit', (event) => {
   if (shuttingDown) return;
   event.preventDefault();
   shuttingDown = true;
+  terminals.shutdown();
   void runtime.shutdown().finally(() => {
     store?.close();
     store = undefined;

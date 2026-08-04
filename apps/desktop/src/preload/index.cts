@@ -24,6 +24,28 @@ contextBridge.exposeInMainWorld('studio', {
   agents: () => ipcRenderer.invoke('agents:list'),
   createProject: () => ipcRenderer.invoke('project:create'),
   importProject: () => ipcRenderer.invoke('project:import'),
+  // The terminal. `onData` returns its own unsubscribe rather than exposing
+  // ipcRenderer.off to the renderer — a listener that cannot be removed is a
+  // leak every time the panel remounts.
+  openTerminal: (projectId: string, request?: string) =>
+    ipcRenderer.invoke('terminal:open', projectId, request),
+  writeTerminal: (projectId: string, data: string) =>
+    ipcRenderer.send('terminal:write', projectId, data),
+  resizeTerminal: (projectId: string, cols: number, rows: number) =>
+    ipcRenderer.send('terminal:resize', projectId, cols, rows),
+  closeTerminal: (projectId: string) => ipcRenderer.send('terminal:close', projectId),
+  onTerminalData: (handler: (projectId: string, data: string) => void) => {
+    const listener = (_e: unknown, projectId: string, data: string) => handler(projectId, data);
+    ipcRenderer.on('terminal:data', listener);
+    return () => ipcRenderer.off('terminal:data', listener);
+  },
+  onTerminalExit: (handler: (projectId: string, code: number) => void) => {
+    const listener = (_e: unknown, projectId: string, code: number) => handler(projectId, code);
+    ipcRenderer.on('terminal:exit', listener);
+    return () => ipcRenderer.off('terminal:exit', listener);
+  },
+  openExternal: (url: string) => ipcRenderer.send('shell:open-external', url),
+  llmCalls: (runId: string) => ipcRenderer.invoke('llm:list', runId),
   start: (projectId: string) => ipcRenderer.invoke('project:start', projectId),
   stop: (projectId: string) => ipcRenderer.invoke('project:stop', projectId),
   runWorkflow: (projectId: string, workflowId?: string) =>

@@ -18,7 +18,8 @@
     "cli": "node apps/cli/dist/index.js",
     "design:sync": "pnpm --filter @clarity-studio/design sync",
     "shot": "node scripts/screenshot-app.mjs",
-    "proof:integrations": "node scripts/m3-integration-proof.mjs"
+    "proof:integrations": "node scripts/m3-integration-proof.mjs",
+    "postinstall": "node scripts/fix-pty-permissions.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -9,3 +9,7 @@ packages:
 onlyBuiltDependencies:
   - electron
   - esbuild
+  # The terminal panel needs a real pty — Claude Code is a TUI and cannot be
+  # driven through plain pipes. This is the repo's only native dependency; it
+  # compiles on install and is then rebuilt against Electron's ABI.
+  - node-pty

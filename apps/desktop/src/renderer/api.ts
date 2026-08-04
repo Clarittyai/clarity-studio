@@ -57,6 +57,20 @@ export interface Trigger {
   missedCount: number;
 }
 
+/** One model call an automation's agent made during a run.
+ *  Shape mirrors `Store.getLlmCalls` exactly — no invented fields. */
+export interface LlmCall {
+  runId: string;
+  agentId?: string;
+  provider: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  costMicros: number;
+  latencyMs: number;
+  at: number;
+}
+
 export interface AgentInfo {
   id: string;
   name: string;
@@ -73,6 +87,17 @@ export interface StudioApi {
   listSteps(runId: string): Promise<Step[]>;
   listTriggers(projectId: string): Promise<Trigger[]>;
   spend(projectId: string, sinceMs: number): Promise<{ costMicros: number; calls: number }>;
+  /** Start (or reuse) a coding-agent session in the project folder. */
+  openTerminal(projectId: string, request?: string): Promise<{ agent?: { id: string; name: string }; shell: string }>;
+  writeTerminal(projectId: string, data: string): void;
+  resizeTerminal(projectId: string, cols: number, rows: number): void;
+  closeTerminal(projectId: string): void;
+  /** Both return an unsubscribe function. */
+  onTerminalData(handler: (projectId: string, data: string) => void): () => void;
+  onTerminalExit(handler: (projectId: string, code: number) => void): () => void;
+  openExternal(url: string): void;
+  /** What the automation's own agents actually asked the model, per run. */
+  llmCalls(runId: string): Promise<LlmCall[]>;
   /** Scaffold from the seed. Resolves undefined if the user cancels the dialog. */
   createProject(): Promise<{ id: string } | undefined>;
   /** Adopt a folder that already has an intelligence.yaml. */
@@ -277,6 +302,22 @@ const fixtures: StudioApi = {
   },
   async spend() {
     return { costMicros: 89_100, calls: 12 };
+  },
+  async openTerminal() {
+    return { agent: { id: 'claude', name: 'Claude Code' }, shell: 'demo' };
+  },
+  writeTerminal() {},
+  resizeTerminal() {},
+  closeTerminal() {},
+  onTerminalData() {
+    return () => {};
+  },
+  onTerminalExit() {
+    return () => {};
+  },
+  openExternal() {},
+  async llmCalls() {
+    return [];
   },
   async createProject() {
     return undefined;
