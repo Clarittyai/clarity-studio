@@ -32,8 +32,8 @@ contextBridge.exposeInMainWorld('studio', {
   // The terminal. `onData` returns its own unsubscribe rather than exposing
   // ipcRenderer.off to the renderer — a listener that cannot be removed is a
   // leak every time the panel remounts.
-  openTerminal: (projectId: string, request?: string) =>
-    ipcRenderer.invoke('terminal:open', projectId, request),
+  openTerminal: (projectId: string, request?: string, agentId?: string) =>
+    ipcRenderer.invoke('terminal:open', projectId, request, agentId),
   writeTerminal: (projectId: string, data: string) =>
     ipcRenderer.send('terminal:write', projectId, data),
   resizeTerminal: (projectId: string, cols: number, rows: number) =>

@@ -571,6 +571,9 @@ function TerminalDock({
   agents: AgentInfo[];
 }) {
   const [open, setOpen] = useState(true);
+  // Undefined means "whichever is installed first" until a choice is made.
+  const [agentId, setAgentId] = useState<string | undefined>();
+  const chosen = agentId ?? agents[0]?.id;
 
   return (
     <div className="shrink-0 border-t border-border bg-background">
@@ -583,19 +586,48 @@ function TerminalDock({
         <span className="text-[13px] font-semibold">Build it</span>
         <span className="truncate text-xs text-muted-foreground">
           {agents.length > 0
-            ? `${agents.map((a) => a.name).join(' or ')} runs here, signed in as you`
+            ? 'runs here, in this folder, signed in as you'
             : 'Write this automation with a coding agent'}
         </span>
+
+        {/* More than one installed is a real choice, so it is offered. One is
+            not a choice, so it is not dressed up as one. Switching restarts the
+            session — two agents in one folder would fight over the same files. */}
+        {agents.length > 1 && (
+          <div
+            className="ml-auto flex items-center gap-1 rounded-full bg-foreground/[0.05] p-0.5"
+            onClick={(e) => e.stopPropagation()}
+            role="presentation"
+          >
+            {agents.map((agent) => (
+              <button
+                key={agent.id}
+                type="button"
+                onClick={() => setAgentId(agent.id)}
+                className={cn(
+                  'rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-colors',
+                  agent.id === chosen
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {agent.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         <ChevronDown
           className={cn(
-            'ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+            'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+            agents.length > 1 ? 'ml-2' : 'ml-auto',
             open ? '' : '-rotate-90',
           )}
         />
       </button>
       {/* Kept mounted when collapsed: unmounting would kill a live session. */}
-      <div className={cn('px-6 pb-5', open ? 'block' : 'hidden')}>
-        <TerminalPanel projectId={projectId} request={request} />
+      <div className={cn(open ? 'block' : 'hidden')}>
+        <TerminalPanel projectId={projectId} request={request} agentId={chosen} />
       </div>
     </div>
   );

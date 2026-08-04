@@ -97,7 +97,11 @@ export interface StudioApi {
   listTriggers(projectId: string): Promise<Trigger[]>;
   spend(projectId: string, sinceMs: number): Promise<{ costMicros: number; calls: number }>;
   /** Start (or reuse) a coding-agent session in the project folder. */
-  openTerminal(projectId: string, request?: string): Promise<{ agent?: { id: string; name: string }; shell: string }>;
+  openTerminal(
+    projectId: string,
+    request?: string,
+    agentId?: string,
+  ): Promise<{ agent?: { id: string; name: string }; shell: string }>;
   writeTerminal(projectId: string, data: string): void;
   resizeTerminal(projectId: string, cols: number, rows: number): void;
   closeTerminal(projectId: string): void;

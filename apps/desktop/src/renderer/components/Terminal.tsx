@@ -16,7 +16,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { ExternalLink, TerminalSquare } from 'lucide-react';
 
 import { api } from '../api.js';
-import { Button, cn } from './ui.js';
+import { Button } from './ui.js';
 
 import '@xterm/xterm/css/xterm.css';
 
@@ -47,10 +47,13 @@ function themeFromTokens(): Record<string, string> {
 export function TerminalPanel({
   projectId,
   request,
+  agentId,
 }: {
   projectId: string;
   /** What the person said it should do, handed to the agent as its first instruction. */
   request?: string;
+  /** Which coding agent to run. Changing it restarts the session. */
+  agentId?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | undefined>(undefined);
@@ -99,7 +102,7 @@ export function TerminalPanel({
     ro.observe(hostRef.current);
 
     void api
-      .openTerminal(projectId, request)
+      .openTerminal(projectId, request, agentId)
       .then((result) => {
         setAgentName(result?.agent?.name);
         setStarted(true);
@@ -121,11 +124,11 @@ export function TerminalPanel({
     // for a session that has already started, and re-running this would kill a
     // live conversation to say the same thing again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+  }, [projectId, agentId]);
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 px-6">
         {agentName ? (
           <>
             <span className="text-xs text-muted-foreground">
@@ -167,14 +170,11 @@ export function TerminalPanel({
         )}
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="px-6 text-sm text-destructive">{error}</p>}
 
-      <div
-        className={cn(
-          'overflow-hidden rounded-2xl border border-border bg-background p-2',
-          'h-[300px]',
-        )}
-      >
+      {/* Full-bleed on purpose: a terminal inside a rounded card reads as a
+          widget, and this is a place you work. It spans the dock. */}
+      <div className="h-[320px] w-full">
         <div ref={hostRef} className="h-full w-full" />
       </div>
     </div>

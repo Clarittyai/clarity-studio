@@ -272,7 +272,9 @@ function registerIpc(): void {
   /** What the automation's own agents asked the model during a run. */
   ipcMain.handle('llm:list', (_event, runId: string) => db().getLlmCalls(String(runId)));
 
-  ipcMain.handle('terminal:open', async (event, projectId: string, request?: string) => {
+  ipcMain.handle(
+    'terminal:open',
+    async (event, projectId: string, request?: string, agentId?: string) => {
     const project = db().getProject(String(projectId));
     if (!project) throw new Error('That automation is no longer in the library.');
     const file = manifestIn(project.path);
@@ -297,11 +299,13 @@ function registerIpc(): void {
         hasManifest: Boolean(file),
         manifestId,
         agentIds,
+        agentId: agentId ? String(agentId) : undefined,
         request: request ? String(request) : undefined,
       },
       event.sender,
     );
-  });
+    },
+  );
 
   ipcMain.on('terminal:write', (_event, projectId: string, data: string) =>
     terminals.write(String(projectId), String(data)),
