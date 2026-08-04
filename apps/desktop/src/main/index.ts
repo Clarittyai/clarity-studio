@@ -59,9 +59,16 @@ app.setName(APP_NAME);
  * So the second instance hands its argv to the first and exits, and the first
  * surfaces its window — the behaviour people expect from clicking a dock icon.
  */
-if (!app.requestSingleInstanceLock()) {
+// ...except when STUDIO_HOME is set. A custom data directory IS the statement
+// that this instance is deliberately separate — a screenshot run, a test, a
+// second checkout — and it shares no store or port with the default one. Without
+// this exemption the lock silently killed `pnpm shot` and the e2e harness
+// whenever a window happened to be open, exiting 0 with nothing said.
+const wantsOwnInstance = Boolean(process.env.STUDIO_HOME);
+
+if (!wantsOwnInstance && !app.requestSingleInstanceLock()) {
   app.quit();
-} else {
+} else if (!wantsOwnInstance) {
   app.on('second-instance', () => {
     const [existing] = BrowserWindow.getAllWindows();
     if (!existing) return;

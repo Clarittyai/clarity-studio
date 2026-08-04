@@ -1,0 +1,103 @@
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { _electron as electron } from 'playwright';
+import { Store } from '../packages/db/dist/index.js';
+
+const HOME = '/tmp/studio-full';
+rmSync(HOME, { recursive: true, force: true });
+mkdirSync(HOME, { recursive: true });
+const s = new Store(join(HOME, 'studio.db'));
+const id = randomUUID();
+s.upsertProject({ id, name: 'fresh-auto', slug: 'fresh-auto', path: process.env.PROJECT_DIR ?? join(process.cwd(), 'fresh-auto'), runtime: 'native', status: 'stopped' });
+s.close();
+
+const ROOT = new URL('..', import.meta.url).pathname;
+const app = await electron.launch({ args: ['.'], cwd: join(ROOT, 'apps/desktop'), env: { ...process.env, STUDIO_HOME: HOME } });
+const win = await app.firstWindow();
+const errs = [];
+win.on('pageerror', (e) => errs.push(e.message));
+win.on('console', (m) => { if (m.type() === 'error') errs.push(`console: ${m.text()}`); });
+
+const pass = [], fail = [];
+const check = (name, ok, detail = '') => (ok ? pass : fail).push(`${name}${detail ? ` — ${detail}` : ''}`);
+
+await win.waitForSelector('[data-brand]');
+await win.waitForTimeout(7000);
+const t = () => win.locator('body').innerText();
+
+// Brand in the sidebar, not the title bar.
+const brandBox = await win.locator('[data-brand]').boundingBox();
+check('brand in sidebar under traffic lights', brandBox.y > 40 && brandBox.x < 260, `x=${Math.round(brandBox.x)} y=${Math.round(brandBox.y)}`);
+check('brand is platform-size', brandBox.height >= 28, `h=${Math.round(brandBox.height)}`);
+
+let body = await t();
+check('flow renders from manifest', /Flow/.test(body) && /write|Trigger/.test(body));
+check('agents band', /digest-writer/.test(body));
+check('triggers band', /Triggers/.test(body));
+check('terminal dock present', /Build it/.test(body));
+check('xterm mounted', (await win.locator('.xterm').count()) === 1);
+check('no pty error', !/posix_spawnp|Error invoking/.test(body));
+
+// Two columns: the aside must sit to the RIGHT of the flow, not under it.
+const flow = await win.locator('h2:has-text("Flow")').boundingBox().catch(() => null);
+const agents = await win.locator('h2:has-text("Agents")').boundingBox().catch(() => null);
+check('two-column layout', Boolean(flow && agents && agents.x > flow.x + 100), flow && agents ? `flow.x=${Math.round(flow.x)} agents.x=${Math.round(agents.x)}` : 'missing');
+
+// Terminal spans wide (full-bleed, not a narrow card).
+const term = await win.locator('.xterm').boundingBox();
+const winSize = await win.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }));
+check('terminal is full-bleed', term.width > winSize.w * 0.55, `${Math.round(term.width)}px of ${winSize.w}px`);
+
+// Executions tab switches.
+await win.locator('button:has-text("Executions")').click();
+await win.waitForTimeout(600);
+check('Executions tab switches', /Every run|No runs yet/.test(await t()));
+await win.locator('button:has-text("Flow")').first().click();
+await win.waitForTimeout(400);
+
+// Drag the dock taller.
+const before = (await win.locator('.xterm').boundingBox()).height;
+const grip = await win.locator('div[title*="Drag to resize"]').boundingBox();
+await win.mouse.move(grip.x + grip.width / 2, grip.y + 1);
+await win.mouse.down();
+await win.mouse.move(grip.x + grip.width / 2, grip.y - 120, { steps: 8 });
+await win.mouse.up();
+await win.waitForTimeout(600);
+const after = (await win.locator('.xterm').boundingBox()).height;
+check('drag resizes the dock', after > before + 40, `${Math.round(before)} → ${Math.round(after)}`);
+
+// Collapse keeps the session alive (element hidden, not unmounted).
+await win.locator('button:has-text("Build it")').click();
+await win.waitForTimeout(500);
+check('collapse hides but keeps session', (await win.locator('.xterm').count()) === 1 && !(await win.locator('.xterm').isVisible()));
+await win.locator('button:has-text("Build it")').click();
+await win.waitForTimeout(500);
+
+// Settings.
+await win.locator('button[title="Settings"]').click();
+await win.waitForTimeout(800);
+body = await t();
+check('settings: library folder', /Library/.test(body) && /Automations/.test(body));
+check('settings: model providers', /Anthropic/i.test(body) && /Openai/i.test(body));
+check('settings: local model examples', /11434|Ollama/.test(body) && /chat\/completions/.test(body));
+await win.locator('button[title="Settings"]').click();
+await win.waitForTimeout(500);
+
+// New-automation dialog is in-app (no native panel).
+await win.locator('aside button[title="New automation"]').click();
+await win.waitForTimeout(600);
+body = await t();
+check('in-app new dialog', /What should it do/.test(body) && /Create/.test(body));
+check('dialog shows destination', /Automations\//.test(body));
+await win.keyboard.press('Escape');
+await win.waitForTimeout(400);
+
+check('no renderer errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+
+console.log(`\nPASS (${pass.length}):`);
+for (const p of pass) console.log('  ✓', p);
+if (fail.length) { console.log(`\nFAIL (${fail.length}):`); for (const f of fail) console.log('  ✗', f); }
+await win.screenshot({ path: '/tmp/full-check.png' });
+await app.close();
+process.exit(fail.length ? 1 : 0);
