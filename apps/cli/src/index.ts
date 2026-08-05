@@ -103,6 +103,51 @@ function slugOf(dir: string): string {
 
 // ── commands ─────────────────────────────────────────────────────────────────
 
+/**
+ * Refresh the framework files in an existing automation.
+ *
+ * The seed is COPIED at scaffold time, so an automation created last month
+ * still carries last month's CLAUDE.md, skills, commands and catalog. That is
+ * usually right — the code is yours — but it means improvements to the
+ * instructions never reach a project that already exists, which is how an agent
+ * ends up reading a checkout it should not know about.
+ *
+ * So this copies the parts the seed OWNS and nothing else. Your manifest, your
+ * backend, your app-config are untouched: they are the automation, and
+ * overwriting them would be the opposite of an upgrade.
+ */
+async function cmdSync(flags: RunFlags): Promise<void> {
+  const dir = resolve(flags.dir);
+  if (!manifestIn(dir)) {
+    fail(`no intelligence.yaml in ${dir} — sync updates an existing automation.`);
+  }
+  const seed = seedDir();
+
+  // Seed-owned: instructions and the catalog. Everything else is the user's.
+  const OWNED = ['CLAUDE.md', 'AGENTS.md', '.cursorrules', '.claude', 'catalog'];
+  // Dynamic import, as cmdNew does: this file is ESM and has no `require`.
+  const { cpSync, existsSync: exists, rmSync } = await import('node:fs');
+
+  const updated: string[] = [];
+  for (const entry of OWNED) {
+    const from = join(seed, entry);
+    if (!exists(from)) continue;
+    const to = join(dir, entry);
+    // Replaced wholesale rather than merged: a half-updated skill set is worse
+    // than an old one, because nothing says which half you have.
+    rmSync(to, { recursive: true, force: true });
+    cpSync(from, to, { recursive: true });
+    updated.push(entry);
+  }
+
+  info();
+  ok(`synced ${updated.length} from the seed`);
+  for (const entry of updated) info(`  ${c.dim(entry)}`);
+  info();
+  info(c.dim('  intelligence.yaml, backend/ and app-config.json were not touched.'));
+  info();
+}
+
 async function cmdDoctor(): Promise<void> {
   info();
   info(c.bold('Clarity Studio — environment check'));
@@ -913,6 +958,8 @@ async function main(): Promise<void> {
       return cmdDeliveries(flags);
     case 'replay':
       return cmdReplay(positional.slice(1), flags);
+    case 'sync':
+      return cmdSync(flags);
     case 'doctor':
       return cmdDoctor();
     default:
