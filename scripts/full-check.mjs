@@ -62,7 +62,14 @@ await win.locator('aside button', { hasText: 'fresh-auto' }).first().click();
 // The pty starts on mount, so wait for the terminal rather than a fixed sleep —
 // a timing guess is how a suite goes red on a slower machine.
 await win.waitForSelector('.xterm', { timeout: 60_000 }).catch(() => undefined);
-await win.waitForTimeout(2500);
+// The manifest is read from disk after mount, so the flow and the agents band
+// arrive later than the terminal. Waiting for the content beats sleeping past
+// it: this check failed once on a busy machine and passed on a re-run, which
+// is the least useful kind of red.
+await win
+  .waitForSelector('text=digest-writer', { timeout: 30_000 })
+  .catch(() => undefined);
+await win.waitForTimeout(1500);
 
 // Brand in the sidebar, not the title bar.
 const brandBox = await win.locator('[data-brand]').boundingBox();
