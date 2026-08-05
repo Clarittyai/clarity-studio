@@ -35,8 +35,13 @@ before an agent may call its tools.
 Everything needed to build an automation is in this repo. There is no other
 checkout to consult and no local Claritty API to run: the catalog ships here,
 the runtime is the published `claritty-sdk`, and the host executes brokered
-tools on your behalf. If a service is not in `catalog/integrations/`, it is not
-available — say so rather than inventing a tool id.
+tools on your behalf.
+
+If the service you need is not in `catalog/integrations/`, or Studio shows
+"No local connector yet", **do not invent a tool id** — a manifest referencing a
+tool nothing implements passes validation, runs, gets skipped, and reports
+success. Follow the `add-an-integration` skill and write the connector request
+instead.
 
 ## What a step may declare
 

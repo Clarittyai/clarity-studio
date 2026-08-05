@@ -28,6 +28,15 @@ const COMMANDS: Array<{ cmd: string; hint: string }> = [
 ];
 
 /**
+ * Typed for you when an integration has no local connector. Phrased as a
+ * request rather than a command because the seed's `add-an-integration` skill
+ * carries the actual shape — this only has to get the agent to open it.
+ */
+export const REQUEST_INTEGRATION =
+  'The integration this automation needs has no local connector. ' +
+  'Follow the add-an-integration skill and write INTEGRATION-REQUEST.md for it.';
+
+/**
  * Read the terminal's colours from the app's own tokens rather than xterm's
  * defaults, so the panel belongs to the window instead of looking pasted in.
  */

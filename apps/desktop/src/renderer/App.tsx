@@ -50,7 +50,7 @@ import { AgentAvatar } from './components/live/AgentAvatar.js';
 import { AutomationGraphScene } from './components/live/AutomationGraphScene.js';
 import { CONTRIBUTE } from './components/cloud-links.js';
 import { CloudShowcase } from './components/CloudShowcase.js';
-import { TerminalPanel } from './components/Terminal.js';
+import { REQUEST_INTEGRATION, TerminalPanel } from './components/Terminal.js';
 import {
   Badge,
   Button,
@@ -1887,13 +1887,15 @@ function ConnectionsBand({
               ) : (
                 /* Not an upsell. The honest action is "help add it", because
                    connecting locally is the whole point of this app. */
+                /* The agent is already open in this window, in this project,
+                   with the skill that knows the connector's shape. Asking it to
+                   write the request beats opening a browser tab. */
                 <Button
                   size="sm"
-                  variant="ghost"
-                  onClick={() => api.openExternal(CONTRIBUTE.issues)}
+                  variant="outline"
+                  onClick={() => api.writeTerminal(projectId, `${REQUEST_INTEGRATION}\r`)}
                 >
-                  <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                  Request it
+                  Ask Claude for it
                 </Button>
               )}
             </div>
