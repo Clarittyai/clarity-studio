@@ -163,6 +163,7 @@ function StepCard({ step, status }: { step: FlowStep; status: StepStatus }) {
         {step.forEach && (
           <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">
             once per {step.forEach}
+            {step.maxIterations ? <span className="opacity-60"> · max {step.maxIterations}</span> : null}
           </span>
         )}
 

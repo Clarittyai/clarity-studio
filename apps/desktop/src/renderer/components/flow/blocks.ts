@@ -10,6 +10,13 @@
  * Nothing here invents detail. A step shows what the manifest actually declares
  * — if there is no description, the card simply has no purpose line, rather than
  * a generated sentence that reads like fact.
+ *
+ * And only fields the SDK's schema really has. `WorkflowStep` is a strict model
+ * (`extra="forbid"`), so a step carries `id`, `agent`/`tool`, `input`, `mode`,
+ * `onError`, `forEach`, `as` and `maxIterations` — and NOT a description. This
+ * adapter used to read `step.description`, which could never be set: a manifest
+ * carrying one fails to load outright. The purpose line comes from the agent or
+ * tool being called, which do declare descriptions.
  */
 
 /** Which badge a step's work carries. Mirrors the platform's tiers. */
@@ -35,8 +42,10 @@ export interface FlowStep {
   target?: string;
   /** Where the model decides. `decides` picks a path, `reasons` reads and drafts. */
   intelligence?: { kind: 'decides' | 'reasons'; explains?: string };
-  /** True when the step changes something outside the automation. */
+  /** True when the step changes something outside the automation (`mode: write`). */
   writes?: boolean;
+  /** The fan-out ceiling the engine truncates at, when this step loops. */
+  maxIterations?: number;
   /** Only ever the manifest's own words. */
   purpose?: string;
 }
@@ -60,7 +69,11 @@ interface ManifestLike {
       tool?: string;
       forEach?: string;
       for_each?: string;
-      description?: string;
+      as?: string;
+      maxIterations?: number;
+      max_iterations?: number;
+      /** read | write | download — the step's side-effect class. */
+      mode?: string;
       input?: unknown;
       with?: unknown;
     }>;
@@ -120,7 +133,13 @@ export function toFlow(manifest: unknown, workflowId?: string): Flow | undefined
   const trigger = (m?.triggers ?? []).find((t) => t.workflow === workflow.id);
 
   const steps: FlowStep[] = (workflow.steps ?? []).map((step, i) => {
-    const forEach = step.forEach ?? step.for_each;
+    const source = step.forEach ?? step.for_each;
+    // The engine binds each item to `as` (default "item"), so that is the word
+    // the card should use — "once per message" beats "once per ${steps.x.output}".
+    const forEach = source ? (step.as ?? 'item') : undefined;
+    const cap = step.maxIterations ?? step.max_iterations;
+    // Declared, not guessed. The schema carries the side-effect class.
+    const writes = step.mode === 'write';
     if (step.agent) {
       const agent = agentById.get(step.agent);
       return {
@@ -132,7 +151,8 @@ export function toFlow(manifest: unknown, workflowId?: string): Flow | undefined
         // An agent step is where Claritty reasons. The explanation is the
         // agent's own description — never a sentence invented here.
         intelligence: { kind: 'reasons', explains: agent?.description },
-        purpose: step.description,
+        writes,
+        maxIterations: cap,
         ...targetOf(step.input ?? step.with),
       };
     }
@@ -152,12 +172,9 @@ export function toFlow(manifest: unknown, workflowId?: string): Flow | undefined
       provider,
       isAgent: false,
       forEach,
-      // Inferred from the tool's own verb, not guessed at per-automation: these
-      // are the words the catalog uses for tools that change something.
-      writes: /^(send|create|post|update|delete|save|write|add|move|archive)/.test(
-        provider ? toolId.slice(toolId.indexOf('.') + 1) : toolId,
-      ),
-      purpose: step.description ?? tool?.description,
+      writes,
+      maxIterations: cap,
+      purpose: tool?.description,
       ...targetOf(step.input ?? step.with),
     };
   });

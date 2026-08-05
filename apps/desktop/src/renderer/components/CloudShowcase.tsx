@@ -130,7 +130,7 @@ export function CloudShowcase() {
         style={{ boxShadow: 'inset 0 0 160px rgba(0,0,0,0.6)' }}
       />
 
-      <div className="relative z-10 grid items-center gap-8 p-9 md:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="relative z-10 grid min-h-[300px] items-center gap-8 p-9 md:grid-cols-[minmax(0,1fr)_360px]">
         <AnimatePresence mode="wait" custom={dir}>
           <motion.div
             key={`copy-${slide.key}`}
@@ -177,7 +177,11 @@ export function CloudShowcase() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: dir * -28, scale: 0.98 }}
             transition={{ duration: 0.55, ease: EASE }}
-            className="dark"
+            // One box for every slide's art, centred inside it. The scenes are
+            // authored at different heights (176, 186, 196), so letting the card
+            // size to its content made it jump on every transition — which reads
+            // as a layout bug rather than as motion.
+            className="dark flex h-[200px] items-center justify-center"
           >
             <Scene />
           </motion.div>

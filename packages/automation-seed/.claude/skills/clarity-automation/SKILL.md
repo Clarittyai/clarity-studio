@@ -38,6 +38,33 @@ the runtime is the published `claritty-sdk`, and the host executes brokered
 tools on your behalf. If a service is not in `catalog/integrations/`, it is not
 available — say so rather than inventing a tool id.
 
+## What a step may declare
+
+`WorkflowStep` is a **strict** model — an unknown key makes the manifest fail to
+load, so do not invent fields. A step has exactly these:
+
+- `id` — required.
+- `agent` **or** `tool` — exactly one. Both, or neither, is rejected.
+- `input` — the arguments, where `${steps.<id>.output.<field>}` references
+  earlier output.
+- `mode` — `read` (default), `write`, or `download`. **Set `write` on anything
+  that sends, posts, files or changes something.** A dry run stubs writes to a
+  preview and only executes them on approval, so a send marked `read` is a real
+  email nobody agreed to.
+- `onError` — `{ strategy: skip | fail | retry, maxAttempts, fallbackStep }`.
+- `forEach` + `as` + `maxIterations` — fan-out. `forEach` points at a list
+  (`"${steps.search.output.messages}"`), the step then runs once per item with
+  the item bound to `as` (default `item`), so the input can say `${item.id}`.
+  `maxIterations` (default 50) is a hard ceiling and the engine reports when it
+  truncates.
+
+There is **no `description` on a step.** Write the explanation on the agent or
+the tool it calls — those do declare one, and that is what the flow view shows.
+
+**Instructions for a step live in the agent's prompt**, not in the manifest. If a
+step needs telling how to behave, it is an agent step and the prompt is where the
+telling goes.
+
 ## Contracts that are easy to break silently
 
 - **Every id referenced must be declared.** An agent listing a tool that no
