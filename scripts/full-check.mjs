@@ -39,8 +39,30 @@ const pass = [], fail = [];
 const check = (name, ok, detail = '') => (ok ? pass : fail).push(`${name}${detail ? ` — ${detail}` : ''}`);
 
 await win.waitForSelector('[data-brand]');
-await win.waitForTimeout(7000);
+await win.waitForTimeout(4000);
 const t = () => win.locator('body').innerText();
+
+// Home is the launch screen now, so these checks belong here — and then the
+// project checks below need the project actually opened first. The suite used
+// to assume a project was auto-selected, which is the very bug that made Home
+// unreachable, so it was asserting the broken behaviour.
+{
+  const home = await t();
+  check('lands on Home', /Your automations/.test(home));
+  check('showcase present', (await win.locator('[class*="rounded-3xl"] h2').count()) > 0);
+  check('aggregate tiles', /Tokens, 7 days/.test(home) && /Next run/.test(home));
+  check('contribute + issues', /come and read it/.test(home) && /report an issue/.test(home));
+  check('sidebar Home row', (await win.locator('aside button:has-text("Home")').count()) === 1);
+}
+
+// Open the automation; everything below is the project screen.
+// By name, not by position: the sidebar's `+` is also a text-less button, so
+// "the first one that isn't Home" opened the create dialog instead.
+await win.locator('aside button', { hasText: 'fresh-auto' }).first().click();
+// The pty starts on mount, so wait for the terminal rather than a fixed sleep —
+// a timing guess is how a suite goes red on a slower machine.
+await win.waitForSelector('.xterm', { timeout: 60_000 }).catch(() => undefined);
+await win.waitForTimeout(2500);
 
 // Brand in the sidebar, not the title bar.
 const brandBox = await win.locator('[data-brand]').boundingBox();

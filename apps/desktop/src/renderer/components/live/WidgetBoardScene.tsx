@@ -21,7 +21,8 @@ import { EASE, useLiveGate, useTurn, useTween } from './kernel.js';
 
 // Two rows of 92px tiles + a 12px gutter — the box the grid exactly fills.
 const STAGE_W = 320;
-const STAGE_H = 196;
+// Shared showcase height — see CloudShowcase. Was 196.
+const STAGE_H = 210;
 const TURN_MS = 2200;
 /** Values per tile — a tile steps to its next value only on ITS turn. */
 const ROUNDS = 3;

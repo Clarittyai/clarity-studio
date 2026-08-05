@@ -22,7 +22,8 @@ import { Stage } from './Stage.js';
 import { EASE, useLiveGate, useTurn } from './kernel.js';
 
 const STAGE_W = 340;
-const STAGE_H = 186;
+// Shared showcase height — see CloudShowcase. Was 186.
+const STAGE_H = 210;
 const TURN_MS = 1500;
 
 const NODE_W = 92;

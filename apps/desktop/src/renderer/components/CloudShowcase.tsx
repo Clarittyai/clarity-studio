@@ -177,11 +177,11 @@ export function CloudShowcase() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: dir * -28, scale: 0.98 }}
             transition={{ duration: 0.55, ease: EASE }}
-            // One box for every slide's art, centred inside it. The scenes are
-            // authored at different heights (176, 186, 196), so letting the card
-            // size to its content made it jump on every transition — which reads
-            // as a layout bug rather than as motion.
-            className="dark flex h-[200px] items-center justify-center"
+            // Every scene declares the same STAGE_H, and the box matches it, so
+            // the card cannot change size between slides. The scenes used to be
+            // 176/186/196 — which both jumped the layout and clipped
+            // AppBuildScene's app card against its own short stage.
+            className="dark flex h-[210px] items-center justify-center"
           >
             <Scene />
           </motion.div>

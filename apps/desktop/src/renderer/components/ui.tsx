@@ -255,6 +255,19 @@ export function EmptyState({
 
 // ── formatting ───────────────────────────────────────────────────────────────
 
+/**
+ * Tokens, at a glance. What a run actually consumed is the number people can
+ * act on — a dollar figure derived from a price list is a guess about someone
+ * else's billing, wrong the moment a rate changes or a local model does the
+ * work for nothing.
+ */
+export function formatTokens(n: number): string {
+  if (n === 0) return '0';
+  if (n < 1_000) return String(n);
+  if (n < 1_000_000) return `${(n / 1_000).toFixed(n < 10_000 ? 1 : 0)}k`;
+  return `${(n / 1_000_000).toFixed(1)}M`;
+}
+
 export function formatUsd(micros: number): string {
   const usd = micros / 1e6;
   if (usd === 0) return '$0.00';

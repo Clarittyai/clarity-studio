@@ -26,7 +26,8 @@ import { Stage } from './Stage.js';
 import { EASE, useLiveGate } from './kernel.js';
 
 const STAGE_W = 340;
-const STAGE_H = 176;
+// Shared showcase height — see CloudShowcase. Was 176.
+const STAGE_H = 210;
 
 const PROMPT = 'Track my competitors weekly';
 const STEPS = ['Designing', 'Building', 'Deploying'];

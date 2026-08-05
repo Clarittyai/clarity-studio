@@ -51,7 +51,7 @@ import {
   Card,
   duration,
   EmptyState,
-  formatUsd,
+  formatTokens,
   StatusDot,
   timeAgo,
   timeUntil,
@@ -445,6 +445,12 @@ function ProjectView({
     };
   }, [project.id, load]);
 
+  /** What the last seven days of runs actually consumed. */
+  const runTokens = useMemo(
+    () => runs.reduce((sum, r) => sum + r.promptTokens + r.completionTokens, 0),
+    [runs],
+  );
+
   const running = project.status === 'running';
 
   /**
@@ -533,8 +539,8 @@ function ProjectView({
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Runs, 7 days" value={String(runs.length)} />
         <Stat
-          label="Spend, 7 days"
-          value={formatUsd(spend.costMicros)}
+          label="Tokens, 7 days"
+          value={formatTokens(runTokens)}
           hint={`${spend.calls} model calls`}
         />
         <Stat
@@ -591,7 +597,7 @@ function ProjectView({
       <aside className="flex flex-col gap-8">
       <Band
         title="Agents"
-        subtitle="What is inside, and what each one costs."
+        subtitle="What is inside, and how many tokens each one used."
       >
         <AgentsBand manifest={manifest} calls={latestCalls} />
       </Band>
@@ -881,7 +887,7 @@ function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: ()
           {duration(run.startedAt, run.endedAt)}
         </span>
         <span className="w-16 text-right text-xs tabular-nums text-muted-foreground">
-          {formatUsd(run.costMicros)}
+          {formatTokens(run.promptTokens + run.completionTokens)}
         </span>
         <span className="w-20 text-right text-xs text-muted-foreground">{timeAgo(run.startedAt)}</span>
       </button>
@@ -945,9 +951,12 @@ function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
           {JSON.stringify(run.outputs)}
         </p>
       )}
+      {/* In and out separately: they are priced differently everywhere and a
+          run that is mostly output behaves nothing like one that is mostly
+          input, which a single total hides. */}
       <p className="mt-3 text-[11px] text-muted-foreground">
         {run.promptTokens.toLocaleString()} in / {run.completionTokens.toLocaleString()} out ·{' '}
-        {formatUsd(run.costMicros)}
+        {formatTokens(run.promptTokens + run.completionTokens)} total
       </p>
     </div>
   );
@@ -977,13 +986,12 @@ function AgentsBand({
 
   // Per-agent totals from the last run's ledger.
   const spent = useMemo(() => {
-    const acc = new Map<string, { calls: number; costMicros: number; tokens: number }>();
+    const acc = new Map<string, { calls: number; tokens: number }>();
     for (const call of calls) {
       const key = call.agentId ?? '—';
-      const prev = acc.get(key) ?? { calls: 0, costMicros: 0, tokens: 0 };
+      const prev = acc.get(key) ?? { calls: 0, tokens: 0 };
       acc.set(key, {
         calls: prev.calls + 1,
-        costMicros: prev.costMicros + call.costMicros,
         tokens: prev.tokens + call.promptTokens + call.completionTokens,
       });
     }
@@ -1032,10 +1040,10 @@ function AgentsBand({
               {used ? (
                 <>
                   <div className="text-sm font-semibold tabular-nums">
-                    {formatUsd(used.costMicros)}
+                    {formatTokens(used.tokens)}
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                    {used.calls} call{used.calls === 1 ? '' : 's'} · {used.tokens.toLocaleString()} tok
+                    tokens · {used.calls} call{used.calls === 1 ? '' : 's'}
                   </div>
                 </>
               ) : (
@@ -1483,7 +1491,7 @@ function HomeView({
   onSelect: (id: string) => void;
   onNew: () => void;
 }) {
-  const [totals, setTotals] = useState({ runs: 0, costMicros: 0, failures: 0 });
+  const [totals, setTotals] = useState({ runs: 0, tokens: 0, failures: 0 });
   const [nextRunAt, setNextRunAt] = useState<number | undefined>();
   /** Per project: its most recent run, for the row's status line. */
   const [lastRun, setLastRun] = useState<Record<string, Run | undefined>>({});
@@ -1493,7 +1501,7 @@ function HomeView({
     void (async () => {
       const since = Date.now() - 7 * 86_400_000;
       let runs = 0;
-      let costMicros = 0;
+      let tokens = 0;
       let failures = 0;
       let soonest: number | undefined;
       const latest: Record<string, Run | undefined> = {};
@@ -1504,7 +1512,7 @@ function HomeView({
         for (const run of list) {
           if (run.startedAt < since) continue;
           runs += 1;
-          costMicros += run.costMicros;
+          tokens += run.promptTokens + run.completionTokens;
           if (run.status === 'failed') failures += 1;
         }
         // "Is anything going to happen without me" is the question a dashboard
@@ -1517,7 +1525,7 @@ function HomeView({
       }
 
       if (cancelled) return;
-      setTotals({ runs, costMicros, failures });
+      setTotals({ runs, tokens, failures });
       setNextRunAt(soonest);
       setLastRun(latest);
     })();
@@ -1553,7 +1561,7 @@ function HomeView({
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Stat label="Automations" value={String(projects.length)} hint={`${running} running`} />
           <Stat label="Runs, 7 days" value={String(totals.runs)} />
-          <Stat label="Spend, 7 days" value={formatUsd(totals.costMicros)} />
+          <Stat label="Tokens, 7 days" value={formatTokens(totals.tokens)} />
           <Stat
             label="Failed"
             value={String(totals.failures)}
