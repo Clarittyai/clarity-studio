@@ -148,9 +148,16 @@ export function toFlow(manifest: unknown, workflowId?: string): Flow | undefined
         tier: 'agent',
         isAgent: true,
         forEach,
-        // An agent step is where Claritty reasons. The explanation is the
-        // agent's own description — never a sentence invented here.
-        intelligence: { kind: 'reasons', explains: agent?.description },
+        // Two different lines, as the platform draws them: `explains` says
+        // WHAT KIND of thinking happens (generic, and true of every agent
+        // step), and `purpose` is this agent's own description in italics
+        // underneath. Collapsing them into one lost the distinction between
+        // "a model decides here" and "here is what this one does".
+        intelligence: {
+          kind: 'reasons',
+          explains: 'Claritty reads the data and works out what to do',
+        },
+        purpose: agent?.description,
         writes,
         maxIterations: cap,
         ...targetOf(step.input ?? step.with),

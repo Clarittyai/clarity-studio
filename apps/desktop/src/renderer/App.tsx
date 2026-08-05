@@ -596,6 +596,13 @@ function ProjectView({
 
       <aside className="flex flex-col gap-8">
       <Band
+        title="Connections"
+        subtitle="The services it uses — connect once, reused every run."
+      >
+        <ConnectionsBand manifest={manifest} />
+      </Band>
+
+      <Band
         title="Agents"
         subtitle="What is inside, and how many tokens each one used."
       >
@@ -1648,5 +1655,58 @@ function HomeView({
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Connections — the services this automation needs, and whether they are
+ * usable. The platform's automation page leads its right column with this, and
+ * it is the more useful thing to see there: an automation whose Gmail is not
+ * connected will skip every step that touches it and still report success, so
+ * "is it wired up" belongs beside the flow rather than buried.
+ *
+ * Read from the manifest's own `integrations:`. Connection state is not yet
+ * something Studio can answer — the vault holds credentials per integration but
+ * nothing has been wired to report it — so this says "needs connecting" rather
+ * than inventing a green tick. A false "Connected" is worse than an honest
+ * unknown.
+ */
+function ConnectionsBand({ manifest }: { manifest?: Record<string, unknown> }) {
+  const integrations = useMemo(() => {
+    const list =
+      (manifest as { integrations?: Array<{ id?: string; required?: boolean } | string> } | undefined)
+        ?.integrations ?? [];
+    return list.map((i) =>
+      typeof i === 'string' ? { id: i, required: true } : { id: i.id ?? '', required: i.required !== false },
+    );
+  }, [manifest]);
+
+  if (integrations.length === 0) {
+    return (
+      <EmptyState
+        size="section"
+        title="No outside services"
+        body="This automation only uses its own tools, so there is nothing to connect."
+      />
+    );
+  }
+
+  return (
+    <Card className="divide-y divide-border">
+      {integrations.map((integration) => (
+        <div key={integration.id} className="flex items-center gap-3 px-4 py-3">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-foreground/[0.06] text-[11px] font-bold uppercase text-muted-foreground">
+            {integration.id.slice(0, 2)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold capitalize text-foreground">{integration.id}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {integration.required ? 'Required' : 'Optional'} · connect with{' '}
+              <span className="font-mono">clarity-studio connect {integration.id}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </Card>
   );
 }
