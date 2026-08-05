@@ -73,12 +73,20 @@ export function AutomationFlow({
             )}
           </Node>
           <Gap />
-          <div className="relative z-[1] w-full max-w-[340px] overflow-hidden rounded-2xl border border-accent/25 bg-accent/[0.05] py-3 pl-4 pr-3.5">
+          {/* `bg-background` under the tint, not the tint alone: the rail runs
+              behind the column, and a translucent card let it show straight
+              through the middle of the text. Upstream connects anchor to anchor
+              so nothing ever crosses a card; an opaque base gets the same
+              result without the routing. */}
+          <div className="relative z-[1] w-full max-w-[340px] overflow-hidden rounded-2xl border border-accent/25 bg-background py-3 pl-4 pr-3.5">
+            <span aria-hidden className="absolute inset-0 bg-accent/[0.05]" />
             <span className="absolute inset-y-0 left-0 w-[3px] bg-accent" />
-            <div className="text-[10px] font-bold uppercase tracking-[0.09em] text-accent">
+            <div className="relative text-[10px] font-bold uppercase tracking-[0.09em] text-accent">
               Trigger
             </div>
-            <div className="text-sm font-semibold text-foreground">{flow.trigger.label}</div>
+            <div className="relative text-sm font-semibold text-foreground">
+              {flow.trigger.label}
+            </div>
           </div>
         </>
       )}
@@ -140,14 +148,27 @@ function StepCard({ step, status }: { step: FlowStep; status: StepStatus }) {
   return (
     <div
       className={cn(
-        'relative z-[1] w-full overflow-hidden rounded-2xl border py-3 pl-4 pr-3.5 transition-colors',
+        // Opaque base so the rail cannot show through the card. The tint is a
+        // layer on top of it rather than the background itself.
+        'relative z-[1] w-full overflow-hidden rounded-2xl border bg-background py-3 pl-4 pr-3.5 transition-colors',
         status === 'failed'
-          ? 'border-destructive/40 bg-destructive/[0.06]'
+          ? 'border-destructive/40'
           : violet
-            ? 'border-violet-500/25 bg-violet-500/[0.05]'
-            : 'border-border bg-foreground/[0.02]',
+            ? 'border-violet-500/25'
+            : 'border-border',
       )}
     >
+      <span
+        aria-hidden
+        className={cn(
+          'absolute inset-0',
+          status === 'failed'
+            ? 'bg-destructive/[0.06]'
+            : violet
+              ? 'bg-violet-500/[0.05]'
+              : 'bg-foreground/[0.02]',
+        )}
+      />
       <span
         className={cn(
           'absolute inset-y-0 left-0 w-[3px]',
@@ -155,7 +176,7 @@ function StepCard({ step, status }: { step: FlowStep; status: StepStatus }) {
         )}
       />
 
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+      <div className="relative flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
         <span className="text-sm font-semibold text-foreground">{step.action}</span>
 
         {/* This step runs once per item. The single most important thing about a
@@ -205,14 +226,14 @@ function StepCard({ step, status }: { step: FlowStep; status: StepStatus }) {
 
       {/* The target itself — a URL is worth its own line, not a truncated chip. */}
       {step.target && (
-        <p className="mt-1.5 truncate font-mono text-[12px] text-muted-foreground/90" data-selectable>
+        <p className="relative mt-1.5 truncate font-mono text-[12px] text-muted-foreground/90" data-selectable>
           {step.target}
         </p>
       )}
 
       {/* The "why it is intelligent": what it actually decides, in plain words. */}
       {step.intelligence?.explains && (
-        <p className="mt-1.5 flex items-start gap-1.5 text-[12.5px] text-violet-700/90 dark:text-violet-300/90">
+        <p className="relative mt-1.5 flex items-start gap-1.5 text-[12.5px] text-violet-700/90 dark:text-violet-300/90">
           <Sparkles className="mt-[1px] h-3 w-3 shrink-0 opacity-80" strokeWidth={2.2} />
           {step.intelligence.explains}
         </p>
@@ -220,7 +241,9 @@ function StepCard({ step, status }: { step: FlowStep; status: StepStatus }) {
 
       {/* Only the manifest's own words — never a generated sentence. */}
       {step.purpose && (
-        <p className="mt-1.5 text-[12.5px] italic text-muted-foreground/90">{step.purpose}</p>
+        <p className="relative mt-1.5 text-[12.5px] italic text-muted-foreground/90">
+          {step.purpose}
+        </p>
       )}
     </div>
   );
