@@ -13,7 +13,65 @@
 
 import type { IntegrationSpec } from './engine.js';
 
+/**
+ * Google's token endpoint, with the user's own app.
+ *
+ * Shared by every Google connector: the fields are theirs, so a person who has
+ * registered one Cloud project can reuse it across Gmail, Calendar and Drive.
+ */
+const GOOGLE_OAUTH = {
+  type: 'oauth2' as const,
+  tokenUrl: 'https://oauth2.googleapis.com/token',
+  clientIdField: 'client_id',
+  clientSecretField: 'client_secret',
+  refreshTokenField: 'refresh_token',
+};
+
 export const CATALOG: IntegrationSpec[] = [
+  {
+    id: 'gmail',
+    name: 'Gmail',
+    howToConnect:
+      'Gmail needs YOUR OWN Google app — Studio never uses a Claritty one, so nothing here depends on an app we control. ' +
+      'At https://console.cloud.google.com/apis/credentials create an OAuth client (type: Desktop app), enable the Gmail API, ' +
+      'and add the https://www.googleapis.com/auth/gmail.modify scope. ' +
+      'Then get a refresh token for it — https://developers.google.com/oauthplayground with "Use your own OAuth credentials" ticked is the quickest way. ' +
+      'Paste the client id, client secret and refresh token below; the access token is derived and never stored.',
+    fields: [
+      { key: 'client_id', label: 'OAuth client id', secret: false, placeholder: '…apps.googleusercontent.com' },
+      { key: 'client_secret', label: 'OAuth client secret', secret: true, placeholder: 'GOCSPX-…' },
+      { key: 'refresh_token', label: 'Refresh token', secret: true, placeholder: '1//0…' },
+    ],
+    tools: [
+      {
+        id: 'gmail.search',
+        summary: 'Find messages. Returns ids only — hydrate each with gmail.get_message.',
+        method: 'GET',
+        url: 'https://gmail.googleapis.com/gmail/v1/users/me/messages',
+        auth: GOOGLE_OAUTH,
+        query: { q: '{arg.query}', maxResults: '{arg.limit}' },
+        result: 'messages',
+      },
+      {
+        id: 'gmail.get_message',
+        summary: 'The full message, so a step can read who sent it and what it says.',
+        method: 'GET',
+        url: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/{arg.message_id}',
+        auth: GOOGLE_OAUTH,
+        query: { format: 'full' },
+      },
+      {
+        id: 'gmail.send',
+        summary: 'Send an email. `raw` is the base64url-encoded RFC 2822 message.',
+        method: 'POST',
+        url: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+        auth: GOOGLE_OAUTH,
+        body: { raw: '{arg.raw}', threadId: '{arg.threadId}' },
+        result: 'id',
+      },
+    ],
+  },
+
   {
     id: 'brave-search',
     name: 'Brave Search',

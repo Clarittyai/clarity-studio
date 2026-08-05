@@ -22,7 +22,13 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export interface HttpAuthSpec {
   /** `bearer` → Authorization: Bearer <field>; `header` → a named header;
    *  `query` → a query parameter; `basic` → base64 user:pass. */
-  type: 'bearer' | 'header' | 'query' | 'basic' | 'none';
+  type: 'bearer' | 'header' | 'query' | 'basic' | 'none' | 'oauth2';
+  /** `oauth2` only: where a refresh token is exchanged for an access token. */
+  tokenUrl?: string;
+  /** `oauth2` only: the credential fields holding the user's OWN app. */
+  clientIdField?: string;
+  clientSecretField?: string;
+  refreshTokenField?: string;
   /** Credential field the value comes from, e.g. 'api_key'. */
   field?: string;
   /** Header or query-parameter name, for `header` / `query`. */
@@ -236,7 +242,14 @@ export async function executeTool(opts: ExecuteOptions): Promise<unknown> {
     });
   }
 
-  applyAuth(spec.auth, credentials, headers, url, spec.id);
+  // OAuth resolves to a bearer token first: applyAuth is synchronous, and the
+  // exchange is a network call.
+  if (spec.auth.type === 'oauth2') {
+    const token = await accessTokenFor(spec.auth, credentials, spec.id);
+    applyAuth({ type: 'bearer', field: '__access_token' }, { __access_token: token }, headers, url, spec.id);
+  } else {
+    applyAuth(spec.auth, credentials, headers, url, spec.id);
+  }
 
   let body: string | undefined;
   const sendsBody = spec.method !== 'GET' && spec.method !== 'DELETE';
@@ -280,6 +293,84 @@ export async function executeTool(opts: ExecuteOptions): Promise<unknown> {
   return spec.result ? pluck(parsed, spec.result) : parsed;
 }
 
+/**
+ * OAuth, with the user's own app.
+ *
+ * Studio never ships a Claritty OAuth client. Every integration that needs
+ * OAuth is connected with credentials the user registered themselves — their
+ * client id, their secret, their refresh token — so nothing about a local run
+ * depends on an app we control, and revoking us is not a thing they have to
+ * think about because there is nothing of ours to revoke.
+ *
+ * Access tokens are short-lived, so the refresh token is the stored credential
+ * and the access token is derived. Cached in memory only: it expires anyway,
+ * and writing it to disk would add a second secret to protect for no gain.
+ */
+interface CachedToken {
+  token: string;
+  /** Epoch ms. Refreshed early, because a token that expires mid-flight reads
+   *  as an auth bug rather than as a clock. */
+  expiresAt: number;
+}
+const tokenCache = new Map<string, CachedToken>();
+
+async function accessTokenFor(
+  auth: HttpAuthSpec,
+  creds: Record<string, string>,
+  toolId: string,
+): Promise<string> {
+  const need = (field: string | undefined, what: string): string => {
+    const value = field ? creds[field] : undefined;
+    if (!value) {
+      throw new ConnectorError(
+        `Not connected: this needs your ${what}. Add it in Studio → Connections.`,
+        'credentials',
+      );
+    }
+    return value;
+  };
+  if (!auth.tokenUrl) {
+    throw new ConnectorError(`Spec error: ${toolId} oauth2 auth has no tokenUrl.`, 'spec');
+  }
+  const clientId = need(auth.clientIdField ?? 'client_id', 'OAuth client id');
+  const clientSecret = need(auth.clientSecretField ?? 'client_secret', 'OAuth client secret');
+  const refreshToken = need(auth.refreshTokenField ?? 'refresh_token', 'refresh token');
+
+  const key = `${auth.tokenUrl}|${clientId}|${refreshToken.slice(-12)}`;
+  const hit = tokenCache.get(key);
+  if (hit && hit.expiresAt > Date.now()) return hit.token;
+
+  const res = await fetch(auth.tokenUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+    }).toString(),
+  });
+  const body = (await res.json().catch(() => ({}))) as {
+    access_token?: string;
+    expires_in?: number;
+    error?: string;
+    error_description?: string;
+  };
+  if (!res.ok || !body.access_token) {
+    // The provider's own words: "invalid_grant" means the refresh token was
+    // revoked or expired, and paraphrasing that helps nobody reconnect.
+    throw new ConnectorError(
+      `Could not refresh access: ${body.error_description ?? body.error ?? `HTTP ${res.status}`}`,
+      'credentials',
+      res.status,
+    );
+  }
+  // 60s early, so a long request cannot start on a token that dies mid-flight.
+  const ttl = Math.max(30, (body.expires_in ?? 3600) - 60);
+  tokenCache.set(key, { token: body.access_token, expiresAt: Date.now() + ttl * 1000 });
+  return body.access_token;
+}
+
 function applyAuth(
   auth: HttpAuthSpec,
   creds: Record<string, string>,
@@ -315,6 +406,9 @@ function applyAuth(
       // because some providers offer nothing else.
       url.searchParams.set(auth.name, need(auth.field));
       return;
+    case 'oauth2':
+      // Resolved before this call — see executeTool.
+      throw new ConnectorError(`Spec error: ${toolId} oauth2 reached applyAuth.`, 'spec');
     case 'basic': {
       const user = need(auth.userField);
       const password = auth.passwordField ? (creds[auth.passwordField] ?? '') : '';
