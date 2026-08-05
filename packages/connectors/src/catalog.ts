@@ -346,21 +346,11 @@ export function findIntegration(id: string): IntegrationSpec | undefined {
 export function resolveTool(
   integrationId: string,
   toolId: string,
-  credentials: Record<string, string>,
 ): { integration: IntegrationSpec; tool: IntegrationSpec['tools'][number] } | undefined {
   const full = toolId.includes('.') ? toolId : `${integrationId}.${toolId}`;
   const found = BY_TOOL.get(full);
   if (!found) return undefined;
 
-  if (integrationId === 'telegram' && credentials.bot_token) {
-    return {
-      integration: found.integration,
-      tool: {
-        ...found.tool,
-        url: found.tool.url.replace('/bot/', `/bot${credentials.bot_token}/`),
-      },
-    };
-  }
   return found;
 }
 

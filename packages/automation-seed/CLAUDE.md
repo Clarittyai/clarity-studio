@@ -10,7 +10,7 @@ Everything needed to build this automation is here. The integration catalog is
 `catalog/integrations/`, the runtime is the published `claritty-sdk` from PyPI,
 and the manifest is `intelligence.yaml`.
 
-**Do not read outside this project.** Not the SDK's source, not a `claritty-core`
+**Do not read outside this project.** Not the SDK's source, not a platform
 checkout, not another repo that happens to be on this machine — those are not
 part of an automation and are not present for anyone else. An answer found there
 is an answer the next person cannot reproduce.

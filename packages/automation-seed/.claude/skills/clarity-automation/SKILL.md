@@ -27,7 +27,7 @@ at. If a change is not reflected in the manifest, it does not exist at runtime.
 ## Stay inside this folder
 
 **Do not read outside this project** — not the installed SDK's source, not a
-`claritty-core` checkout, not any other repo on this machine. They are not part
+platform checkout, not any other repo on this machine. They are not part
 of the automation and will not exist for anyone else who opens it. Everything
 below is here.
 

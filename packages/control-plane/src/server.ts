@@ -422,7 +422,7 @@ export class ControlPlane {
         body.userId ?? 'local',
       )) as Record<string, string> | undefined;
 
-      const resolved = resolveTool(integrationId, toolId, credentials ?? {});
+      const resolved = resolveTool(integrationId, toolId);
       if (!resolved) {
         // Naming what IS available beats a bare 404 — the usual cause is a
         // manifest written against the hosted catalog, which is larger.

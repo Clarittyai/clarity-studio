@@ -224,21 +224,35 @@ describe('the catalog', () => {
     expect(JSON.parse(String(fetchImpl.mock.calls[0]![1].body))).toEqual({ event: 'paid', amount: 42 });
   });
 
-  it('puts the Telegram token in the path without going through the guard', async () => {
+  it('carries the Telegram token in the path, because that is where Telegram wants it', async () => {
+    // Telegram accepts its token nowhere else. Rather than special-case the
+    // provider inside resolveTool — which put the secret in the URL with
+    // nothing scrubbing it back out of errors — the spec DECLARES `path` auth
+    // and the engine handles it uniformly. See oauth.test.ts for the scrub.
     const { resolveTool } = await import('./catalog.js');
-    const found = resolveTool('telegram', 'send_message', { bot_token: '123:ABC' })!;
-    // Telegram is the one provider that wants its token in the URL. It is
-    // substituted at resolve time rather than by weakening the rule that no
-    // {creds.*} placeholder may appear in a URL template.
-    expect(found.tool.url).toBe('https://api.telegram.org/bot123:ABC/sendMessage');
+    const found = resolveTool('telegram', 'send_message')!;
+    expect(found.tool.auth.type).toBe('path');
+    expect(found.tool.url).toBe('https://api.telegram.org/bot{creds.bot_token}/sendMessage');
+
+    const fetchImpl = ok({ ok: true, result: { message_id: 9 } });
+    await executeTool({
+      spec: found.tool,
+      args: { chat_id: '1', text: 'hi' },
+      credentials: { bot_token: '123:ABC' },
+      fetchImpl,
+    });
+    expect(String(fetchImpl.mock.calls[0]![0])).toBe(
+      'https://api.telegram.org/bot123:ABC/sendMessage',
+    );
   });
 
   it('every catalog tool has a public https URL and a real auth field', async () => {
     const { CATALOG } = await import('./catalog.js');
     for (const integration of CATALOG) {
       for (const tool of integration.tools) {
-        const templated = tool.url.includes('{arg.');
-        if (!templated) expect(() => assertPublicUrl(tool.url.replace('/bot/', '/botX/'))).not.toThrow();
+        // A url carrying a placeholder is checked at call time, once filled.
+        const templated = tool.url.includes('{arg.') || tool.url.includes('{creds.');
+        if (!templated) expect(() => assertPublicUrl(tool.url)).not.toThrow();
         if (tool.auth.type === 'bearer' || tool.auth.type === 'header' || tool.auth.type === 'query') {
           // A spec whose auth names a field the integration never asks for
           // would fail only at call time, on someone's real automation.
