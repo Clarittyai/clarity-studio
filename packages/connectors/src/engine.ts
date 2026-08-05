@@ -22,7 +22,9 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export interface HttpAuthSpec {
   /** `bearer` → Authorization: Bearer <field>; `header` → a named header;
    *  `query` → a query parameter; `basic` → base64 user:pass. */
-  type: 'bearer' | 'header' | 'query' | 'basic' | 'none' | 'oauth2';
+  /** `path` — the credential goes IN the url, because the provider offers no
+   *  other way (Telegram). Declared per spec so it is a decision, not a leak. */
+  type: 'bearer' | 'header' | 'query' | 'basic' | 'none' | 'oauth2' | 'path';
   /** `oauth2` only: where a refresh token is exchanged for an access token. */
   tokenUrl?: string;
   /** `oauth2` only: the credential fields holding the user's OWN app. */
@@ -226,7 +228,16 @@ export async function executeTool(opts: ExecuteOptions): Promise<unknown> {
   const doFetch = opts.fetchImpl ?? fetch;
 
   // Credentials are explicitly disallowed in the URL.
-  const urlString = fill(spec.url, args, credentials, { allowCreds: false, what: `${spec.id} url` });
+  // A credential in a URL is forbidden by default because it leaks into logs,
+  // error messages and run history. Some providers — Telegram — accept it
+  // nowhere else, so a spec may declare `auth: { type: 'path' }` and opt in.
+  // The value is then scrubbed from anything this function throws.
+  const inPath = spec.auth.type === 'path';
+  const urlString = fill(spec.url, args, credentials, {
+    allowCreds: inPath,
+    what: `${spec.id} url`,
+  });
+  const pathSecret = inPath && spec.auth.field ? credentials[spec.auth.field] : undefined;
   const url = assertPublicUrl(urlString, opts.allowPrivateHosts ?? false);
 
   for (const [key, template] of Object.entries(spec.query ?? {})) {
@@ -276,9 +287,15 @@ export async function executeTool(opts: ExecuteOptions): Promise<unknown> {
     parsed = { raw: text };
   }
 
+  // A provider that takes the credential in the path echoes it back in error
+  // bodies. Scrubbed here so opting in to `path` auth does not quietly turn
+  // every failed call into a log line containing the token.
+  const scrub = (message: string): string =>
+    pathSecret ? message.split(pathSecret).join('***') : message;
+
   if (!response.ok) {
     throw new ConnectorError(
-      `${spec.id} failed: HTTP ${response.status} ${summarise(parsed, text)}`,
+      scrub(`${spec.id} failed: HTTP ${response.status} ${summarise(parsed, text)}`),
       'http',
       response.status,
     );
@@ -287,7 +304,7 @@ export async function executeTool(opts: ExecuteOptions): Promise<unknown> {
   // Some APIs answer 200 with `{ok: false}`. Treating that as success is how an
   // automation reports "sent" for a message nobody received.
   if (parsed && typeof parsed === 'object' && (parsed as { ok?: unknown }).ok === false) {
-    throw new ConnectorError(`${spec.id} failed: ${summarise(parsed, text)}`, 'http', response.status);
+    throw new ConnectorError(scrub(`${spec.id} failed: ${summarise(parsed, text)}`), 'http', response.status);
   }
 
   return spec.result ? pluck(parsed, spec.result) : parsed;
@@ -405,6 +422,9 @@ function applyAuth(
       // Least-preferred: a key in a query string ends up in server logs. Kept
       // because some providers offer nothing else.
       url.searchParams.set(auth.name, need(auth.field));
+      return;
+    case 'path':
+      // Already interpolated into the url — nothing to add to the request.
       return;
     case 'oauth2':
       // Resolved before this call — see executeTool.

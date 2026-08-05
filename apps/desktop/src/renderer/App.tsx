@@ -2073,21 +2073,26 @@ function NotifyBand({ projectId }: { projectId: string }) {
           </div>
         </div>
 
-        {/* Named, not hidden: knowing why something is missing beats
-            wondering. And the fix is a connector in this repo, not an account. */}
+        {/* Real connectors, configured in Connections above and stored in this
+            machine's keyring — not a link to a tracker. */}
         <div className="flex items-center gap-3 py-3">
+          <Send className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-muted-foreground">
-              Email · Telegram · WhatsApp
-            </div>
+            <div className="text-sm font-semibold text-foreground">Telegram</div>
             <div className="text-[11px] text-muted-foreground">
-              Once each has a local connector, a run can reach you there too.
+              A bot token from @BotFather. Connect it above and a run can message you.
             </div>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => api.openExternal(CONTRIBUTE.issues)}>
-            <ExternalLink className="mr-1 h-3.5 w-3.5" />
-            Request it
-          </Button>
+        </div>
+
+        <div className="flex items-center gap-3 py-3">
+          <Send className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-foreground">Email</div>
+            <div className="text-[11px] text-muted-foreground">
+              Through Resend, with your own API key. Connect it above.
+            </div>
+          </div>
         </div>
       </div>
 

@@ -98,3 +98,57 @@ describe('oauth2 with the user’s own app', () => {
     server.close();
   });
 });
+
+describe('path auth', () => {
+  it('puts the token in the url and keeps it out of the error', async () => {
+    const [server, base] = await listen((req, res) => {
+      // Telegram-shaped: the token is in the path, and it echoes back on error.
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, description: `Unauthorized for ${req.url}` }));
+    });
+
+    const spec = {
+      id: 'telegram.send_message',
+      method: 'POST' as const,
+      url: `${base}/bot{creds.bot_token}/sendMessage`,
+      auth: { type: 'path' as const, field: 'bot_token' },
+      body: { text: '{arg.text}' },
+    };
+
+    await expect(
+      executeTool({
+        spec,
+        args: { text: 'hi' },
+        credentials: { bot_token: '123456:SUPER-SECRET' },
+        allowPrivateHosts: true,
+      }),
+    ).rejects.toThrow(/\*\*\*/);
+
+    // And specifically: the secret itself must not survive into the message.
+    await executeTool({
+      spec,
+      args: { text: 'hi' },
+      credentials: { bot_token: '123456:SUPER-SECRET' },
+      allowPrivateHosts: true,
+    }).catch((e: Error) => {
+      expect(e.message).not.toContain('SUPER-SECRET');
+    });
+
+    server.close();
+  });
+
+  it('still refuses a credential in a url when auth does not declare path', async () => {
+    await expect(
+      executeTool({
+        spec: {
+          id: 'bad.spec',
+          method: 'GET' as const,
+          url: 'https://example.com/{creds.api_key}',
+          auth: { type: 'bearer' as const, field: 'api_key' },
+        },
+        args: {},
+        credentials: { api_key: 'leaky' },
+      }),
+    ).rejects.toThrow(/must never appear/i);
+  });
+});

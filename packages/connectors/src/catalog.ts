@@ -29,6 +29,57 @@ const GOOGLE_OAUTH = {
 
 export const CATALOG: IntegrationSpec[] = [
   {
+    id: 'telegram',
+    name: 'Telegram',
+    howToConnect:
+      'Message @BotFather in Telegram, send /newbot, and copy the token it gives you. ' +
+      'Then message your new bot once and open https://api.telegram.org/bot<TOKEN>/getUpdates to find your chat id.',
+    fields: [
+      { key: 'bot_token', label: 'Bot token', secret: true, placeholder: '123456:ABC-DEF…' },
+      { key: 'chat_id', label: 'Default chat id', secret: false, placeholder: '123456789' },
+    ],
+    tools: [
+      {
+        id: 'telegram.send_message',
+        summary: 'Send a message to a chat.',
+        method: 'POST',
+        // Telegram accepts the token nowhere but the path, which is why this
+        // spec declares `path` auth rather than smuggling it into a header.
+        url: 'https://api.telegram.org/bot{creds.bot_token}/sendMessage',
+        auth: { type: 'path', field: 'bot_token' },
+        body: { chat_id: '{arg.chat_id}', text: '{arg.text}', parse_mode: '{arg.parse_mode}' },
+        result: 'result.message_id',
+      },
+    ],
+  },
+
+  {
+    id: 'resend',
+    name: 'Email (Resend)',
+    howToConnect:
+      'Create an API key at https://resend.com/api-keys and verify the domain you want to send from. ' +
+      'The free tier covers a few thousand emails a month, which is more than an automation needs.',
+    fields: [{ key: 'api_key', label: 'API key', secret: true, placeholder: 're_…' }],
+    tools: [
+      {
+        id: 'resend.send',
+        summary: 'Send an email.',
+        method: 'POST',
+        url: 'https://api.resend.com/emails',
+        auth: { type: 'bearer', field: 'api_key' },
+        body: {
+          from: '{arg.from}',
+          to: '{arg.to}',
+          subject: '{arg.subject}',
+          text: '{arg.text}',
+          html: '{arg.html}',
+        },
+        result: 'id',
+      },
+    ],
+  },
+
+  {
     id: 'gmail',
     name: 'Gmail',
     howToConnect:
@@ -252,27 +303,6 @@ export const CATALOG: IntegrationSpec[] = [
     ],
   },
 
-  {
-    id: 'telegram',
-    name: 'Telegram',
-    howToConnect:
-      'Message @BotFather on Telegram, run /newbot, and copy the token. Then message your bot once so it ' +
-      'can reply to you, and use @userinfobot to find your chat id.',
-    fields: [{ key: 'bot_token', label: 'Bot token', secret: true, placeholder: '123456:ABC-…' }],
-    tools: [
-      {
-        id: 'telegram.send_message',
-        summary: 'Send a message.',
-        method: 'POST',
-        // The token belongs in the path for Telegram, which is why this one is
-        // special-cased below rather than templated: see the note in resolve().
-        url: 'https://api.telegram.org/bot/sendMessage',
-        auth: { type: 'none' },
-        body: { chat_id: '{arg.chat_id}', text: '{arg.text}', parse_mode: '{arg.parse_mode}' },
-        result: 'result.message_id',
-      },
-    ],
-  },
 
   {
     id: 'outbound-webhook',
