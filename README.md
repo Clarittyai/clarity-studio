@@ -261,9 +261,9 @@ worked on the machine that wrote it. If you are changing that area, they are the
 
 Two house rules worth knowing before your first PR:
 
-- **Spelling.** Anything this repo owns is `clarity`, one `t`. The two-`t` `claritty` spellings are
-  the published SDK's contract — `claritty-sdk`, `CLARITTY_*`, `X-Claritty-*` — and renaming one
-  breaks a running automation with no error anywhere. CI enforces the split.
+- **Spelling.** Anything this repo owns is `clarity`, one `t`. The two-`t` spellings belong to the
+  published SDK's contract — `claritty-sdk`, `CLARITTY_*`, `X-Claritty-*` — and renaming one breaks
+  a running automation with no error anywhere. CI enforces the split, including on this file.
 - **No phoning home.** Runtime code may not call `claritty.ai`. Links a *person clicks* live in
   `apps/desktop/src/renderer/components/cloud-links.ts`, which is constants and never fetches; CI
   fails if that file grows a `fetch`.
