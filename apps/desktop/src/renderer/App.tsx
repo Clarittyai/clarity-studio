@@ -610,7 +610,7 @@ function ProjectView({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.9fr)_minmax(260px,1fr)]">
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
       <Band
         title={tab === 'flow' ? 'Flow' : 'Executions'}
         subtitle={
@@ -681,11 +681,11 @@ function ProjectView({
             body="This automation only runs when you press Run. Give it a schedule and it will run on its own — while Studio is open."
           />
         ) : (
-          <Card className="divide-y divide-border">
+          <div className="divide-y divide-border/60">
             {triggers.map((trigger) => (
               <TriggerRow key={trigger.id} trigger={trigger} />
             ))}
-          </Card>
+          </div>
         )}
       </Band>
       </aside>
@@ -915,7 +915,7 @@ function nextRunLabel(triggers: Trigger[]): string {
 
 function TriggerRow({ trigger }: { trigger: Trigger }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
+    <div className="flex items-center gap-3 py-3">
       <StatusDot status={trigger.enabled ? 'running' : 'stopped'} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{trigger.recipeTriggerId}</p>
@@ -971,7 +971,7 @@ function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: ()
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
+        className="-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
       >
         <StatusDot status={verdict.status} />
         <div className="min-w-0 flex-1">
@@ -1110,11 +1110,11 @@ function AgentsBand({
   }
 
   return (
-    <Card className="divide-y divide-border">
+    <div className="divide-y divide-border/60">
       {agents.map((agent) => {
         const used = spent.get(agent.id);
         return (
-          <div key={agent.id} className="flex items-start gap-3 px-4 py-3">
+          <div key={agent.id} className="flex items-start gap-3 py-3">
             {/* The same face the canvas and the showcase draw for this agent —
                 AgentAvatar is a pure function of the seed, so an agent looks
                 like itself everywhere. A generic sparkle made every agent
@@ -1133,7 +1133,9 @@ function AgentsBand({
                 ))}
               </div>
               {agent.description && (
-                <p className="mt-0.5 text-[12.5px] text-muted-foreground">{agent.description}</p>
+                <p className="mt-0.5 line-clamp-2 text-[12.5px] text-muted-foreground">
+                  {agent.description}
+                </p>
               )}
               {agent.tools.length > 0 && (
                 <p className="mt-1 font-mono text-[11px] text-muted-foreground/80">
@@ -1158,7 +1160,7 @@ function AgentsBand({
           </div>
         );
       })}
-    </Card>
+    </div>
   );
 }
 
@@ -1206,9 +1208,9 @@ function ModelBand() {
 
   return (
     <div className="flex flex-col gap-2">
-      <Card className="divide-y divide-border">
+      <div className="divide-y divide-border/60">
         {providers.map((provider) => (
-          <div key={provider.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+          <div key={provider.id} className="flex flex-wrap items-center gap-3 py-3">
             <span className="text-sm font-semibold capitalize text-foreground">{provider.id}</span>
             {provider.hasKey ? (
               <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[11px] text-emerald-700 dark:text-emerald-300">
@@ -1293,7 +1295,7 @@ function ModelBand() {
             )}
           </div>
         ))}
-      </Card>
+      </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <p className="text-xs text-muted-foreground">
         Stored in this machine&rsquo;s keyring. Runs spend it; the Build-it terminal never does.
@@ -1490,7 +1492,7 @@ const LOCAL_SERVERS: Array<{ name: string; url: string; note: string }> = [
 function LocalModelHelp() {
   return (
     <div className="flex flex-col gap-4">
-      <Card className="divide-y divide-border">
+      <div className="divide-y divide-border/60">
         {LOCAL_SERVERS.map((server) => (
           <div key={server.name} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
             <span className="w-24 shrink-0 text-sm font-semibold text-foreground">
@@ -1504,7 +1506,7 @@ function LocalModelHelp() {
             </span>
           </div>
         ))}
-      </Card>
+      </div>
 
       <div>
         <p className="mb-2 text-xs text-muted-foreground">
@@ -1558,7 +1560,7 @@ function AutomationsFolder() {
 
   return (
     <Card>
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3 py-3">
         <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
         <code className="min-w-0 flex-1 truncate font-mono text-[12.5px]" data-selectable>
           {root ? tildePath(root) : '…'}
@@ -1695,7 +1697,7 @@ function HomeView({
               }
             />
           ) : (
-            <Card className="divide-y divide-border">
+            <div className="divide-y divide-border/60">
               {ordered.map((project) => {
                 const run = lastRun[project.id];
                 const broken = project.status === 'crashed' || run?.status === 'failed';
@@ -1704,7 +1706,7 @@ function HomeView({
                     key={project.id}
                     type="button"
                     onClick={() => onSelect(project.id)}
-                    className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
+                    className="-mx-2 flex w-full items-start gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
                   >
                     <StatusDot status={project.status as Status} className="mt-1.5" />
                     <div className="min-w-0 flex-1">
@@ -1729,7 +1731,7 @@ function HomeView({
                   </button>
                 );
               })}
-            </Card>
+            </div>
           )}
         </Band>
 
@@ -1837,9 +1839,9 @@ function ConnectionsBand({
 
   return (
     <div className="flex flex-col gap-2">
-      <Card className="divide-y divide-border">
+      <div className="divide-y divide-border/60">
         {rows.map((row) => (
-          <div key={row.id} className="px-4 py-3">
+          <div key={row.id} className="py-3">
             <div className="flex items-center gap-3">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-foreground/[0.06] text-[11px] font-bold uppercase text-muted-foreground">
                 {row.id.slice(0, 2)}
@@ -1942,7 +1944,7 @@ function ConnectionsBand({
             )}
           </div>
         ))}
-      </Card>
+      </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <p className="text-xs text-muted-foreground">
         Credentials go to this machine&rsquo;s keyring, scoped to this automation.
@@ -1990,11 +1992,11 @@ function NotifyBand({ projectId }: { projectId: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <Card className="divide-y divide-border">
+      <div className="divide-y divide-border/60">
         <button
           type="button"
           onClick={() => void update({ desktop: !prefs.desktop })}
-          className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
+          className="-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
         >
           <Bell className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
@@ -2018,7 +2020,7 @@ function NotifyBand({ projectId }: { projectId: string }) {
           </span>
         </button>
 
-        <div className="flex items-center gap-3 px-4 py-3">
+        <div className="flex items-center gap-3 py-3">
           <Send className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-foreground">Slack</div>
@@ -2030,7 +2032,7 @@ function NotifyBand({ projectId }: { projectId: string }) {
 
         {/* Named, not hidden: knowing why something is missing beats
             wondering. And the fix is a connector in this repo, not an account. */}
-        <div className="flex items-center gap-3 px-4 py-3">
+        <div className="flex items-center gap-3 py-3">
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-muted-foreground">
               Email · Telegram · WhatsApp
@@ -2044,7 +2046,7 @@ function NotifyBand({ projectId }: { projectId: string }) {
             Request it
           </Button>
         </div>
-      </Card>
+      </div>
 
       <div className="flex items-center gap-2">
         <Button
