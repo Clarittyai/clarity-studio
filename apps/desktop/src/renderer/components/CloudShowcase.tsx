@@ -107,7 +107,7 @@ export function CloudShowcase() {
   return (
     <div
       ref={rootRef}
-      className="relative overflow-hidden rounded-3xl border border-border bg-[#0C0C0E]"
+      className="relative overflow-hidden rounded-3xl border border-border bg-background"
     >
       {/* The slide's colour: one soft wash, swapped with the slide. */}
       <AnimatePresence mode="wait">
@@ -124,10 +124,12 @@ export function CloudShowcase() {
           }}
         />
       </AnimatePresence>
+      {/* A much lighter vignette. At 160px/0.6 it darkened the right third of
+          the card — exactly where the art lives — and took the scenes with it. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
-        style={{ boxShadow: 'inset 0 0 160px rgba(0,0,0,0.6)' }}
+        style={{ boxShadow: 'inset 0 0 90px rgba(0,0,0,0.28)' }}
       />
 
       <div className="relative z-10 grid min-h-[300px] items-center gap-8 p-9 md:grid-cols-[minmax(0,1fr)_360px]">
@@ -183,18 +185,15 @@ export function CloudShowcase() {
             // AppBuildScene's app card against its own short stage.
             className="dark flex h-[210px] items-center justify-center"
           >
-            {/* The art gets its own surface.
-                The scenes are drawn for the app's background — rails at
-                `stroke-border`, idle nodes at `fill-accent/[0.06]` — and on the
-                showcase's near-black card under a vignette those simply
-                disappeared: AutomationGraphScene rendered, measurably, and could
-                not be seen. A faint panel puts every scene back on the kind of
-                surface it was designed against. */}
-            <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.035]">
+            {/* No plate. The scene sits in light, the way the empty state does
+                — a soft glow behind it rather than a card around it. The art was
+                invisible before because the vignette crushed the right edge
+                where it sits, not because it needed framing. */}
+            <div className="relative flex h-full w-full items-center justify-center">
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-0"
-                style={{ background: `radial-gradient(80% 70% at 50% 0%, ${slide.glow} 0%, transparent 70%)` }}
+                className="pointer-events-none absolute left-1/2 top-1/2 h-64 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+                style={{ background: slide.glow }}
               />
               <div className="relative w-full">
                 <Scene />
