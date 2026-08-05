@@ -183,7 +183,23 @@ export function CloudShowcase() {
             // AppBuildScene's app card against its own short stage.
             className="dark flex h-[210px] items-center justify-center"
           >
-            <Scene />
+            {/* The art gets its own surface.
+                The scenes are drawn for the app's background — rails at
+                `stroke-border`, idle nodes at `fill-accent/[0.06]` — and on the
+                showcase's near-black card under a vignette those simply
+                disappeared: AutomationGraphScene rendered, measurably, and could
+                not be seen. A faint panel puts every scene back on the kind of
+                surface it was designed against. */}
+            <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.035]">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{ background: `radial-gradient(80% 70% at 50% 0%, ${slide.glow} 0%, transparent 70%)` }}
+              />
+              <div className="relative w-full">
+                <Scene />
+              </div>
+            </div>
           </motion.div>
         </AnimatePresence>
       </div>
