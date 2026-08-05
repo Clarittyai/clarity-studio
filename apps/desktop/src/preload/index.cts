@@ -26,6 +26,12 @@ contextBridge.exposeInMainWorld('studio', {
     ipcRenderer.invoke('project:create', name, request, dir),
   chooseFolder: () => ipcRenderer.invoke('project:choose-folder'),
   appVersion: () => ipcRenderer.invoke('app:version'),
+  readAgent: (projectId: string, agentId: string) =>
+    ipcRenderer.invoke('agent:read', projectId, agentId),
+  writeAgent: (projectId: string, path: string, text: string) =>
+    ipcRenderer.invoke('agent:write', projectId, path, text),
+  listKnowledge: (projectId: string) => ipcRenderer.invoke('agent:knowledge', projectId),
+  addKnowledge: (projectId: string) => ipcRenderer.invoke('agent:add-knowledge', projectId),
   integrationStatus: (projectId: string, ids: string[]) =>
     ipcRenderer.invoke('integrations:status', projectId, ids),
   connectIntegration: (projectId: string, id: string, values: Record<string, string>) =>

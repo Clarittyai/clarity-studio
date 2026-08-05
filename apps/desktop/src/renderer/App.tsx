@@ -21,6 +21,7 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
+  FileText,
   FolderOpen,
   Home,
   Plus,
@@ -386,6 +387,9 @@ function ProjectView({
   const [openRunId, setOpenRunId] = useState<string | undefined>();
   const [manifest, setManifest] = useState<Record<string, unknown> | undefined>();
   const [codingAgents, setAgents] = useState<AgentInfo[]>([]);
+  const [inspecting, setInspecting] = useState<
+    { id: string; description?: string; tools: string[]; integrations: string[] } | undefined
+  >();
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(project.name);
   const [busy, setBusy] = useState<'start' | 'stop' | 'run' | undefined>();
@@ -666,7 +670,7 @@ function ProjectView({
         title="Agents"
         subtitle="What is inside, and how many tokens each one used."
       >
-        <AgentsBand manifest={manifest} calls={latestCalls} />
+        <AgentsBand manifest={manifest} calls={latestCalls} onOpen={setInspecting} />
       </Band>
 
       <Band title="How to reach you" subtitle="Where a finished run finds you.">
@@ -702,6 +706,14 @@ function ProjectView({
         person reading a run does not always want a shell taking a third of the
         window.
       */}
+      {inspecting && (
+        <AgentInspector
+          projectId={project.id}
+          agent={inspecting}
+          onClose={() => setInspecting(undefined)}
+        />
+      )}
+
       <TerminalDock
         projectId={project.id}
         request={request}
@@ -1071,9 +1083,16 @@ function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
 function AgentsBand({
   manifest,
   calls,
+  onOpen,
 }: {
   manifest?: Record<string, unknown>;
   calls: LlmCall[];
+  onOpen: (agent: {
+    id: string;
+    description?: string;
+    tools: string[];
+    integrations: string[];
+  }) => void;
 }) {
   const agents = useMemo(() => {
     const list = (manifest as { agents?: Array<Record<string, unknown>> } | undefined)?.agents ?? [];
@@ -1114,7 +1133,12 @@ function AgentsBand({
       {agents.map((agent) => {
         const used = spent.get(agent.id);
         return (
-          <div key={agent.id} className="flex items-start gap-3 py-3">
+          <button
+            key={agent.id}
+            type="button"
+            onClick={() => onOpen(agent)}
+            className="-mx-2 flex w-full items-start gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
+          >
             {/* The same face the canvas and the showcase draw for this agent —
                 AgentAvatar is a pure function of the seed, so an agent looks
                 like itself everywhere. A generic sparkle made every agent
@@ -1157,7 +1181,7 @@ function AgentsBand({
                 <span className="text-[11px] text-muted-foreground">not used last run</span>
               )}
             </div>
-          </div>
+          </button>
         );
       })}
     </div>
@@ -1559,7 +1583,7 @@ function AutomationsFolder() {
   }, []);
 
   return (
-    <Card>
+    <div className="border-y border-border/60">
       <div className="flex flex-wrap items-center gap-3 py-3">
         <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
         <code className="min-w-0 flex-1 truncate font-mono text-[12.5px]" data-selectable>
@@ -1576,7 +1600,7 @@ function AutomationsFolder() {
           Change
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -2067,6 +2091,192 @@ function NotifyBand({ projectId }: { projectId: string }) {
         {/* macOS asks on first send, so silence is expected once and confusing
             forever after if nothing says so. */}
         {note && <span className="text-xs text-muted-foreground">{note}</span>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * An agent's behaviour, editable.
+ *
+ * This is the answer to "I cannot specify how the agent behaves". The manifest
+ * points each agent at a `prompt_file`, so its instructions are a file on disk:
+ * Studio can edit them without owning them, the coding agent in the dock sees
+ * the same bytes, and git records the change. Putting the behaviour in a
+ * database instead would give an agent two sources of truth.
+ *
+ * What it may touch — tools and integrations — is shown but not editable here.
+ * Those are structural: changing them means changing the workflow that calls the
+ * agent, which is the manifest's business and the flow's.
+ */
+function AgentInspector({
+  projectId,
+  agent,
+  onClose,
+}: {
+  projectId: string;
+  agent: { id: string; description?: string; tools: string[]; integrations: string[] };
+  onClose: () => void;
+}) {
+  const [text, setText] = useState('');
+  const [path, setPath] = useState<string | undefined>();
+  const [inline, setInline] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [docs, setDocs] = useState<Array<{ name: string; bytes: number }>>([]);
+
+  useEffect(() => {
+    void api
+      .readAgent(projectId, agent.id)
+      .then((found) => {
+        setText(found?.text ?? '');
+        setPath(found?.path);
+        setInline(found?.inline ?? false);
+      })
+      .catch(() => undefined);
+    void api
+      .listKnowledge(projectId)
+      .then(setDocs)
+      .catch(() => undefined);
+  }, [projectId, agent.id]);
+
+  const save = useCallback(async () => {
+    if (!path) return;
+    await api.writeAgent(projectId, path, text);
+    setDirty(false);
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 2000);
+  }, [projectId, path, text]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-background/70 p-8 backdrop-blur-sm"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && !dirty) onClose();
+      }}
+    >
+      <div className="mt-10 flex max-h-[82vh] w-full max-w-2xl flex-col rounded-3xl border border-border bg-background">
+        <header className="flex items-center gap-3 border-b border-border px-6 py-4">
+          <AgentAvatar seed={agent.id} size={34} />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-semibold tracking-tight">{agent.id}</h2>
+            {agent.description && (
+              <p className="truncate text-[12px] text-muted-foreground">{agent.description}</p>
+            )}
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Close
+          </Button>
+        </header>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 py-5">
+          <div className="flex min-h-0 flex-col">
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground">Behaviour</span>
+              {path && <span className="font-mono text-[11px] text-muted-foreground/70">{path}</span>}
+              {saved && <span className="text-[11px] text-success">saved</span>}
+            </div>
+            {inline ? (
+              /* An inline prompt lives in the manifest, and editing YAML through
+                 a textarea is how a manifest gets corrupted. */
+              <p className="rounded-2xl border border-border p-4 text-[12.5px] text-muted-foreground">
+                This agent&rsquo;s prompt is inline in <span className="font-mono">intelligence.yaml</span>.
+                Move it to a <span className="font-mono">prompt_file</span> to edit it here.
+              </p>
+            ) : (
+              <textarea
+                value={text}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  setDirty(true);
+                }}
+                rows={14}
+                spellCheck={false}
+                placeholder="Tell it what to do, what to leave alone, and what to return."
+                className="w-full resize-y rounded-2xl border border-border bg-foreground/[0.02] p-4 font-mono text-[12.5px] leading-relaxed outline-none focus:border-accent"
+              />
+            )}
+          </div>
+
+          <div>
+            <div className="mb-1.5 text-xs font-semibold text-muted-foreground">
+              What it may touch
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {agent.tools.length === 0 && agent.integrations.length === 0 && (
+                <span className="text-[12px] text-muted-foreground">
+                  Nothing — it reasons over what earlier steps hand it.
+                </span>
+              )}
+              {agent.integrations.map((id) => (
+                <span
+                  key={id}
+                  className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300"
+                >
+                  {id}
+                </span>
+              ))}
+              {agent.tools.map((id) => (
+                <span
+                  key={id}
+                  className="rounded-md bg-foreground/[0.06] px-2 py-0.5 font-mono text-[11px] text-muted-foreground"
+                >
+                  {id}
+                </span>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Set by the workflow that calls it — change those in the flow, not here.
+            </p>
+          </div>
+
+          <div>
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground">Knowledge</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={async () => {
+                  const added = await api.addKnowledge(projectId);
+                  if (added > 0) setDocs(await api.listKnowledge(projectId));
+                }}
+              >
+                Add documents
+              </Button>
+            </div>
+            {docs.length === 0 ? (
+              <p className="text-[12px] text-muted-foreground">
+                Nothing yet. Files added here are copied into the automation, so it still runs on
+                another machine.
+              </p>
+            ) : (
+              <div className="divide-y divide-border/60">
+                {docs.map((doc) => (
+                  <div key={doc.name} className="flex items-center gap-2 py-2">
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate text-[12.5px]">{doc.name}</span>
+                    <span className="text-[11px] tabular-nums text-muted-foreground">
+                      {Math.max(1, Math.round(doc.bytes / 1024))} KB
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Reference them by name in the behaviour above; the agent reads them at run time.
+            </p>
+          </div>
+        </div>
+
+        <footer className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
+          {dirty && <span className="mr-auto text-[11px] text-warning">unsaved changes</span>}
+          <Button variant="ghost" onClick={onClose}>
+            {dirty ? 'Discard' : 'Close'}
+          </Button>
+          <Button variant="accent" disabled={!dirty || inline} onClick={() => void save()}>
+            Save
+          </Button>
+        </footer>
       </div>
     </div>
   );

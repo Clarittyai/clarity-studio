@@ -15,7 +15,16 @@
 
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, shell } from 'electron';
 import { spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -363,6 +372,74 @@ function registerIpc(): void {
    * ~/.local/bin — so this reported "none installed" on machines where Claude
    * Code was sitting right there.
    */
+  /**
+   * An agent's behaviour, as text.
+   *
+   * The manifest points at `prompt_file`, so the instructions are a file on
+   * disk — Studio can edit them without owning them, the coding agent in the
+   * dock sees the same bytes, and git records the change. Keeping behaviour in
+   * a database instead would give an agent two sources of truth.
+   */
+  ipcMain.handle('agent:read', (_event, projectId: string, agentId: string) => {
+    const project = db().getProject(String(projectId));
+    if (!project) return undefined;
+    const file = manifestIn(project.path);
+    if (!file) return undefined;
+    const parsed = parseYaml(readFileSync(file, 'utf8')) as {
+      agents?: Array<{
+        id?: string;
+        prompt_file?: string;
+        promptFile?: string;
+        system_prompt?: string;
+      }>;
+    };
+    const agent = (parsed?.agents ?? []).find((a) => a?.id === String(agentId));
+    if (!agent) return undefined;
+    const rel = agent.prompt_file ?? agent.promptFile;
+    // An inline prompt is legal; it is just not a file to edit.
+    if (!rel) return { inline: true, text: agent.system_prompt ?? '' };
+    const full = join(project.path, rel);
+    return { inline: false, path: rel, text: existsSync(full) ? readFileSync(full, 'utf8') : '' };
+  });
+
+  ipcMain.handle('agent:write', (_event, projectId: string, relPath: string, text: string) => {
+    const project = db().getProject(String(projectId));
+    if (!project) throw new Error('That automation is no longer in the library.');
+    const full = join(project.path, String(relPath));
+    // A path from the renderer is input, even when the renderer is ours.
+    if (!full.startsWith(project.path)) throw new Error('Refusing to write outside the project.');
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, String(text));
+  });
+
+  /** Documents the agents can be given. Listed from the project, not invented. */
+  ipcMain.handle('agent:knowledge', (_event, projectId: string) => {
+    const project = db().getProject(String(projectId));
+    if (!project) return [];
+    const dir = join(project.path, 'knowledge');
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir)
+      .filter((f) => !f.startsWith('.'))
+      .map((f) => ({ name: f, bytes: statSync(join(dir, f)).size }));
+  });
+
+  ipcMain.handle('agent:add-knowledge', async (_event, projectId: string) => {
+    const project = db().getProject(String(projectId));
+    if (!project) throw new Error('That automation is no longer in the library.');
+    const picked = await dialog.showOpenDialog({
+      title: 'Add knowledge',
+      message: 'Documents the agents in this automation can be given',
+      properties: ['openFile', 'multiSelections'],
+    });
+    if (picked.canceled) return 0;
+    const dir = join(project.path, 'knowledge');
+    mkdirSync(dir, { recursive: true });
+    // Copied in, not linked: an automation depending on a file elsewhere on this
+    // machine cannot be committed, shared, or run anywhere else.
+    for (const file of picked.filePaths) cpSync(file, join(dir, basename(file)));
+    return picked.filePaths.length;
+  });
+
   ipcMain.handle('agents:list', async () => {
     const found = await detectAgents(terminals.probe);
     return found.map((a) => ({ id: a.id, name: a.name, version: a.version }));

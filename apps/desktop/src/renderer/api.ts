@@ -155,6 +155,14 @@ export interface StudioApi {
     values: Record<string, string>,
   ): Promise<void>;
   disconnectIntegration(projectId: string, id: string): Promise<void>;
+  /** An agent's instructions, as they exist on disk. */
+  readAgent(
+    projectId: string,
+    agentId: string,
+  ): Promise<{ inline: boolean; path?: string; text: string } | undefined>;
+  writeAgent(projectId: string, path: string, text: string): Promise<void>;
+  listKnowledge(projectId: string): Promise<Array<{ name: string; bytes: number }>>;
+  addKnowledge(projectId: string): Promise<number>;
   /** The running build, so "am I on an old version" is answerable. */
   appVersion(): Promise<string>;
   /** How this automation should tell you a run finished. */
@@ -419,6 +427,16 @@ const fixtures: StudioApi = {
   },
   async connectIntegration() {},
   async disconnectIntegration() {},
+  async readAgent() {
+    return { inline: false, path: 'backend/agents/demo.md', text: 'You are a helpful agent.' };
+  },
+  async writeAgent() {},
+  async listKnowledge() {
+    return [];
+  },
+  async addKnowledge() {
+    return 0;
+  },
   async appVersion() {
     return 'demo';
   },
