@@ -59,6 +59,7 @@ import {
   EmptyState,
   formatTokens,
   StatusDot,
+  tildePath,
   timeAgo,
   timeUntil,
   cn,
@@ -496,7 +497,7 @@ function ProjectView({
             {project.name}
           </h1>
           <p className="mt-1 truncate text-sm text-muted-foreground" data-selectable>
-            {project.path}
+            {tildePath(project.path)}
             {project.hostPort && running && ` · 127.0.0.1:${project.hostPort}`}
           </p>
         </div>
@@ -1338,7 +1339,7 @@ function NewAutomation({
 
         <div className="mt-3 flex items-center gap-2 text-[11.5px] text-muted-foreground">
           <span className="truncate font-mono">
-            {(dir ?? root)}/{slugify(name) || '…'}
+            {tildePath(dir ?? root)}/{slugify(name) || '…'}
           </span>
           <button
             type="button"
@@ -1510,7 +1511,7 @@ function AutomationsFolder() {
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
         <code className="min-w-0 flex-1 truncate font-mono text-[12.5px]" data-selectable>
-          {root ?? '…'}
+          {root ? tildePath(root) : '…'}
         </code>
         <Button
           size="sm"

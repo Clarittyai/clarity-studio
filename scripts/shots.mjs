@@ -20,8 +20,13 @@ if (!existsSync(join(FIXTURE, 'intelligence.yaml'))) {
   throw new Error(`no automation at ${FIXTURE} — set SHOTS_PROJECT to one`);
 }
 
-const PROJECT = '/tmp/shots-project';
+// Under the home directory on purpose: the UI renders it as
+// `~/Automations/invoice-digest`, which is both what a real install looks like
+// and free of anybody's username. A /tmp path in a README screenshot tells the
+// reader nothing and looks like a test artefact.
+const PROJECT = join(process.env.HOME ?? '/tmp', 'Automations', 'invoice-digest');
 rmSync(PROJECT, { recursive: true, force: true });
+mkdirSync(dirname(PROJECT), { recursive: true });
 cpSync(FIXTURE, PROJECT, {
   recursive: true,
   filter: (s) => !s.includes('__pycache__') && !s.includes('/.venv'),

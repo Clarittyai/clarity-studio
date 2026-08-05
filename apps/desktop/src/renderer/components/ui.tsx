@@ -275,6 +275,19 @@ export function formatUsd(micros: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
+/**
+ * A path as a person would write it: `~/Automations/x`, never
+ * `/Users/their-name/Automations/x`.
+ *
+ * Not only cosmetic. Every screenshot of this app leaked a username, and a
+ * support thread or a README image is exactly where an absolute home path
+ * should not appear. Done by pattern rather than by asking main for the home
+ * directory, so it needs no IPC and works the same on macOS and Linux.
+ */
+export function tildePath(path: string): string {
+  return path.replace(/^\/(?:Users|home)\/[^/]+/, '~');
+}
+
 /** The mirror of timeAgo, for something that has not happened yet. */
 export function timeUntil(ts: number): string {
   const s = Math.round((ts - Date.now()) / 1000);
