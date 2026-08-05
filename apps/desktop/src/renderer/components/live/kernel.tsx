@@ -67,6 +67,36 @@ export function useTurn(length: number, active: boolean, intervalMs: number): nu
   return length > 0 ? turn % length : 0;
 }
 
+/**
+ * Count a number up to `target` while `active`. Stepped on a timer, never rAF,
+ * and settles exactly on `target`. Reduced motion or off-screen shows the end
+ * state rather than a zero that never animates.
+ */
+export function useTween(target: number, active: boolean, durationMs = 900): number {
+  const [value, setValue] = useState(target);
+
+  useEffect(() => {
+    if (!active) {
+      setValue(target);
+      return;
+    }
+    const steps = 24;
+    const stepMs = Math.max(16, durationMs / steps);
+    let i = 0;
+    setValue(0);
+    const id = window.setInterval(() => {
+      i += 1;
+      const t = Math.min(1, i / steps);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      setValue(i >= steps ? target : Math.round(target * eased));
+      if (i >= steps) window.clearInterval(id);
+    }, stepMs);
+    return () => window.clearInterval(id);
+  }, [target, active, durationMs]);
+
+  return value;
+}
+
 /** Measure an element's width — the basis for scaling a fixed-geometry stage. */
 export function useMeasuredWidth(): [React.RefObject<HTMLDivElement>, number] {
   const ref = useRef<HTMLDivElement>(null);
