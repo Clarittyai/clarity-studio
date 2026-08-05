@@ -1586,7 +1586,10 @@ function HomeView({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex max-w-5xl flex-col gap-10 p-8">
+      {/* `min-h-full` + `mt-auto` on the last line: the footnote belongs at the
+          bottom of the pane, not floating a third of the way up it with dead
+          space underneath. */}
+      <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-10 p-8">
         <CloudShowcase />
 
         <header>
@@ -1665,7 +1668,7 @@ function HomeView({
 
         {/* The showcase at the top does the telling now. This is the honest
             footnote under it, plus the way in for anyone who wants to help. */}
-        <p className="text-xs text-muted-foreground">
+        <p className="mt-auto pt-2 text-xs text-muted-foreground">
           The showcase above opens your browser. Studio itself still talks to nobody —{' '}
           <button
             type="button"
