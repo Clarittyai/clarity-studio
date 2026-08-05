@@ -416,6 +416,9 @@ function registerIpc(): void {
     },
   );
 
+  /** Build identity, so a stale packaged app can say so. */
+  ipcMain.handle('app:version', () => `${app.getVersion()}${app.isPackaged ? '' : ' (dev)'}`);
+
   ipcMain.handle('settings:get', () => ({ automationsRoot: automationsRoot() }));
 
   /** Pick the folder new automations go into, and remember it. */

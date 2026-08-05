@@ -142,6 +142,14 @@ export default function App() {
    * could never be taken.
    */
   const [view, setView] = useState<'home' | 'project' | 'settings'>('home');
+  const [version, setVersion] = useState<string | undefined>();
+
+  useEffect(() => {
+    void api
+      .appVersion()
+      .then(setVersion)
+      .catch(() => undefined);
+  }, []);
   const selected = projects.find((p) => p.id === selectedId);
 
   const openProject = useCallback((id: string) => {
@@ -181,7 +189,7 @@ export default function App() {
             </div>
           )}
           {view === 'settings' ? (
-            <SettingsView />
+            <SettingsView version={version} />
           ) : view === 'project' && selected ? (
             <ProjectView
               project={selected}
@@ -1312,9 +1320,13 @@ function slugify(value: string): string {
  * stored once (`provider:*:…`) and every automation on this machine uses it, so
  * showing it per-automation implied a per-automation setting that never existed.
  */
-function SettingsView() {
+function SettingsView({ version }: { version?: string }) {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-10 p-8">
+    // The scroll wrapper Home has and this was missing: `main` is
+    // `overflow-hidden` so each view owns its own scrolling, and without this
+    // everything below the fold was simply unreachable.
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex max-w-3xl flex-col gap-10 p-8">
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -1342,6 +1354,14 @@ function SettingsView() {
       >
         <LocalModelHelp />
       </Band>
+
+      {/* Which build this is. A packaged .app is a snapshot — it does not track
+          the source it was built from — so "I am looking at an old version" has
+          to be answerable without guessing. */}
+      <p className="text-xs text-muted-foreground">
+        Claritty Studio {version ?? '—'}
+      </p>
+      </div>
     </div>
   );
 }

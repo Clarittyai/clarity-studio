@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('studio', {
   createProject: (name: string, request?: string, dir?: string) =>
     ipcRenderer.invoke('project:create', name, request, dir),
   chooseFolder: () => ipcRenderer.invoke('project:choose-folder'),
+  appVersion: () => ipcRenderer.invoke('app:version'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   chooseAutomationsRoot: () => ipcRenderer.invoke('settings:choose-automations-root'),
   deleteProject: (projectId: string) => ipcRenderer.invoke('project:delete', projectId),

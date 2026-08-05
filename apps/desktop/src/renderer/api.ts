@@ -131,6 +131,8 @@ export interface StudioApi {
   ): Promise<{ id: string; request?: string } | undefined>;
   /** Only used when someone explicitly changes where automations live. */
   chooseFolder(): Promise<string | undefined>;
+  /** The running build, so "am I on an old version" is answerable. */
+  appVersion(): Promise<string>;
   /** Window preferences — currently just where new automations go. */
   getSettings(): Promise<{ automationsRoot: string }>;
   chooseAutomationsRoot(): Promise<string | undefined>;
@@ -373,6 +375,9 @@ const fixtures: StudioApi = {
   },
   async chooseFolder() {
     return undefined;
+  },
+  async appVersion() {
+    return 'demo';
   },
   async getSettings() {
     return { automationsRoot: '~/Automations' };
