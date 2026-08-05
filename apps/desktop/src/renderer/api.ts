@@ -131,6 +131,11 @@ export interface StudioApi {
   ): Promise<{ id: string; request?: string } | undefined>;
   /** Only used when someone explicitly changes where automations live. */
   chooseFolder(): Promise<string | undefined>;
+  /** Which of these integrations have credentials stored on this machine. */
+  integrationStatus(
+    projectId: string,
+    ids: string[],
+  ): Promise<Array<{ id: string; connected: boolean }>>;
   /** The running build, so "am I on an old version" is answerable. */
   appVersion(): Promise<string>;
   /** Window preferences — currently just where new automations go. */
@@ -375,6 +380,9 @@ const fixtures: StudioApi = {
   },
   async chooseFolder() {
     return undefined;
+  },
+  async integrationStatus(_p, ids) {
+    return ids.map((id) => ({ id, connected: id === 'gmail' }));
   },
   async appVersion() {
     return 'demo';

@@ -13,6 +13,27 @@ dollar they spend.
 
 ---
 
+![An automation in Studio](docs/img/automation.png)
+
+*A real automation: a weekday trigger, a Gmail search, a fan-out that hydrates each message
+(`once per message · max 25`), an agent that decides what counts as an invoice, and a send marked
+`write` so a dry run previews it instead of mailing anyone. The right column says Gmail is not
+connected yet — which matters, because a run that cannot reach it will skip those steps and still
+finish.*
+
+![Home](docs/img/home.png)
+
+*Home: what is actually on this machine — runs, tokens, failures, the next scheduled fire — and
+underneath, what the hosted version adds.*
+
+![Settings](docs/img/settings.png)
+
+*Bring your own model: a provider key in the OS keyring, or point it at your own
+OpenAI-compatible endpoint. Ollama, LM Studio, vLLM and llama.cpp addresses are listed, with the
+exact request Studio sends so you can check it with `curl` before trusting a run to it.*
+
+---
+
 ## Quickstart
 
 Needs **Node 22+**. Python 3.9+ and Docker are optional — see below.
@@ -206,6 +227,46 @@ packages/agent-bridge/     detect and drive claude / codex / gemini / cursor
 packages/graph/            manifest → canvas graph
 packages/db/               local SQLite store
 ```
+
+## Contributing
+
+Studio is MIT and the whole thing runs locally, so there is no environment to get access to — clone
+it and it works.
+
+[**→ Open an issue**](https://github.com/Clarittyai/clarity-studio/issues) ·
+[**→ Browse the code**](https://github.com/Clarittyai/clarity-studio)
+
+```bash
+git clone https://github.com/Clarittyai/clarity-studio.git
+cd clarity-studio
+pnpm install          # a postinstall fixes node-pty's spawn-helper permissions
+pnpm run setup        # NOT `pnpm setup` — that is pnpm's own builtin command
+pnpm start            # run the app
+pnpm check:app        # drive the real window: 24 checks
+```
+
+Before opening a PR:
+
+```bash
+pnpm typecheck && pnpm test && pnpm build
+pnpm spike              # M0: an unmodified automation runs against the local control plane
+pnpm proof:integrations # M3: a real HTTP call through the vault, credential never leaving the host
+pnpm proof:byom         # a configured endpoint actually receives the run's model call
+pnpm check:app          # the window itself
+```
+
+Those last four are gates rather than niceties. Each one exists because the thing it checks broke
+once and did so **silently** — an endpoint that was stored and ignored, a credential path that only
+worked on the machine that wrote it. If you are changing that area, they are the fastest way to know.
+
+Two house rules worth knowing before your first PR:
+
+- **Spelling.** Anything this repo owns is `clarity`, one `t`. The two-`t` `claritty` spellings are
+  the published SDK's contract — `claritty-sdk`, `CLARITTY_*`, `X-Claritty-*` — and renaming one
+  breaks a running automation with no error anywhere. CI enforces the split.
+- **No phoning home.** Runtime code may not call `claritty.ai`. Links a *person clicks* live in
+  `apps/desktop/src/renderer/components/cloud-links.ts`, which is constants and never fetches; CI
+  fails if that file grows a `fetch`.
 
 ## License
 

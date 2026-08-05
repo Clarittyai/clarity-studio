@@ -416,6 +416,25 @@ function registerIpc(): void {
     },
   );
 
+  /**
+   * Which integrations actually have credentials on this machine.
+   *
+   * Without this the UI could only say "connect it somehow", and a scheduled
+   * automation whose Gmail is missing skips every step that touches it while
+   * still reporting success — which is how a broken automation looks healthy
+   * for a week.
+   */
+  ipcMain.handle('integrations:status', (_event, projectId: string, ids: string[]) => {
+    const v = vault();
+    const list = Array.isArray(ids) ? ids.map(String) : [];
+    return list.map((id) => ({
+      id,
+      // A bundle exists when at least one field was stored for it. Project-scoped
+      // wins over machine-wide, which is what `bundle` already resolves.
+      connected: Boolean(v.bundle(id, String(projectId))),
+    }));
+  });
+
   /** Build identity, so a stale packaged app can say so. */
   ipcMain.handle('app:version', () => `${app.getVersion()}${app.isPackaged ? '' : ' (dev)'}`);
 

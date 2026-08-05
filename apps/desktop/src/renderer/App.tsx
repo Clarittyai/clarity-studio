@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  Check,
   ChevronDown,
   FolderOpen,
   Home,
@@ -599,7 +600,7 @@ function ProjectView({
         title="Connections"
         subtitle="The services it uses — connect once, reused every run."
       >
-        <ConnectionsBand manifest={manifest} />
+        <ConnectionsBand manifest={manifest} projectId={project.id} />
       </Band>
 
       <Band
@@ -870,12 +871,37 @@ function TriggerRow({ trigger }: { trigger: Trigger }) {
 
 // ── the run timeline ─────────────────────────────────────────────────────────
 
+/**
+ * A run where every step skipped is not a success, whatever status the engine
+ * recorded. The invoice-digest simulation skipped three of four steps —
+ * `gmail_not_connected` — and still reported `✓ workflow succeeded`, which on a
+ * schedule means an automation that looks healthy for a week while doing
+ * nothing. The engine's verdict is kept, but the timeline says what happened.
+ */
+function effectiveStatus(run: Run, steps: Step[]): { status: Status; note?: string } {
+  if (steps.length > 0 && steps.every((s) => s.status === 'skipped')) {
+    return { status: 'skipped', note: 'every step skipped — nothing ran' };
+  }
+  const skipped = steps.filter((s) => s.status === 'skipped').length;
+  if (run.status === 'success' && skipped > 0) {
+    return { status: 'skipped', note: `${skipped} step${skipped === 1 ? '' : 's'} skipped` };
+  }
+  return { status: run.status as Status };
+}
+
 function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: () => void }) {
   const [steps, setSteps] = useState<Step[]>([]);
 
+  // Loaded whether or not the row is open: the row's own status depends on the
+  // steps, and it is a local SQLite read.
   useEffect(() => {
-    if (open) void api.listSteps(run.id).then(setSteps);
-  }, [open, run.id]);
+    void api
+      .listSteps(run.id)
+      .then(setSteps)
+      .catch(() => undefined);
+  }, [run.id]);
+
+  const verdict = useMemo(() => effectiveStatus(run, steps), [run, steps]);
 
   return (
     <Card className="overflow-hidden">
@@ -884,9 +910,14 @@ function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: ()
         onClick={onToggle}
         className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
       >
-        <StatusDot status={run.status as Status} />
+        <StatusDot status={verdict.status} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{run.workflowId ?? 'workflow'}</p>
+          <p className="truncate text-sm font-medium">
+            {run.workflowId ?? 'workflow'}
+            {verdict.note && (
+              <span className="ml-2 font-normal text-warning">{verdict.note}</span>
+            )}
+          </p>
           <p className="truncate font-mono text-[11px] text-muted-foreground">{run.id}</p>
         </div>
         <Badge>{run.triggeredBy}</Badge>
@@ -1665,13 +1696,17 @@ function HomeView({
  * connected will skip every step that touches it and still report success, so
  * "is it wired up" belongs beside the flow rather than buried.
  *
- * Read from the manifest's own `integrations:`. Connection state is not yet
- * something Studio can answer — the vault holds credentials per integration but
- * nothing has been wired to report it — so this says "needs connecting" rather
- * than inventing a green tick. A false "Connected" is worse than an honest
- * unknown.
+ * Read from the manifest's own `integrations:`, with real connection state from
+ * the vault — not a guess. A false "Connected" would be worse than no badge at
+ * all, since the whole point is knowing before a scheduled run silently skips.
  */
-function ConnectionsBand({ manifest }: { manifest?: Record<string, unknown> }) {
+function ConnectionsBand({
+  manifest,
+  projectId,
+}: {
+  manifest?: Record<string, unknown>;
+  projectId: string;
+}) {
   const integrations = useMemo(() => {
     const list =
       (manifest as { integrations?: Array<{ id?: string; required?: boolean } | string> } | undefined)
@@ -1680,6 +1715,17 @@ function ConnectionsBand({ manifest }: { manifest?: Record<string, unknown> }) {
       typeof i === 'string' ? { id: i, required: true } : { id: i.id ?? '', required: i.required !== false },
     );
   }, [manifest]);
+
+  const [status, setStatus] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const ids = integrations.map((i) => i.id).filter(Boolean);
+    if (ids.length === 0) return;
+    void api
+      .integrationStatus(projectId, ids)
+      .then((rows) => setStatus(Object.fromEntries(rows.map((r) => [r.id, r.connected]))))
+      .catch(() => undefined);
+  }, [projectId, integrations]);
 
   if (integrations.length === 0) {
     return (
@@ -1700,10 +1746,21 @@ function ConnectionsBand({ manifest }: { manifest?: Record<string, unknown> }) {
           </span>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold capitalize text-foreground">{integration.id}</div>
-            <div className="text-[11px] text-muted-foreground">
-              {integration.required ? 'Required' : 'Optional'} · connect with{' '}
-              <span className="font-mono">clarity-studio connect {integration.id}</span>
-            </div>
+            {status[integration.id] ? (
+              <div className="flex items-center gap-1 text-[11px] text-success">
+                <Check className="h-3 w-3" strokeWidth={3} />
+                Connected
+              </div>
+            ) : (
+              <div className="text-[11px] text-muted-foreground">
+                {/* Named, because a run that cannot reach this will skip and
+                    still look like it worked. */}
+                <span className={integration.required ? 'text-warning' : undefined}>
+                  Not connected
+                </span>{' '}
+                · <span className="font-mono">clarity-studio connect {integration.id}</span>
+              </div>
+            )}
           </div>
         </div>
       ))}
