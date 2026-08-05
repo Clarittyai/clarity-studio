@@ -368,6 +368,27 @@ function registerIpc(): void {
     return found.map((a) => ({ id: a.id, name: a.name, version: a.version }));
   });
 
+  /**
+   * Rename an automation.
+   *
+   * The DISPLAY name only. `slug` stays as the folder's basename because that
+   * is how the CLI finds this project (`getProjectBySlug` on the directory it is
+   * run in), and `path` stays because renaming somebody's folder from a text
+   * field is a destructive act disguised as a label edit. So the automation is
+   * called whatever you like here and still resolves on disk.
+   */
+  ipcMain.handle('project:rename', (_event, projectId: string, name: string) => {
+    const store = db();
+    const project = store.getProject(String(projectId));
+    if (!project) throw new Error('That automation is no longer in the library.');
+    const next = String(name).trim();
+    if (!next) throw new Error('Give it a name.');
+    store.upsertProject({
+      ...project,
+      name: next.slice(0, 80),
+    });
+  });
+
   /** Adopt an automation that already exists on disk. */
   ipcMain.handle('project:import', async () => {
     const picked = await dialog.showOpenDialog({

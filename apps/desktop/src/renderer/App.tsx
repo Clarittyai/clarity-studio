@@ -48,7 +48,7 @@ import { AutomationFlow, type StepStatus } from './components/flow/AutomationFlo
 import { toFlow } from './components/flow/blocks.js';
 import { AgentAvatar } from './components/live/AgentAvatar.js';
 import { AutomationGraphScene } from './components/live/AutomationGraphScene.js';
-import { CLOUD_LINKS, CONTRIBUTE } from './components/cloud-links.js';
+import { CONTRIBUTE } from './components/cloud-links.js';
 import { CloudShowcase } from './components/CloudShowcase.js';
 import { TerminalPanel } from './components/Terminal.js';
 import {
@@ -65,9 +65,6 @@ import {
   cn,
   type Status,
 } from './components/ui.js';
-
-/** The hosted product's front door, for rows Studio cannot connect itself. */
-const CLOUD_HREF = CLOUD_LINKS.find((l) => l.id === 'cloud')?.href ?? CONTRIBUTE.repo;
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -205,6 +202,7 @@ export default function App() {
               project={selected}
               request={pendingRequest[selected.id]}
               onDelete={() => void onDelete(selected.id)}
+              onRenamed={() => void refresh()}
             />
           ) : projects.length > 0 ? (
             <HomeView projects={projects} onSelect={openProject} onNew={() => setComposing(true)} />
@@ -374,10 +372,13 @@ function ProjectView({
   project,
   request,
   onDelete,
+  onRenamed,
 }: {
   project: Project;
   request?: string;
   onDelete: () => void;
+  /** Refresh the library so the sidebar shows the new name too. */
+  onRenamed: () => void;
 }) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [triggers, setTriggers] = useState<Trigger[]>([]);
@@ -385,6 +386,8 @@ function ProjectView({
   const [openRunId, setOpenRunId] = useState<string | undefined>();
   const [manifest, setManifest] = useState<Record<string, unknown> | undefined>();
   const [codingAgents, setAgents] = useState<AgentInfo[]>([]);
+  const [renaming, setRenaming] = useState(false);
+  const [draftName, setDraftName] = useState(project.name);
   const [busy, setBusy] = useState<'start' | 'stop' | 'run' | undefined>();
   const [actionError, setActionError] = useState<string | undefined>();
   const [tab, setTab] = useState<'flow' | 'runs'>('flow');
@@ -455,6 +458,23 @@ function ProjectView({
     };
   }, [project.id, load]);
 
+  const commitRename = useCallback(async () => {
+    const next = draftName.trim();
+    setRenaming(false);
+    // Nothing to do, and no reason to write: an unchanged name is not an edit.
+    if (!next || next === project.name) {
+      setDraftName(project.name);
+      return;
+    }
+    try {
+      await api.renameProject(project.id, next);
+      onRenamed();
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : String(cause));
+      setDraftName(project.name);
+    }
+  }, [draftName, project.id, project.name, onRenamed]);
+
   /** What the last seven days of runs actually consumed. */
   const runTokens = useMemo(
     () => runs.reduce((sum, r) => sum + r.promptTokens + r.completionTokens, 0),
@@ -494,7 +514,37 @@ function ProjectView({
         <div className="min-w-0">
           <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight">
             <StatusDot status={project.status as Status} className="h-2.5 w-2.5" />
-            {project.name}
+            {/* Click the title to rename. Editing in place beats a dialog for a
+                single field, and the folder on disk is untouched — see the
+                handler for why the label and the path are separate things. */}
+            {renaming ? (
+              <input
+                value={draftName}
+                autoFocus
+                onChange={(e) => setDraftName(e.target.value)}
+                onBlur={() => void commitRename()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void commitRename();
+                  if (e.key === 'Escape') {
+                    setRenaming(false);
+                    setDraftName(project.name);
+                  }
+                }}
+                className="min-w-0 flex-1 rounded-lg border border-accent bg-background px-2 py-0.5 text-2xl font-bold tracking-tight outline-none"
+              />
+            ) : (
+              <button
+                type="button"
+                title="Rename"
+                onClick={() => {
+                  setDraftName(project.name);
+                  setRenaming(true);
+                }}
+                className="truncate rounded-lg px-1 text-left transition-colors hover:bg-foreground/[0.05]"
+              >
+                {project.name}
+              </button>
+            )}
           </h1>
           <p className="mt-1 truncate text-sm text-muted-foreground" data-selectable>
             {tildePath(project.path)}
@@ -1712,21 +1762,22 @@ function HomeView({
 /**
  * Connections — the services this automation needs, and what can be done here.
  *
- * The platform's panel tells one story: click Connect, do OAuth, done. Studio
- * has two, and pretending otherwise is the bug this replaces. An automation may
- * declare any of the 38 integrations in the seed catalog; Studio can wire only
- * the nine in `@clarity-studio/connectors`, because the rest are OAuth and that
- * flow is platform-owned by design — every seed manifest's `_authNote` says so.
+ * Every integration is meant to be connectable HERE, with the user's own
+ * credentials, in this panel. That is the product: local, no account, no
+ * hosted middleman. Nothing in this file should ever send someone to the cloud
+ * to connect something.
  *
- * The old panel printed `clarity-studio connect gmail`, a command that can never
- * succeed for an OAuth integration. A run then skipped every Gmail step and
- * still reported success.
+ * Today `@clarity-studio/connectors` ships specs for nine of them, so the other
+ * rows say what they are waiting on rather than pretending. The old panel
+ * printed `clarity-studio connect gmail` — a command with no connector behind
+ * it — and a run then skipped every Gmail step while reporting success.
  *
- * So a row is one of three things, and never a button that cannot work:
- *   connected    ✓ and Disconnect
- *   connectable  Connect, opening a form built from the connector's own
- *                `howToConnect` sentence and typed `fields[]`
- *   hosted only  says so, and offers the hosted version
+ * A row is one of three things, and never a button that cannot work:
+ *   connected      ✓ and Disconnect
+ *   connectable    Connect, opening a form built from the connector's own
+ *                  `howToConnect` sentence and typed `fields[]`
+ *   not yet wired  named honestly, with a link to add its connector — the fix
+ *                  is a catalog entry in this repo, not a subscription
  */
 function ConnectionsBand({
   manifest,
@@ -1804,7 +1855,8 @@ function ConnectionsBand({
                   <div className="text-[11px] text-warning">Not connected</div>
                 ) : (
                   <div className="text-[11px] text-muted-foreground">
-                    Signed in through Claritty Cloud — its OAuth lives there
+                    No local connector yet — it needs a spec in
+                    <span className="font-mono"> packages/connectors</span>
                   </div>
                 )}
               </div>
@@ -1833,9 +1885,15 @@ function ConnectionsBand({
                   Connect
                 </Button>
               ) : (
-                <Button size="sm" variant="ghost" onClick={() => api.openExternal(CLOUD_HREF)}>
+                /* Not an upsell. The honest action is "help add it", because
+                   connecting locally is the whole point of this app. */
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => api.openExternal(CONTRIBUTE.issues)}
+                >
                   <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                  Cloud
+                  Request it
                 </Button>
               )}
             </div>
@@ -1968,19 +2026,20 @@ function NotifyBand({ projectId }: { projectId: string }) {
           </div>
         </div>
 
-        {/* Named, not hidden: knowing why something is missing beats wondering. */}
+        {/* Named, not hidden: knowing why something is missing beats
+            wondering. And the fix is a connector in this repo, not an account. */}
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-muted-foreground">
               Email · Telegram · WhatsApp
             </div>
             <div className="text-[11px] text-muted-foreground">
-              These reach you through Claritty Cloud, which owns their sign-in.
+              Once each has a local connector, a run can reach you there too.
             </div>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => api.openExternal(CLOUD_HREF)}>
+          <Button size="sm" variant="ghost" onClick={() => api.openExternal(CONTRIBUTE.issues)}>
             <ExternalLink className="mr-1 h-3.5 w-3.5" />
-            Cloud
+            Request it
           </Button>
         </div>
       </Card>

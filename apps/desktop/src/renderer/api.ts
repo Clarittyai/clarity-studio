@@ -167,6 +167,8 @@ export interface StudioApi {
   chooseAutomationsRoot(): Promise<string | undefined>;
   /** Forget an automation, and optionally erase it. Confirmed in the main process. */
   deleteProject(projectId: string): Promise<{ removed: boolean; deletedFiles?: boolean }>;
+  /** Rename the label. The folder on disk keeps its name. */
+  renameProject(projectId: string, name: string): Promise<void>;
   /** Adopt a folder that already has an intelligence.yaml. */
   importProject(): Promise<{ id: string } | undefined>;
   start(projectId: string): Promise<void>;
@@ -434,6 +436,7 @@ const fixtures: StudioApi = {
   async deleteProject() {
     return { removed: false };
   },
+  async renameProject() {},
   async importProject() {
     return undefined;
   },

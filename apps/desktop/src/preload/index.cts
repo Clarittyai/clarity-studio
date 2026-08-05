@@ -39,6 +39,8 @@ contextBridge.exposeInMainWorld('studio', {
   testNotify: (title: string, body: string) => ipcRenderer.invoke('notify:test', title, body),
   chooseAutomationsRoot: () => ipcRenderer.invoke('settings:choose-automations-root'),
   deleteProject: (projectId: string) => ipcRenderer.invoke('project:delete', projectId),
+  renameProject: (projectId: string, name: string) =>
+    ipcRenderer.invoke('project:rename', projectId, name),
   importProject: () => ipcRenderer.invoke('project:import'),
   // The terminal. `onData` returns its own unsubscribe rather than exposing
   // ipcRenderer.off to the renderer — a listener that cannot be removed is a
