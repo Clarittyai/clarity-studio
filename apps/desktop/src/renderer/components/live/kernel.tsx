@@ -97,6 +97,66 @@ export function useTween(target: number, active: boolean, durationMs = 900): num
   return value;
 }
 
+export type SceneNode = {
+  seed: string;
+  role: string;
+  size: number;
+  /** Center of the avatar, in stage coordinates. */
+  x: number;
+  y: number;
+  /** Sits behind the front row — rendered slightly faded and smaller-drifting. */
+  back?: boolean;
+};
+
+/**
+ * A curve between two figures, bowed away from the cluster's center and TRIMMED
+ * at each rim so a line never pierces a face.
+ */
+export function edgePath(
+  a: SceneNode,
+  b: SceneNode,
+  stageWidth: number,
+  centerY: number,
+): string {
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2;
+  const cx = mx + (mx - stageWidth / 2) * 0.16;
+  const cy = my + (my - centerY) * 0.3;
+
+  const trim = (p: SceneNode) => {
+    const dx = cx - p.x;
+    const dy = cy - p.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const r = p.size / 2 + 4;
+    return { x: p.x + (dx / len) * r, y: p.y + (dy / len) * r };
+  };
+
+  const from = trim(a);
+  const to = trim(b);
+  return `M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`;
+}
+
+/** Anchor a speech bubble so figures near an edge don't push it off the stage. */
+export function bubbleAnchor(node: SceneNode, stageWidth: number): string {
+  if (node.x < stageWidth * 0.33) return 'left-0 rounded-bl-sm';
+  if (node.x > stageWidth * 0.67) return 'right-0 rounded-br-sm';
+  return 'left-1/2 -translate-x-1/2 rounded-b-2xl';
+}
+
+/** The idle float every figure does, desynced by index so a cluster breathes. */
+export function floatLoop(index: number, back: boolean | undefined, active: boolean) {
+  if (!active) return {};
+  return {
+    animate: { y: [0, back ? -2.5 : -4, 0] },
+    transition: {
+      duration: 3 + index * 0.45,
+      repeat: Infinity,
+      ease: 'easeInOut' as const,
+      delay: index * 0.35,
+    },
+  };
+}
+
 /** Measure an element's width — the basis for scaling a fixed-geometry stage. */
 export function useMeasuredWidth(): [React.RefObject<HTMLDivElement>, number] {
   const ref = useRef<HTMLDivElement>(null);

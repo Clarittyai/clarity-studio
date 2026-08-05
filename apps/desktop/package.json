@@ -22,6 +22,8 @@
     "@clarity-studio/orchestrator": "workspace:*",
     "@clarity-studio/scheduler": "workspace:*",
     "@clarity-studio/vault": "workspace:*",
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "framer-motion": "^12.43.0",

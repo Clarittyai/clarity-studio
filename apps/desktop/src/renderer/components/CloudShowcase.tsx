@@ -26,6 +26,7 @@ import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../api.js';
 import { AppBuildScene } from './live/AppBuildScene.js';
 import { AutomationGraphScene } from './live/AutomationGraphScene.js';
+import { TeamsScene } from './live/TeamsScene.js';
 import { WidgetBoardScene } from './live/WidgetBoardScene.js';
 import { EASE, useLiveGate } from './live/kernel.js';
 import { CLOUD_LINKS } from './cloud-links.js';
@@ -74,7 +75,7 @@ const SLIDES = [
     eyebrow: 'Teams',
     title: 'A standing team, not a fixed script.',
     sub: 'Agents take the goal, decide the steps, do the work, and report back — with a room where you can watch.',
-    Component: AutomationGraphScene,
+    Component: TeamsScene,
     glow: 'rgba(255,149,0,0.18)',
     accent: 'text-amber-400',
     link: byId('teams'),
