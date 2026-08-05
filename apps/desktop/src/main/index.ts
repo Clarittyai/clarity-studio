@@ -342,9 +342,21 @@ function registerIpc(): void {
     await runtime.stop(String(projectId));
   });
 
-  ipcMain.handle('workflow:run', async (_event, projectId: string, workflowId?: string) => {
-    await runtime.runWorkflow(String(projectId), workflowId ? String(workflowId) : undefined);
-  });
+  ipcMain.handle(
+    'workflow:run',
+    async (
+      _event,
+      projectId: string,
+      workflowId?: string,
+      inputs?: Record<string, unknown>,
+    ) => {
+      await runtime.runWorkflow(
+        String(projectId),
+        workflowId ? String(workflowId) : undefined,
+        inputs && typeof inputs === 'object' ? inputs : undefined,
+      );
+    },
+  );
 
   /**
    * The project's manifest, for the canvas. Read fresh each time rather than

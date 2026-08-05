@@ -214,7 +214,11 @@ export class RuntimeHost {
    * Fire a workflow, starting the automation first if it is not already up —
    * "Run now" should not require knowing that Start exists.
    */
-  async runWorkflow(projectId: string, workflowId?: string): Promise<{ runId: string }> {
+  async runWorkflow(
+    projectId: string,
+    workflowId?: string,
+    inputs?: Record<string, unknown>,
+  ): Promise<{ runId: string }> {
     if (!this.live.has(projectId)) await this.start(projectId);
     const entry = this.live.get(projectId);
     if (!entry) throw new Error('The automation is not running.');
@@ -244,7 +248,9 @@ export class RuntimeHost {
     // plane, so the timeline fills in as it goes. Errors are recorded rather
     // than thrown away, then re-thrown so the window can say what happened.
     try {
-      await fireWorkflow(entry.baseUrl, target, { runId });
+      // The inputs are how a person tells a running automation anything at all —
+      // the engine binds them to `${inputs.x}` in the first step.
+      await fireWorkflow(entry.baseUrl, target, { runId, inputs });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       store.completeRun({ runId, status: 'failed', error: message });

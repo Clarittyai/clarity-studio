@@ -181,7 +181,15 @@ export interface StudioApi {
   importProject(): Promise<{ id: string } | undefined>;
   start(projectId: string): Promise<void>;
   stop(projectId: string): Promise<void>;
-  runWorkflow(projectId: string, workflowId?: string): Promise<void>;
+  /**
+   * Fire a workflow. `inputs` is the only channel a person has to tell a
+   * running automation anything — the engine binds them to `${inputs.x}`.
+   */
+  runWorkflow(
+    projectId: string,
+    workflowId?: string,
+    inputs?: Record<string, unknown>,
+  ): Promise<void>;
 }
 
 declare global {

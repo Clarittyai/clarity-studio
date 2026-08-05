@@ -46,7 +46,7 @@ import {
 } from './api.js';
 import { BrandLockup } from './components/Brand.js';
 import { AutomationFlow, type StepStatus } from './components/flow/AutomationFlow.js';
-import { toFlow } from './components/flow/blocks.js';
+import { toFlow, type Flow } from './components/flow/blocks.js';
 import { AgentAvatar } from './components/live/AgentAvatar.js';
 import { AutomationGraphScene } from './components/live/AutomationGraphScene.js';
 import { CONTRIBUTE } from './components/cloud-links.js';
@@ -387,6 +387,7 @@ function ProjectView({
   const [openRunId, setOpenRunId] = useState<string | undefined>();
   const [manifest, setManifest] = useState<Record<string, unknown> | undefined>();
   const [codingAgents, setAgents] = useState<AgentInfo[]>([]);
+  const [asking, setAsking] = useState(false);
   const [inspecting, setInspecting] = useState<
     { id: string; description?: string; tools: string[]; integrations: string[] } | undefined
   >();
@@ -493,13 +494,13 @@ function ProjectView({
    * happened rather than waiting for a poll.
    */
   const act = useCallback(
-    async (what: 'start' | 'stop' | 'run') => {
+    async (what: 'start' | 'stop' | 'run', inputs?: Record<string, unknown>) => {
       setBusy(what);
       setActionError(undefined);
       try {
         if (what === 'start') await api.start(project.id);
         else if (what === 'stop') await api.stop(project.id);
-        else await api.runWorkflow(project.id);
+        else await api.runWorkflow(project.id, flow?.workflowId, inputs);
         await load();
       } catch (cause) {
         setActionError(cause instanceof Error ? cause.message : String(cause));
@@ -507,7 +508,7 @@ function ProjectView({
         setBusy(undefined);
       }
     },
-    [project.id, load],
+    [project.id, load, flow?.workflowId],
   );
 
   return (
@@ -565,7 +566,14 @@ function ProjectView({
           </Button>
           {/* The single accent action on this screen. Starts the automation
               first if it is not up — nobody should have to know Start exists. */}
-          <Button variant="accent" disabled={busy !== undefined} onClick={() => act('run')}>
+          <Button
+            variant="accent"
+            disabled={busy !== undefined}
+            // A workflow that declares inputs gets asked for them. One that
+            // declares none runs straight away — a dialog with nothing in it is
+            // a step for its own sake.
+            onClick={() => (flow?.inputs.length ? setAsking(true) : void act('run'))}
+          >
             {busy === 'run' ? 'Running…' : 'Run now'}
           </Button>
           <Button variant="ghost" title="Delete automation" onClick={onDelete}>
@@ -706,6 +714,17 @@ function ProjectView({
         person reading a run does not always want a shell taking a third of the
         window.
       */}
+      {asking && flow && (
+        <RunInputs
+          flow={flow}
+          onCancel={() => setAsking(false)}
+          onRun={(inputs: Record<string, unknown>) => {
+            setAsking(false);
+            void act('run', inputs);
+          }}
+        />
+      )}
+
       {inspecting && (
         <AgentInspector
           projectId={project.id}
@@ -2280,4 +2299,94 @@ function AgentInspector({
       </div>
     </div>
   );
+}
+
+/**
+ * What you tell a run.
+ *
+ * `/api/workflows/{id}/execute` takes `inputs`, and the engine binds them to
+ * `${inputs.x}` — so this is the only channel a person has for communicating
+ * with a running automation. Studio used to send `{}` every time, which meant
+ * a workflow declaring inputs could only ever run on its defaults.
+ *
+ * Only the keys the workflow declares. Free-form keys would let someone type a
+ * name nothing binds and watch the run ignore it.
+ */
+function RunInputs({
+  flow,
+  onRun,
+  onCancel,
+}: {
+  flow: Flow;
+  onRun: (inputs: Record<string, unknown>) => void;
+  onCancel: () => void;
+}) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const missing = flow.inputs.filter((i) => i.required && !values[i.key]?.trim());
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-background/70 p-10 backdrop-blur-sm"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onCancel();
+      }}
+    >
+      <div className="mt-20 w-full max-w-md rounded-3xl border border-border bg-background p-6">
+        <h2 className="text-lg font-semibold tracking-tight">Run {flow.workflowId}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          What this run should work with. Left empty, the workflow uses its own defaults.
+        </p>
+
+        <div className="mt-5 flex flex-col gap-3">
+          {flow.inputs.map((input, i) => (
+            <label key={input.key} className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                {input.key}
+                {input.type && <span className="ml-1 opacity-60">{input.type}</span>}
+                {input.required && <span className="ml-1 text-warning">required</span>}
+              </span>
+              <input
+                autoFocus={i === 0}
+                value={values[input.key] ?? ''}
+                onChange={(e) => setValues((prev) => ({ ...prev, [input.key]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && missing.length === 0) onRun(coerce(values));
+                }}
+                className="w-full rounded-full border border-border bg-background px-3.5 py-2 font-mono text-[12.5px] outline-none focus:border-accent"
+              />
+            </label>
+          ))}
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="accent" disabled={missing.length > 0} onClick={() => onRun(coerce(values))}>
+            Run
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A field is text, but an input may not be. `24` bound as "24" makes a step
+ * comparing numbers behave oddly for reasons nobody can see in the timeline, so
+ * anything that parses as JSON is sent as JSON and everything else stays a
+ * string.
+ */
+function coerce(values: Record<string, string>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(values)) {
+    const text = raw.trim();
+    if (!text) continue;
+    try {
+      out[key] = JSON.parse(text);
+    } catch {
+      out[key] = text;
+    }
+  }
+  return out;
 }

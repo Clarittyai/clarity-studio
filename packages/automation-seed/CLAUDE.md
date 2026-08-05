@@ -4,6 +4,22 @@ You are editing a **Clarity automation**. It is not a web app and not a
 library. It is a declarative manifest plus a small amount of Python, run by
 `claritty-sdk`. Read this file before changing anything.
 
+## Stay inside this folder
+
+Everything needed to build this automation is here. The integration catalog is
+`catalog/integrations/`, the runtime is the published `claritty-sdk` from PyPI,
+and the manifest is `intelligence.yaml`.
+
+**Do not read outside this project.** Not the SDK's source, not a `claritty-core`
+checkout, not another repo that happens to be on this machine — those are not
+part of an automation and are not present for anyone else. An answer found there
+is an answer the next person cannot reproduce.
+
+If you need to know what a tool takes, read its manifest in
+`catalog/integrations/<id>/manifest.json`. If the integration is not there, it is
+not available: follow the `add-an-integration` skill and write the request. Do
+not go looking for it elsewhere.
+
 ## The shape of the thing
 
 `intelligence.yaml` is the source of truth. Everything the automation can do is

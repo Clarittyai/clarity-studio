@@ -50,11 +50,20 @@ export interface FlowStep {
   purpose?: string;
 }
 
+/** What a workflow says it expects to be told, if anything. */
+export interface FlowInput {
+  key: string;
+  type?: string;
+  required?: boolean;
+}
+
 export interface Flow {
   workflowId: string;
   /** The schedule or event that starts it, if a trigger declares one. */
   trigger?: { label: string; kind: string };
   steps: FlowStep[];
+  /** Declared `inputs:` — what a person may hand this run. */
+  inputs: FlowInput[];
 }
 
 interface ManifestLike {
@@ -63,6 +72,7 @@ interface ManifestLike {
   agents?: Array<{ id?: string; description?: string }>;
   workflows?: Array<{
     id?: string;
+    inputs?: Record<string, unknown> | string[];
     steps?: Array<{
       id?: string;
       agent?: string;
@@ -186,7 +196,19 @@ export function toFlow(manifest: unknown, workflowId?: string): Flow | undefined
     };
   });
 
-  return { workflowId: workflow.id, trigger: triggerLabel(trigger), steps };
+  // Declared inputs, read as written. A workflow that declares none simply
+  // takes none — offering free-form keys would invite a run that binds nothing.
+  const declared = (workflow as { inputs?: Record<string, unknown> | string[] }).inputs;
+  const inputs: FlowInput[] = Array.isArray(declared)
+    ? declared.map((key) => ({ key: String(key) }))
+    : Object.entries(declared ?? {}).map(([key, spec]) => ({
+        key,
+        type: typeof spec === 'object' && spec ? String((spec as { type?: string }).type ?? '') : undefined,
+        required:
+          typeof spec === 'object' && spec ? Boolean((spec as { required?: boolean }).required) : false,
+      }));
+
+  return { workflowId: workflow.id, trigger: triggerLabel(trigger), steps, inputs };
 }
 
 type ManifestTrigger = NonNullable<ManifestLike['triggers']>[number];

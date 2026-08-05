@@ -84,6 +84,6 @@ contextBridge.exposeInMainWorld('studio', {
   llmCalls: (runId: string) => ipcRenderer.invoke('llm:list', runId),
   start: (projectId: string) => ipcRenderer.invoke('project:start', projectId),
   stop: (projectId: string) => ipcRenderer.invoke('project:stop', projectId),
-  runWorkflow: (projectId: string, workflowId?: string) =>
-    ipcRenderer.invoke('workflow:run', projectId, workflowId),
+  runWorkflow: (projectId: string, workflowId?: string, inputs?: Record<string, unknown>) =>
+    ipcRenderer.invoke('workflow:run', projectId, workflowId, inputs),
 });
