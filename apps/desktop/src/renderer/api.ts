@@ -71,6 +71,18 @@ export interface LlmCall {
   at: number;
 }
 
+/** One integration an automation declares, and what can be done about it here. */
+export interface IntegrationState {
+  id: string;
+  name: string;
+  connected: boolean;
+  /** False for OAuth integrations — those are connected in the hosted platform. */
+  local: boolean;
+  /** The connector's own instruction, shown verbatim rather than paraphrased. */
+  howToConnect?: string;
+  fields: Array<{ key: string; label: string; secret: boolean; placeholder?: string }>;
+}
+
 /** A model provider, and whether this machine has a key for it. */
 export interface ProviderKey {
   id: string;
@@ -131,13 +143,25 @@ export interface StudioApi {
   ): Promise<{ id: string; request?: string } | undefined>;
   /** Only used when someone explicitly changes where automations live. */
   chooseFolder(): Promise<string | undefined>;
-  /** Which of these integrations have credentials stored on this machine. */
-  integrationStatus(
+  /**
+   * What Studio knows about each integration an automation declares: whether it
+   * is connected, and — the part that matters — whether it CAN be connected
+   * here at all. The OAuth ones are hosted-only.
+   */
+  integrationStatus(projectId: string, ids: string[]): Promise<IntegrationState[]>;
+  connectIntegration(
     projectId: string,
-    ids: string[],
-  ): Promise<Array<{ id: string; connected: boolean }>>;
+    id: string,
+    values: Record<string, string>,
+  ): Promise<void>;
+  disconnectIntegration(projectId: string, id: string): Promise<void>;
   /** The running build, so "am I on an old version" is answerable. */
   appVersion(): Promise<string>;
+  /** How this automation should tell you a run finished. */
+  getNotify(projectId: string): Promise<{ desktop?: boolean; slack?: boolean }>;
+  setNotify(projectId: string, prefs: { desktop?: boolean; slack?: boolean }): Promise<void>;
+  /** Fire one now, so "did I allow notifications" is answerable. */
+  testNotify(title: string, body: string): Promise<void>;
   /** Window preferences — currently just where new automations go. */
   getSettings(): Promise<{ automationsRoot: string }>;
   chooseAutomationsRoot(): Promise<string | undefined>;
@@ -382,11 +406,25 @@ const fixtures: StudioApi = {
     return undefined;
   },
   async integrationStatus(_p, ids) {
-    return ids.map((id) => ({ id, connected: id === 'gmail' }));
+    return ids.map((id) => ({
+      id,
+      name: id,
+      connected: false,
+      local: id === 'slack',
+      howToConnect: 'Create a bot token in your Slack app under OAuth & Permissions.',
+      fields: [{ key: 'bot_token', label: 'Bot user OAuth token', secret: true, placeholder: 'xoxb-…' }],
+    }));
   },
+  async connectIntegration() {},
+  async disconnectIntegration() {},
   async appVersion() {
     return 'demo';
   },
+  async getNotify() {
+    return { desktop: true };
+  },
+  async setNotify() {},
+  async testNotify() {},
   async getSettings() {
     return { automationsRoot: '~/Automations' };
   },

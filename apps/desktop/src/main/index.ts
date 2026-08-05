@@ -13,7 +13,7 @@
  * - a CSP that permits nothing but self
  */
 
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, shell } from 'electron';
 import { spawn } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -22,6 +22,7 @@ import { randomUUID } from 'node:crypto';
 import { parse as parseYaml } from 'yaml';
 
 import { detectAgents } from '@clarity-studio/agent-bridge';
+import { CATALOG, findIntegration } from '@clarity-studio/connectors';
 import { Store } from '@clarity-studio/db';
 
 import { watch, type FSWatcher } from 'node:fs';
@@ -111,6 +112,8 @@ const terminals = new TerminalHost();
  */
 interface Settings {
   automationsRoot?: string;
+  /** Per project: how to be told when a run finishes. */
+  notify?: Record<string, { desktop?: boolean; slack?: boolean }>;
 }
 
 function settingsFile(): string {
@@ -427,13 +430,107 @@ function registerIpc(): void {
   ipcMain.handle('integrations:status', (_event, projectId: string, ids: string[]) => {
     const v = vault();
     const list = Array.isArray(ids) ? ids.map(String) : [];
-    return list.map((id) => ({
-      id,
-      // A bundle exists when at least one field was stored for it. Project-scoped
-      // wins over machine-wide, which is what `bundle` already resolves.
-      connected: Boolean(v.bundle(id, String(projectId))),
-    }));
+    return list.map((id) => {
+      // THE DISTINCTION THAT MATTERS. An automation may declare any of the 38
+      // integrations in the seed catalog, but Studio can only wire the ones in
+      // `@clarity-studio/connectors` — the rest are OAuth, and that flow is
+      // platform-owned by design (see any seed manifest's `_authNote`).
+      //
+      // Without this the panel printed `clarity-studio connect gmail`, a command
+      // that can never succeed, and a run then skipped every Gmail step while
+      // reporting success. Saying "this one needs the hosted version" is the
+      // honest answer, and it is also the funnel.
+      const spec = findIntegration(id);
+      return {
+        id,
+        name: spec?.name ?? id,
+        connected: Boolean(v.bundle(id, String(projectId))),
+        // A bundle exists when at least one field was stored. Project-scoped
+        // wins over machine-wide, which is what `bundle` already resolves.
+        local: Boolean(spec),
+        howToConnect: spec?.howToConnect,
+        fields: spec?.fields ?? [],
+      };
+    });
   });
+
+  /** Store one connector's credentials, exactly as `clarity-studio connect` does. */
+  ipcMain.handle(
+    'integrations:connect',
+    (_event, projectId: string, id: string, values: Record<string, string>) => {
+      const spec = findIntegration(String(id));
+      if (!spec) {
+        throw new Error(
+          `${id} cannot be connected here — it uses OAuth, which lives in the hosted platform.`,
+        );
+      }
+      const v = vault();
+      for (const [field, value] of Object.entries(values)) {
+        if (!spec.fields.some((f) => f.key === field)) {
+          throw new Error(`${spec.name} has no "${field}" field.`);
+        }
+        if (!String(value).trim()) continue;
+        // Project-scoped, so two automations can use different accounts for the
+        // same service — the same scoping `cmdConnect` applies.
+        v.set(
+          { kind: 'integration', id: spec.id, field, projectId: String(projectId) },
+          String(value),
+        );
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'integrations:disconnect',
+    (_event, projectId: string, id: string) => {
+      const spec = findIntegration(String(id));
+      const store = db();
+      for (const field of spec?.fields ?? []) {
+        store.removeSecret(`integration:${String(projectId)}:${String(id)}:${field.key}`);
+        store.removeSecret(`integration:*:${String(id)}:${field.key}`);
+      }
+    },
+  );
+
+  /**
+   * Tell the person a run finished.
+   *
+   * A desktop notification is the one channel Studio can honestly offer with no
+   * connection and no account — which is the whole product's shape. Slack is
+   * possible too, because `slack` is one of the nine local connectors; the rest
+   * of the platform's channels are hosted-only and are listed as such rather
+   * than shown as buttons that do nothing.
+   */
+  ipcMain.handle(
+    'notify:test',
+    (_event, title: string, body: string) => {
+      if (!Notification.isSupported()) {
+        throw new Error('This system does not support desktop notifications.');
+      }
+      new Notification({ title: String(title), body: String(body) }).show();
+    },
+  );
+
+  ipcMain.handle('notify:get', (_event, projectId: string) => {
+    const all = readSettings().notify ?? {};
+    return all[String(projectId)] ?? { desktop: true };
+  });
+
+  ipcMain.handle(
+    'notify:set',
+    (_event, projectId: string, prefs: { desktop?: boolean; slack?: boolean }) => {
+      const current = readSettings();
+      writeSettings({
+        ...current,
+        notify: { ...(current.notify ?? {}), [String(projectId)]: { ...prefs } },
+      });
+    },
+  );
+
+  /** Every connector Studio can wire locally — for the "what can I use" question. */
+  ipcMain.handle('integrations:catalog', () =>
+    CATALOG.map((c) => ({ id: c.id, name: c.name, howToConnect: c.howToConnect })),
+  );
 
   /** Build identity, so a stale packaged app can say so. */
   ipcMain.handle('app:version', () => `${app.getVersion()}${app.isPackaged ? '' : ' (dev)'}`);

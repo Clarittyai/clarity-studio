@@ -24,7 +24,8 @@
     "start": "pnpm --filter @clarity-studio/desktop exec electron .",
     "app": "pnpm start",
     "check:app": "node scripts/full-check.mjs",
-    "package": "pnpm --filter @clarity-studio/desktop package"
+    "package": "pnpm --filter @clarity-studio/desktop package",
+    "shots": "node scripts/shots.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

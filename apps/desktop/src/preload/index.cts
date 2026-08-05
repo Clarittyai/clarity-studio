@@ -28,7 +28,15 @@ contextBridge.exposeInMainWorld('studio', {
   appVersion: () => ipcRenderer.invoke('app:version'),
   integrationStatus: (projectId: string, ids: string[]) =>
     ipcRenderer.invoke('integrations:status', projectId, ids),
+  connectIntegration: (projectId: string, id: string, values: Record<string, string>) =>
+    ipcRenderer.invoke('integrations:connect', projectId, id, values),
+  disconnectIntegration: (projectId: string, id: string) =>
+    ipcRenderer.invoke('integrations:disconnect', projectId, id),
   getSettings: () => ipcRenderer.invoke('settings:get'),
+  getNotify: (projectId: string) => ipcRenderer.invoke('notify:get', projectId),
+  setNotify: (projectId: string, prefs: { desktop?: boolean; slack?: boolean }) =>
+    ipcRenderer.invoke('notify:set', projectId, prefs),
+  testNotify: (title: string, body: string) => ipcRenderer.invoke('notify:test', title, body),
   chooseAutomationsRoot: () => ipcRenderer.invoke('settings:choose-automations-root'),
   deleteProject: (projectId: string) => ipcRenderer.invoke('project:delete', projectId),
   importProject: () => ipcRenderer.invoke('project:import'),

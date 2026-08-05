@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@clarity-studio/agent-bridge": "workspace:*",
+    "@clarity-studio/connectors": "workspace:*",
     "@clarity-studio/control-plane": "workspace:*",
     "@clarity-studio/db": "workspace:*",
     "@clarity-studio/design": "workspace:*",

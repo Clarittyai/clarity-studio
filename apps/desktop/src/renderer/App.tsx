@@ -17,11 +17,14 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  Bell,
   Check,
   ChevronDown,
+  ExternalLink,
   FolderOpen,
   Home,
   Plus,
+  Send,
   Settings,
   Sparkles,
   TerminalSquare,
@@ -33,6 +36,7 @@ import {
   isDemo,
   type AgentInfo,
   type LlmCall,
+  type IntegrationState,
   type Project,
   type ProviderKey,
   type Run,
@@ -42,8 +46,9 @@ import {
 import { BrandLockup } from './components/Brand.js';
 import { AutomationFlow, type StepStatus } from './components/flow/AutomationFlow.js';
 import { toFlow } from './components/flow/blocks.js';
+import { AgentAvatar } from './components/live/AgentAvatar.js';
 import { AutomationGraphScene } from './components/live/AutomationGraphScene.js';
-import { CONTRIBUTE } from './components/cloud-links.js';
+import { CLOUD_LINKS, CONTRIBUTE } from './components/cloud-links.js';
 import { CloudShowcase } from './components/CloudShowcase.js';
 import { TerminalPanel } from './components/Terminal.js';
 import {
@@ -59,6 +64,9 @@ import {
   cn,
   type Status,
 } from './components/ui.js';
+
+/** The hosted product's front door, for rows Studio cannot connect itself. */
+const CLOUD_HREF = CLOUD_LINKS.find((l) => l.id === 'cloud')?.href ?? CONTRIBUTE.repo;
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -610,6 +618,10 @@ function ProjectView({
         <AgentsBand manifest={manifest} calls={latestCalls} />
       </Band>
 
+      <Band title="How to reach you" subtitle="Where a finished run finds you.">
+        <NotifyBand projectId={project.id} />
+      </Band>
+
       <Band title="Triggers" subtitle="What starts it, without you.">
         {triggers.length === 0 ? (
           <EmptyState
@@ -1052,7 +1064,11 @@ function AgentsBand({
         const used = spent.get(agent.id);
         return (
           <div key={agent.id} className="flex items-start gap-3 px-4 py-3">
-            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+            {/* The same face the canvas and the showcase draw for this agent —
+                AgentAvatar is a pure function of the seed, so an agent looks
+                like itself everywhere. A generic sparkle made every agent
+                identical, which is the opposite of a team. */}
+            <AgentAvatar seed={agent.id} size={28} className="mt-0.5" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="text-sm font-semibold text-foreground">{agent.id}</span>
@@ -1693,15 +1709,23 @@ function HomeView({
 }
 
 /**
- * Connections — the services this automation needs, and whether they are
- * usable. The platform's automation page leads its right column with this, and
- * it is the more useful thing to see there: an automation whose Gmail is not
- * connected will skip every step that touches it and still report success, so
- * "is it wired up" belongs beside the flow rather than buried.
+ * Connections — the services this automation needs, and what can be done here.
  *
- * Read from the manifest's own `integrations:`, with real connection state from
- * the vault — not a guess. A false "Connected" would be worse than no badge at
- * all, since the whole point is knowing before a scheduled run silently skips.
+ * The platform's panel tells one story: click Connect, do OAuth, done. Studio
+ * has two, and pretending otherwise is the bug this replaces. An automation may
+ * declare any of the 38 integrations in the seed catalog; Studio can wire only
+ * the nine in `@clarity-studio/connectors`, because the rest are OAuth and that
+ * flow is platform-owned by design — every seed manifest's `_authNote` says so.
+ *
+ * The old panel printed `clarity-studio connect gmail`, a command that can never
+ * succeed for an OAuth integration. A run then skipped every Gmail step and
+ * still reported success.
+ *
+ * So a row is one of three things, and never a button that cannot work:
+ *   connected    ✓ and Disconnect
+ *   connectable  Connect, opening a form built from the connector's own
+ *                `howToConnect` sentence and typed `fields[]`
+ *   hosted only  says so, and offers the hosted version
  */
 function ConnectionsBand({
   manifest,
@@ -1710,27 +1734,46 @@ function ConnectionsBand({
   manifest?: Record<string, unknown>;
   projectId: string;
 }) {
-  const integrations = useMemo(() => {
+  const declared = useMemo(() => {
     const list =
-      (manifest as { integrations?: Array<{ id?: string; required?: boolean } | string> } | undefined)
-        ?.integrations ?? [];
-    return list.map((i) =>
-      typeof i === 'string' ? { id: i, required: true } : { id: i.id ?? '', required: i.required !== false },
-    );
+      (manifest as { integrations?: Array<{ id?: string } | string> } | undefined)?.integrations ??
+      [];
+    return list.map((i) => (typeof i === 'string' ? i : (i.id ?? ''))).filter(Boolean);
   }, [manifest]);
 
-  const [status, setStatus] = useState<Record<string, boolean>>({});
+  const [rows, setRows] = useState<IntegrationState[]>([]);
+  const [editing, setEditing] = useState<string | undefined>();
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | undefined>();
+
+  const reload = useCallback(async () => {
+    if (declared.length === 0) {
+      setRows([]);
+      return;
+    }
+    setRows(await api.integrationStatus(projectId, declared).catch(() => []));
+  }, [projectId, declared]);
 
   useEffect(() => {
-    const ids = integrations.map((i) => i.id).filter(Boolean);
-    if (ids.length === 0) return;
-    void api
-      .integrationStatus(projectId, ids)
-      .then((rows) => setStatus(Object.fromEntries(rows.map((r) => [r.id, r.connected]))))
-      .catch(() => undefined);
-  }, [projectId, integrations]);
+    void reload();
+  }, [reload]);
 
-  if (integrations.length === 0) {
+  const save = useCallback(
+    async (row: IntegrationState) => {
+      setError(undefined);
+      try {
+        await api.connectIntegration(projectId, row.id, values);
+        setEditing(undefined);
+        setValues({});
+        await reload();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [projectId, values, reload],
+  );
+
+  if (declared.length === 0) {
     return (
       <EmptyState
         size="section"
@@ -1741,32 +1784,226 @@ function ConnectionsBand({
   }
 
   return (
-    <Card className="divide-y divide-border">
-      {integrations.map((integration) => (
-        <div key={integration.id} className="flex items-center gap-3 px-4 py-3">
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-foreground/[0.06] text-[11px] font-bold uppercase text-muted-foreground">
-            {integration.id.slice(0, 2)}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold capitalize text-foreground">{integration.id}</div>
-            {status[integration.id] ? (
-              <div className="flex items-center gap-1 text-[11px] text-success">
-                <Check className="h-3 w-3" strokeWidth={3} />
-                Connected
+    <div className="flex flex-col gap-2">
+      <Card className="divide-y divide-border">
+        {rows.map((row) => (
+          <div key={row.id} className="px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-foreground/[0.06] text-[11px] font-bold uppercase text-muted-foreground">
+                {row.id.slice(0, 2)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold capitalize text-foreground">{row.name}</div>
+                {row.connected ? (
+                  <div className="flex items-center gap-1 text-[11px] text-success">
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                    Connected
+                  </div>
+                ) : row.local ? (
+                  <div className="text-[11px] text-warning">Not connected</div>
+                ) : (
+                  <div className="text-[11px] text-muted-foreground">
+                    Signed in through Claritty Cloud — its OAuth lives there
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="text-[11px] text-muted-foreground">
-                {/* Named, because a run that cannot reach this will skip and
-                    still look like it worked. */}
-                <span className={integration.required ? 'text-warning' : undefined}>
-                  Not connected
-                </span>{' '}
-                · <span className="font-mono">clarity-studio connect {integration.id}</span>
+
+              {row.connected ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    await api.disconnectIntegration(projectId, row.id);
+                    await reload();
+                  }}
+                >
+                  Disconnect
+                </Button>
+              ) : row.local ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditing(editing === row.id ? undefined : row.id);
+                    setValues({});
+                    setError(undefined);
+                  }}
+                >
+                  Connect
+                </Button>
+              ) : (
+                <Button size="sm" variant="ghost" onClick={() => api.openExternal(CLOUD_HREF)}>
+                  <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                  Cloud
+                </Button>
+              )}
+            </div>
+
+            {editing === row.id && (
+              <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+                {/* The connector's own sentence, verbatim. It knows where the
+                    token lives; no paraphrase of mine would be better. */}
+                {row.howToConnect && (
+                  <p className="text-[12px] leading-relaxed text-muted-foreground">
+                    {row.howToConnect}
+                  </p>
+                )}
+                {row.fields.map((field) => (
+                  <label key={field.key} className="flex flex-col gap-1">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      {field.label}
+                    </span>
+                    <input
+                      type={field.secret ? 'password' : 'text'}
+                      value={values[field.key] ?? ''}
+                      placeholder={field.placeholder}
+                      onChange={(e) =>
+                        setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                      }
+                      className="w-full rounded-full border border-border bg-background px-3 py-1.5 font-mono text-[12px] outline-none focus:border-accent"
+                    />
+                  </label>
+                ))}
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button size="sm" variant="ghost" onClick={() => setEditing(undefined)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="accent"
+                    disabled={row.fields.every((f) => !values[f.key]?.trim())}
+                    onClick={() => void save(row)}
+                  >
+                    Save
+                  </Button>
+                </div>
               </div>
             )}
           </div>
+        ))}
+      </Card>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <p className="text-xs text-muted-foreground">
+        Credentials go to this machine&rsquo;s keyring, scoped to this automation.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * How to reach you.
+ *
+ * The platform's version offers Slack, Email, Telegram and WhatsApp plus an
+ * "Ask me first / Just do it" gate. Studio offers the subset it can actually
+ * deliver, and names the rest as hosted rather than showing buttons that do
+ * nothing — the same rule the Connections panel now follows.
+ *
+ * Desktop is the honest default: no connection, no account, nothing leaves the
+ * machine. Slack is genuinely available because it is one of the nine local
+ * connectors. The rest need the hosted version.
+ *
+ * "Ask me first" is deliberately absent. The runtime already stubs `mode: write`
+ * steps in a dry run and executes them on approval, so the machinery exists —
+ * but holding a run and resuming it is runtime work, not a panel, and a toggle
+ * that silently does nothing is worse than no toggle.
+ */
+function NotifyBand({ projectId }: { projectId: string }) {
+  const [prefs, setPrefs] = useState<{ desktop?: boolean; slack?: boolean }>({ desktop: true });
+  const [note, setNote] = useState<string | undefined>();
+
+  useEffect(() => {
+    void api
+      .getNotify(projectId)
+      .then(setPrefs)
+      .catch(() => undefined);
+  }, [projectId]);
+
+  const update = useCallback(
+    async (next: { desktop?: boolean; slack?: boolean }) => {
+      const merged = { ...prefs, ...next };
+      setPrefs(merged);
+      await api.setNotify(projectId, merged).catch(() => undefined);
+    },
+    [prefs, projectId],
+  );
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Card className="divide-y divide-border">
+        <button
+          type="button"
+          onClick={() => void update({ desktop: !prefs.desktop })}
+          className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
+        >
+          <Bell className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-foreground">This computer</div>
+            <div className="text-[11px] text-muted-foreground">
+              A desktop notification when a run finishes or fails.
+            </div>
+          </div>
+          <span
+            className={cn(
+              'relative h-5 w-9 shrink-0 rounded-full transition-colors',
+              prefs.desktop ? 'bg-accent' : 'bg-foreground/15',
+            )}
+          >
+            <span
+              className={cn(
+                'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all',
+                prefs.desktop ? 'left-[18px]' : 'left-0.5',
+              )}
+            />
+          </span>
+        </button>
+
+        <div className="flex items-center gap-3 px-4 py-3">
+          <Send className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-foreground">Slack</div>
+            <div className="text-[11px] text-muted-foreground">
+              Connect Slack above and a run can post its result to a channel.
+            </div>
+          </div>
         </div>
-      ))}
-    </Card>
+
+        {/* Named, not hidden: knowing why something is missing beats wondering. */}
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-muted-foreground">
+              Email · Telegram · WhatsApp
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              These reach you through Claritty Cloud, which owns their sign-in.
+            </div>
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => api.openExternal(CLOUD_HREF)}>
+            <ExternalLink className="mr-1 h-3.5 w-3.5" />
+            Cloud
+          </Button>
+        </div>
+      </Card>
+
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={async () => {
+            setNote(undefined);
+            try {
+              await api.testNotify('Claritty Studio', 'This is what a finished run looks like.');
+              setNote('Sent. If nothing appeared, allow notifications for Claritty Studio.');
+            } catch (cause) {
+              setNote(cause instanceof Error ? cause.message : String(cause));
+            }
+          }}
+        >
+          Send a test
+        </Button>
+        {/* macOS asks on first send, so silence is expected once and confusing
+            forever after if nothing says so. */}
+        {note && <span className="text-xs text-muted-foreground">{note}</span>}
+      </div>
+    </div>
   );
 }

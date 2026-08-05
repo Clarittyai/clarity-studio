@@ -60,6 +60,9 @@ importers:
       '@clarity-studio/agent-bridge':
         specifier: workspace:*
         version: link:../../packages/agent-bridge
+      '@clarity-studio/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@clarity-studio/control-plane':
         specifier: workspace:*
         version: link:../../packages/control-plane

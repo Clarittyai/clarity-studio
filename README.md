@@ -17,9 +17,13 @@ dollar they spend.
 
 *A real automation: a weekday trigger, a Gmail search, a fan-out that hydrates each message
 (`once per message · max 25`), an agent that decides what counts as an invoice, and a send marked
-`write` so a dry run previews it instead of mailing anyone. The right column says Gmail is not
-connected yet — which matters, because a run that cannot reach it will skip those steps and still
-finish.*
+`write` so a dry run previews it instead of mailing anyone.*
+
+*The right column is honest about something that matters: Gmail is **not** connectable here. Studio
+wires the nine connectors in `packages/connectors` — Slack, GitHub, Notion, Linear, Stripe,
+Brave Search and friends — by taking their credentials directly. The rest of the catalog is OAuth,
+and that sign-in belongs to the hosted platform. Saying so beats printing a command that will
+always fail.*
 
 ![Home](docs/img/home.png)
 
