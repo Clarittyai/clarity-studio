@@ -76,7 +76,11 @@ export interface IntegrationState {
   id: string;
   name: string;
   connected: boolean;
-  /** False for OAuth integrations — those are connected in the hosted platform. */
+  /** True when the credential is the machine-wide one set in Settings, which
+   *  every automation shares — so an automation panel must not offer to delete
+   *  it, only to override it. */
+  shared?: boolean;
+  /** False when no connector implements it — nothing local can store its keys. */
   local: boolean;
   /** The connector's own instruction, shown verbatim rather than paraphrased. */
   howToConnect?: string;
@@ -149,6 +153,9 @@ export interface StudioApi {
    * here at all. The OAuth ones are hosted-only.
    */
   integrationStatus(projectId: string, ids: string[]): Promise<IntegrationState[]>;
+  /** Every connector Studio can wire, with whether this machine has it. The
+   *  Settings list — account-level, not per-automation. */
+  allIntegrations(): Promise<IntegrationState[]>;
   connectIntegration(
     projectId: string,
     id: string,
@@ -432,6 +439,43 @@ const fixtures: StudioApi = {
       howToConnect: 'Create a bot token in your Slack app under OAuth & Permissions.',
       fields: [{ key: 'bot_token', label: 'Bot user OAuth token', secret: true, placeholder: 'xoxb-…' }],
     }));
+  },
+  async allIntegrations() {
+    // Enough shape for a screenshot: one connected, one not, one with several
+    // fields — the three rows the Settings list actually has to render.
+    return [
+      {
+        id: 'slack',
+        name: 'Slack',
+        connected: true,
+        local: true,
+        howToConnect: 'Create an app at api.slack.com/apps, add chat:write, and copy the bot token.',
+        fields: [{ key: 'bot_token', label: 'Bot user OAuth token', secret: true, placeholder: 'xoxb-…' }],
+      },
+      {
+        id: 'telegram',
+        name: 'Telegram',
+        connected: false,
+        local: true,
+        howToConnect: 'Message @BotFather, run /newbot, and copy the token.',
+        fields: [
+          { key: 'bot_token', label: 'Bot token', secret: true, placeholder: '123456:ABC-…' },
+          { key: 'chat_id', label: 'Chat id', secret: false, placeholder: '987654321' },
+        ],
+      },
+      {
+        id: 'gmail',
+        name: 'Gmail',
+        connected: false,
+        local: true,
+        howToConnect: 'Create an OAuth client in Google Cloud, then paste its id, secret and refresh token.',
+        fields: [
+          { key: 'client_id', label: 'Client id', secret: false, placeholder: '…apps.googleusercontent.com' },
+          { key: 'client_secret', label: 'Client secret', secret: true },
+          { key: 'refresh_token', label: 'Refresh token', secret: true },
+        ],
+      },
+    ];
   },
   async connectIntegration() {},
   async disconnectIntegration() {},

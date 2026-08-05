@@ -126,6 +126,41 @@ body = await t();
 check('settings: library folder', /Library/.test(body) && /Automations/.test(body));
 check('settings: model providers', /Anthropic/i.test(body) && /Openai/i.test(body));
 check('settings: local model examples', /11434|Ollama/.test(body) && /chat\/completions/.test(body));
+
+// Connections live here, not inside an automation: the whole catalog, with a
+// form built from each connector's own fields. The regression this guards is
+// the one that started it — Telegram and email as a link to a tracker.
+check('settings: connections list', /Connections/.test(body) && /Slack/i.test(body) && /Telegram/i.test(body));
+check('settings: shared across automations', /every automation/i.test(body));
+await win.locator('[data-connector="telegram"] button:has-text("Connect")').click();
+await win.waitForTimeout(500);
+body = await t();
+check('settings: connect form is the connector\'s own', /BotFather/.test(body) && /Bot token/i.test(body));
+check('settings: form asks every field', /Chat id/i.test(body));
+check(
+  'settings: save is off until something is typed',
+  await win.locator('[data-connector="telegram"] button:has-text("Save")').isDisabled(),
+);
+await win.locator('[data-connector="telegram"] input[type="password"]').fill('123456:TEST-token');
+await win.waitForTimeout(200);
+check(
+  'settings: save enables once filled',
+  !(await win.locator('[data-connector="telegram"] button:has-text("Save")').isDisabled()),
+);
+
+// The round trip, which is the only thing that proves any of the above. A form
+// that renders and a Save that lights up are worth nothing if the credential
+// does not come back as Connected on the next read.
+await win.locator('[data-connector="telegram"] input:not([type="password"])').fill('987654321');
+await win.locator('[data-connector="telegram"] button:has-text("Save")').click();
+await win.waitForSelector('[data-connector="telegram"] :text("Connected")', { timeout: 5000 });
+check('settings: saving connects it', true);
+await win.locator('[data-connector="telegram"] button:has-text("Disconnect")').click();
+await win.waitForTimeout(600);
+check(
+  'settings: disconnect clears it',
+  !(await win.locator('[data-connector="telegram"]').innerText()).includes('Connected'),
+);
 await win.locator('button[title="Settings"]').click();
 await win.waitForTimeout(500);
 

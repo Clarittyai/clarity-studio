@@ -36,7 +36,7 @@ import { Store } from '@clarity-studio/db';
 
 import { watch, type FSWatcher } from 'node:fs';
 
-import { SafeStorageBackend, Vault, VaultUnavailableError } from '@clarity-studio/vault';
+import { SafeStorageBackend, Vault, VaultUnavailableError, secretKey } from '@clarity-studio/vault';
 import { safeStorage } from 'electron';
 
 import { RuntimeHost } from './runtime.js';
@@ -160,6 +160,19 @@ function vault(): Vault {
     remove: (key) => store.removeSecret(key),
     list: () => store.listSecrets(),
   });
+}
+
+/**
+ * Turn a projectId from the renderer into a vault scope.
+ *
+ * `'*'`, `''` and undefined all mean machine-wide, which `secretKey` encodes by
+ * the *absence* of a projectId — passing the literal `'*'` through as a project
+ * would write `integration:*:…` by coincidence rather than by intent, and would
+ * break the moment that encoding changed.
+ */
+function scopeOf(projectId: unknown): { projectId?: string } {
+  const id = String(projectId ?? '').trim();
+  return id && id !== '*' ? { projectId: id } : {};
 }
 
 /**
@@ -551,12 +564,17 @@ function registerIpc(): void {
       // reporting success. Saying "this one needs the hosted version" is the
       // honest answer, and it is also the funnel.
       const spec = findIntegration(id);
+      // Where the credential came from, because the two are acted on in
+      // different places: a machine-wide one is managed in Settings and shared
+      // by every automation, so this panel must not offer to delete it.
+      const shared = Boolean(v.bundle(id));
       return {
         id,
         name: spec?.name ?? id,
         connected: Boolean(v.bundle(id, String(projectId))),
         // A bundle exists when at least one field was stored. Project-scoped
         // wins over machine-wide, which is what `bundle` already resolves.
+        shared,
         local: Boolean(spec),
         howToConnect: spec?.howToConnect,
         fields: spec?.fields ?? [],
@@ -564,28 +582,53 @@ function registerIpc(): void {
     });
   });
 
-  /** Store one connector's credentials, exactly as `clarity-studio connect` does. */
+  /**
+   * Every connector Studio can wire, with whether this machine has it.
+   *
+   * Connecting a service is an account-level act, not an automation-level one:
+   * you have one Slack workspace and one bot token, and having to re-enter it
+   * inside each automation is both tedious and how people end up with the same
+   * credential stored five times and rotated in one place. So Settings lists
+   * the whole catalog and writes machine-wide, and an automation just uses what
+   * is already there.
+   *
+   * Per-project credentials still exist and still win — `bundle()` resolves the
+   * specific over the general — they are simply no longer the thing you are
+   * asked for first.
+   */
+  ipcMain.handle('integrations:all', () => {
+    const v = vault();
+    return CATALOG.map((spec) => ({
+      id: spec.id,
+      name: spec.name,
+      howToConnect: spec.howToConnect,
+      fields: spec.fields,
+      // No projectId: the machine-wide bundle only.
+      connected: Boolean(v.bundle(spec.id)),
+    }));
+  });
+
+  /**
+   * Store one connector's credentials, exactly as `clarity-studio connect` does.
+   *
+   * `projectId` of `'*'` (or empty) means machine-wide, which is what Settings
+   * sends and what `secretKey` already encodes for a ref with no project.
+   */
   ipcMain.handle(
     'integrations:connect',
     (_event, projectId: string, id: string, values: Record<string, string>) => {
       const spec = findIntegration(String(id));
       if (!spec) {
-        throw new Error(
-          `${id} cannot be connected here — it uses OAuth, which lives in the hosted platform.`,
-        );
+        throw new Error(`${id} has no local connector — nothing here can store its credentials.`);
       }
+      const scope = scopeOf(projectId);
       const v = vault();
       for (const [field, value] of Object.entries(values)) {
         if (!spec.fields.some((f) => f.key === field)) {
           throw new Error(`${spec.name} has no "${field}" field.`);
         }
         if (!String(value).trim()) continue;
-        // Project-scoped, so two automations can use different accounts for the
-        // same service — the same scoping `cmdConnect` applies.
-        v.set(
-          { kind: 'integration', id: spec.id, field, projectId: String(projectId) },
-          String(value),
-        );
+        v.set({ kind: 'integration', id: spec.id, field, ...scope }, String(value));
       }
     },
   );
@@ -594,10 +637,15 @@ function registerIpc(): void {
     'integrations:disconnect',
     (_event, projectId: string, id: string) => {
       const spec = findIntegration(String(id));
+      const scope = scopeOf(projectId);
       const store = db();
       for (const field of spec?.fields ?? []) {
-        store.removeSecret(`integration:${String(projectId)}:${String(id)}:${field.key}`);
-        store.removeSecret(`integration:*:${String(id)}:${field.key}`);
+        // Only the scope that was asked for. Removing both — as this used to —
+        // meant disconnecting one automation silently deleted the machine-wide
+        // credential every other automation was relying on.
+        store.removeSecret(
+          secretKey({ kind: 'integration', id: String(id), field: field.key, ...scope }),
+        );
       }
     },
   );

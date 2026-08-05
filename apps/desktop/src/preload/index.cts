@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('studio', {
   addKnowledge: (projectId: string) => ipcRenderer.invoke('agent:add-knowledge', projectId),
   integrationStatus: (projectId: string, ids: string[]) =>
     ipcRenderer.invoke('integrations:status', projectId, ids),
+  allIntegrations: () => ipcRenderer.invoke('integrations:all'),
   connectIntegration: (projectId: string, id: string, values: Record<string, string>) =>
     ipcRenderer.invoke('integrations:connect', projectId, id, values),
   disconnectIntegration: (projectId: string, id: string) =>

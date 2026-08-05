@@ -204,6 +204,7 @@ export default function App() {
               request={pendingRequest[selected.id]}
               onDelete={() => void onDelete(selected.id)}
               onRenamed={() => void refresh()}
+              onOpenSettings={() => setView('settings')}
             />
           ) : projects.length > 0 ? (
             <HomeView projects={projects} onSelect={openProject} onNew={() => setComposing(true)} />
@@ -374,12 +375,16 @@ function ProjectView({
   request,
   onDelete,
   onRenamed,
+  onOpenSettings,
 }: {
   project: Project;
   request?: string;
   onDelete: () => void;
   /** Refresh the library so the sidebar shows the new name too. */
   onRenamed: () => void;
+  /** Accounts are connected once, in Settings — this is how you get there from
+   *  the automation that turned out to need one. */
+  onOpenSettings: () => void;
 }) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [triggers, setTriggers] = useState<Trigger[]>([]);
@@ -671,7 +676,7 @@ function ProjectView({
         title="Connections"
         subtitle="The services it uses — connect once, reused every run."
       >
-        <ConnectionsBand manifest={manifest} projectId={project.id} />
+        <ConnectionsBand manifest={manifest} projectId={project.id} onOpenSettings={onOpenSettings} />
       </Band>
 
       <Band
@@ -1500,6 +1505,13 @@ function SettingsView({ version }: { version?: string }) {
       </Band>
 
       <Band
+        title="Connections"
+        subtitle="Your accounts, set once and used by every automation. Each is stored in this machine's keyring and never leaves it."
+      >
+        <ConnectionsSettings />
+      </Band>
+
+      <Band
         title="Model"
         subtitle="What your automations call when they run. A hosted provider's key, or your own model."
       >
@@ -1824,12 +1836,162 @@ function HomeView({
  *   not yet wired  named honestly, with a link to add its connector — the fix
  *                  is a catalog entry in this repo, not a subscription
  */
+/**
+ * Every service Studio can connect, set once for the machine.
+ *
+ * Connecting an account is not part of building an automation. You have one
+ * Slack workspace and one bot token; being asked for it again inside each
+ * automation is how the same credential ends up stored five times and rotated
+ * in one. So this list is the whole catalog, it writes machine-wide, and an
+ * automation simply uses what is already here.
+ *
+ * Per-automation credentials still exist and still take precedence — the vault
+ * resolves the specific over the general — they are just no longer the thing
+ * you are asked for first.
+ */
+function ConnectionsSettings() {
+  const [rows, setRows] = useState<IntegrationState[]>([]);
+  const [editing, setEditing] = useState<string | undefined>();
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | undefined>();
+
+  const reload = useCallback(async () => {
+    setRows(await api.allIntegrations().catch(() => []));
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const save = useCallback(
+    async (row: IntegrationState) => {
+      setError(undefined);
+      try {
+        // '*' is machine-wide. Every automation reads it.
+        await api.connectIntegration('*', row.id, values);
+        setEditing(undefined);
+        setValues({});
+        await reload();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [values, reload],
+  );
+
+  const connectedCount = rows.filter((r) => r.connected).length;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="divide-y divide-border/60">
+        {rows.map((row) => {
+          const open = editing === row.id;
+          return (
+            /* `data-connector` is the handle the app check uses to open one
+               specific row's form; text-matching a row picked up its ancestors. */
+            <div key={row.id} data-connector={row.id} className="py-3">
+              <div className="flex items-center gap-3">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-foreground/[0.06] text-[11px] font-bold uppercase text-muted-foreground">
+                  {row.id.slice(0, 2)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold capitalize text-foreground">{row.name}</div>
+                  {row.connected ? (
+                    <div className="flex items-center gap-1 text-[11px] text-success">
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                      Connected
+                    </div>
+                  ) : (
+                    <div className="truncate text-[11px] text-muted-foreground">
+                      {row.fields.map((f) => f.label).join(' · ')}
+                    </div>
+                  )}
+                </div>
+
+                {row.connected && !open && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={async () => {
+                      await api.disconnectIntegration('*', row.id);
+                      await reload();
+                    }}
+                  >
+                    Disconnect
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant={row.connected ? 'ghost' : 'outline'}
+                  onClick={() => {
+                    setEditing(open ? undefined : row.id);
+                    setValues({});
+                    setError(undefined);
+                  }}
+                >
+                  {open ? 'Cancel' : row.connected ? 'Replace' : 'Connect'}
+                </Button>
+              </div>
+
+              {open && (
+                <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+                  {/* The connector's own sentence, verbatim. It knows where the
+                      token lives; no paraphrase of mine would be better. */}
+                  {row.howToConnect && (
+                    <p className="text-[12px] leading-relaxed text-muted-foreground">
+                      {row.howToConnect}
+                    </p>
+                  )}
+                  {row.fields.map((field) => (
+                    <label key={field.key} className="flex flex-col gap-1">
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        {field.label}
+                      </span>
+                      <input
+                        type={field.secret ? 'password' : 'text'}
+                        value={values[field.key] ?? ''}
+                        placeholder={field.placeholder}
+                        onChange={(e) =>
+                          setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                        }
+                        className="w-full rounded-full border border-border bg-background px-3 py-1.5 font-mono text-[12px] outline-none focus:border-accent"
+                      />
+                    </label>
+                  ))}
+                  <div className="flex justify-end pt-1">
+                    <Button
+                      size="sm"
+                      variant="accent"
+                      disabled={row.fields.every((f) => !values[f.key]?.trim())}
+                      onClick={() => void save(row)}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <p className="text-xs text-muted-foreground">
+        {connectedCount === 0
+          ? 'Nothing connected yet. An automation that needs one of these will say so.'
+          : `${connectedCount} connected. Every automation on this machine can use them.`}
+      </p>
+    </div>
+  );
+}
+
 function ConnectionsBand({
   manifest,
   projectId,
+  onOpenSettings,
 }: {
   manifest?: Record<string, unknown>;
   projectId: string;
+  onOpenSettings: () => void;
 }) {
   const declared = useMemo(() => {
     const list =
@@ -1839,9 +2001,6 @@ function ConnectionsBand({
   }, [manifest]);
 
   const [rows, setRows] = useState<IntegrationState[]>([]);
-  const [editing, setEditing] = useState<string | undefined>();
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | undefined>();
 
   const reload = useCallback(async () => {
     if (declared.length === 0) {
@@ -1855,21 +2014,6 @@ function ConnectionsBand({
     void reload();
   }, [reload]);
 
-  const save = useCallback(
-    async (row: IntegrationState) => {
-      setError(undefined);
-      try {
-        await api.connectIntegration(projectId, row.id, values);
-        setEditing(undefined);
-        setValues({});
-        await reload();
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
-      }
-    },
-    [projectId, values, reload],
-  );
-
   if (declared.length === 0) {
     return (
       <EmptyState
@@ -1880,118 +2024,65 @@ function ConnectionsBand({
     );
   }
 
+  const missing = rows.filter((r) => !r.connected && r.local);
+
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <div className="divide-y divide-border/60">
         {rows.map((row) => (
-          <div key={row.id} className="py-3">
-            <div className="flex items-center gap-3">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-foreground/[0.06] text-[11px] font-bold uppercase text-muted-foreground">
-                {row.id.slice(0, 2)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold capitalize text-foreground">{row.name}</div>
-                {row.connected ? (
-                  <div className="flex items-center gap-1 text-[11px] text-success">
-                    <Check className="h-3 w-3" strokeWidth={3} />
-                    Connected
-                  </div>
-                ) : row.local ? (
-                  <div className="text-[11px] text-warning">Not connected</div>
-                ) : (
-                  <div className="text-[11px] text-muted-foreground">
-                    No local connector yet — it needs a spec in
-                    <span className="font-mono"> packages/connectors</span>
-                  </div>
-                )}
-              </div>
-
+          <div key={row.id} className="flex items-center gap-3 py-3">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-foreground/[0.06] text-[11px] font-bold uppercase text-muted-foreground">
+              {row.id.slice(0, 2)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold capitalize text-foreground">{row.name}</div>
               {row.connected ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={async () => {
-                    await api.disconnectIntegration(projectId, row.id);
-                    await reload();
-                  }}
-                >
-                  Disconnect
-                </Button>
+                <div className="flex items-center gap-1 text-[11px] text-success">
+                  <Check className="h-3 w-3" strokeWidth={3} />
+                  {/* Where it came from, because that is where it is changed. */}
+                  {row.shared ? 'Connected in Settings' : 'Connected for this automation'}
+                </div>
               ) : row.local ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setEditing(editing === row.id ? undefined : row.id);
-                    setValues({});
-                    setError(undefined);
-                  }}
-                >
-                  Connect
-                </Button>
+                <div className="text-[11px] text-warning">
+                  Not connected — steps that use it will be skipped
+                </div>
               ) : (
-                /* Not an upsell. The honest action is "help add it", because
-                   connecting locally is the whole point of this app. */
-                /* The agent is already open in this window, in this project,
-                   with the skill that knows the connector's shape. Asking it to
-                   write the request beats opening a browser tab. */
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => api.writeTerminal(projectId, `${REQUEST_INTEGRATION}\r`)}
-                >
-                  Ask Claude for it
-                </Button>
+                <div className="text-[11px] text-muted-foreground">
+                  No connector yet — it needs a spec in
+                  <span className="font-mono"> packages/connectors</span>
+                </div>
               )}
             </div>
 
-            {editing === row.id && (
-              <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
-                {/* The connector's own sentence, verbatim. It knows where the
-                    token lives; no paraphrase of mine would be better. */}
-                {row.howToConnect && (
-                  <p className="text-[12px] leading-relaxed text-muted-foreground">
-                    {row.howToConnect}
-                  </p>
-                )}
-                {row.fields.map((field) => (
-                  <label key={field.key} className="flex flex-col gap-1">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      {field.label}
-                    </span>
-                    <input
-                      type={field.secret ? 'password' : 'text'}
-                      value={values[field.key] ?? ''}
-                      placeholder={field.placeholder}
-                      onChange={(e) =>
-                        setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                      }
-                      className="w-full rounded-full border border-border bg-background px-3 py-1.5 font-mono text-[12px] outline-none focus:border-accent"
-                    />
-                  </label>
-                ))}
-                <div className="flex justify-end gap-2 pt-1">
-                  <Button size="sm" variant="ghost" onClick={() => setEditing(undefined)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="accent"
-                    disabled={row.fields.every((f) => !values[f.key]?.trim())}
-                    onClick={() => void save(row)}
-                  >
-                    Save
-                  </Button>
-                </div>
-              </div>
+            {/* No form here. Connecting an account is an account-level act and
+                lives in one place; an automation only reports what it needs.
+                The one exception is a service nothing implements yet, where the
+                useful action is writing the connector — and the agent that can
+                is already open in this window, in this project, with the skill
+                that knows the shape. */}
+            {!row.connected && !row.local && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => api.writeTerminal(projectId, `${REQUEST_INTEGRATION}\r`)}
+              >
+                Ask Claude for it
+              </Button>
             )}
           </div>
         ))}
       </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <p className="text-xs text-muted-foreground">
-        Credentials go to this machine&rsquo;s keyring, scoped to this automation.
-      </p>
+
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          {missing.length > 0
+            ? `${missing.length} still to connect. They are set once and shared by every automation.`
+            : 'Accounts are set once in Settings and shared by every automation.'}
+        </p>
+        <Button size="sm" variant={missing.length > 0 ? 'accent' : 'outline'} onClick={onOpenSettings}>
+          {missing.length > 0 ? 'Connect in Settings' : 'Manage connections'}
+        </Button>
+      </div>
     </div>
   );
 }
