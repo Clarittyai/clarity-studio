@@ -118,11 +118,50 @@ const PROVIDER_KEYS = [
   'GOOGLE_API_KEY',
 ];
 
-function authoringEnv(): Record<string, string> {
-  const env: Record<string, string> = { TERM: 'xterm-256color', PATH: loginPath() };
-  for (const [key, value] of Object.entries(process.env)) {
+/**
+ * State describing SOMEBODY ELSE'S agent session.
+ *
+ * If Studio was itself started from inside a coding-agent session — a developer
+ * running `pnpm start` from one, or an agent launching the packaged app — that
+ * session's identity is sitting in the environment, and copying the environment
+ * wholesale hands it to the fresh session as though it were its own.
+ *
+ * The visible symptom is Claude Code opening with "Transcript saving is off —
+ * inherited CLAUDE_CODE_CHILD_SESSION marker". It concluded, correctly from
+ * what it was told, that it is a subprocess of another session, and quietly
+ * stopped keeping a transcript. The user's authoring history disappears, and
+ * nothing in Studio said why.
+ *
+ * These are the variables observed in a real session, not a guess at the set:
+ * a marker, an id, a pid, an execpath, an entrypoint, an effort level. All
+ * describe a RUNNING session. Configuration a user deliberately exported —
+ * `CLAUDE_CONFIG_DIR` and friends — is not here and is passed through, because
+ * that is their setting and not another session's leakage.
+ */
+const INHERITED_SESSION_STATE = [
+  'CLAUDECODE',
+  'CLAUDE_CODE_CHILD_SESSION',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_EXECPATH',
+  'CLAUDE_CODE_SESSION_ID',
+  'CLAUDE_PID',
+  'CLAUDE_EFFORT',
+];
+
+/**
+ * The environment the authoring session gets.
+ *
+ * Exported so it can be tested: both of the things scrubbed here are invisible
+ * when they go wrong. A leaked provider key bills the wrong account, a leaked
+ * session marker silently stops the transcript, and in each case the terminal
+ * looks entirely normal.
+ */
+export function authoringEnv(base: NodeJS.ProcessEnv = process.env, path = loginPath()): Record<string, string> {
+  const env: Record<string, string> = { TERM: 'xterm-256color', PATH: path };
+  for (const [key, value] of Object.entries(base)) {
     if (value === undefined) continue;
     if (PROVIDER_KEYS.includes(key)) continue;
+    if (INHERITED_SESSION_STATE.includes(key)) continue;
     if (key === 'PATH') continue; // loginPath() wins
     env[key] = value;
   }
