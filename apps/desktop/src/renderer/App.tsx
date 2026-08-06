@@ -428,6 +428,20 @@ function ProjectView({
     return map;
   }, [latestSteps]);
 
+  /**
+   * Still the untouched example.
+   *
+   * The seed ships as `my-automation`, and an agent that has not written yet
+   * leaves it that way. Without saying so, Studio draws a complete, plausible
+   * automation the person did not ask for — and they reasonably read the agent
+   * below as working on it.
+   *
+   * Keyed on the manifest id rather than a file hash: the id is the first thing
+   * any real build replaces, and a hash would go stale the moment someone
+   * touched a comment.
+   */
+  const isUntouchedExample = (manifest as { id?: string } | undefined)?.id === 'my-automation';
+
   const load = useCallback(async () => {
     // Settled, not `all`: one unavailable source (no manifest on disk, no
     // coding agent installed) must not blank the whole screen.
@@ -642,7 +656,22 @@ function ProjectView({
       >
         {tab === 'flow' ? (
           flow ? (
-            <AutomationFlow flow={flow} status={flowStatus} />
+            <div className="flex flex-col gap-4">
+              {/* Say when this is still the example. Otherwise a diagram of
+                  somebody else's daily-digest reads as YOUR automation, and the
+                  agent talking below it looks like it is working on this — the
+                  one case where an unchanged screen means nothing happened
+                  rather than nothing needed to. */}
+              {isUntouchedExample && (
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-warning/10 px-3 py-2 text-[12px] text-warning">
+                  <span className="font-semibold">This is still the example.</span>
+                  <span className="text-warning/80">
+                    Nothing has been built yet — ask below, and this diagram becomes yours.
+                  </span>
+                </div>
+              )}
+              <AutomationFlow flow={flow} status={flowStatus} />
+            </div>
           ) : (
             <EmptyState
               size="section"

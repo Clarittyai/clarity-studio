@@ -122,6 +122,12 @@ check(
   dividers.curved.join(', ') || `${dividers.lists} lists clean`,
 );
 
+// The fixture IS the untouched seed, so Studio must say so. Without this a
+// person opens a brand-new automation, sees a complete daily-digest diagram,
+// and reads the agent below as working on it — when in fact nothing has been
+// built and the folder is exactly as it shipped.
+check('an untouched example says so', /still the example/i.test(await t()));
+
 // THE PROMISE. You ask the agent for a change, it writes the manifest, and the
 // flow redraws — no restart, no refresh. That is the whole reason the terminal
 // and the diagram share a window, and it is invisible when it breaks: the
@@ -151,6 +157,23 @@ const redrew = await win
   .then(() => true)
   .catch(() => false);
 check('an edit on disk redraws the flow', redrew, redrew ? 'new step appeared, no restart' : 'the diagram went stale');
+check(
+  'and the notice stays while the id is still the example’s',
+  /still the example/i.test(await t()),
+  'the step changed but the manifest id did not',
+);
+
+// And it must GO. A banner that never clears is worse than no banner: it stops
+// being read, and then it is not there for the one person who needs it.
+writeFileSync(
+  manifestPath,
+  readFileSync(manifestPath, 'utf8').replace('id: my-automation', 'id: weekly-bank-report'),
+);
+const cleared = await win
+  .waitForFunction(() => !document.body.innerText.includes('still the example'), { timeout: 15000 })
+  .then(() => true)
+  .catch(() => false);
+check('and clears once the agent renames it', cleared, cleared ? '' : 'the notice is stuck');
 
 check('triggers band', /Triggers/.test(body));
 check('terminal dock present', /Build it/.test(body));
