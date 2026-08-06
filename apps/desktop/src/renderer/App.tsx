@@ -67,6 +67,7 @@ import {
   timeUntil,
   cn,
   type Status,
+  humanError,
 } from './components/ui.js';
 
 export default function App() {
@@ -86,7 +87,7 @@ export default function App() {
       // you land and the dashboard is actually reachable.
       setSelectedId((current) => select ?? current);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(humanError(cause));
     }
   }, []);
 
@@ -111,7 +112,7 @@ export default function App() {
         await refresh(created.id);
         setView('project');
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(humanError(cause));
         throw cause;
       }
     },
@@ -129,7 +130,7 @@ export default function App() {
           await refresh();
         }
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(humanError(cause));
       }
     },
     [refresh],
@@ -141,7 +142,7 @@ export default function App() {
       const opened = await api.importProject();
       if (opened) await refresh(opened.id);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(humanError(cause));
     }
   }, [refresh]);
 
@@ -482,7 +483,7 @@ function ProjectView({
       await api.renameProject(project.id, next);
       onRenamed();
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : String(cause));
+      setActionError(humanError(cause));
       setDraftName(project.name);
     }
   }, [draftName, project.id, project.name, onRenamed]);
@@ -510,7 +511,7 @@ function ProjectView({
         else await api.runWorkflow(project.id, flow?.workflowId, inputs);
         await load();
       } catch (cause) {
-        setActionError(cause instanceof Error ? cause.message : String(cause));
+        setActionError(humanError(cause));
       } finally {
         setBusy(undefined);
       }
@@ -1250,7 +1251,7 @@ function ModelBand() {
         setValue('');
         await reload();
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(humanError(cause));
       }
     },
     [field, value, reload],
@@ -1395,7 +1396,7 @@ function NewAutomation({
     try {
       await onCreate(name, request.trim() || undefined, dir);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(humanError(cause));
     } finally {
       setBusy(false);
     }
@@ -1875,7 +1876,7 @@ function ConnectionsSettings() {
         setValues({});
         await reload();
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(humanError(cause));
       }
     },
     [values, reload],
@@ -2076,13 +2077,18 @@ function ConnectionsBand({
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
+        <p className="min-w-0 text-xs text-muted-foreground">
           {missing.length > 0
-            ? `${missing.length} still to connect. They are set once and shared by every automation.`
-            : 'Accounts are set once in Settings and shared by every automation.'}
+            ? `${missing.length} still to connect.`
+            : 'Set once, shared by every automation.'}
         </p>
-        <Button size="sm" variant={missing.length > 0 ? 'accent' : 'outline'} onClick={onOpenSettings}>
-          {missing.length > 0 ? 'Connect in Settings' : 'Manage connections'}
+        <Button
+          size="sm"
+          variant={missing.length > 0 ? 'accent' : 'outline'}
+          className="shrink-0 whitespace-nowrap"
+          onClick={onOpenSettings}
+        >
+          {missing.length > 0 ? 'Connect' : 'Manage'}
         </Button>
       </div>
     </div>
@@ -2322,16 +2328,21 @@ function NotifyBand({
         </p>
       )}
 
+      {/* The button must never be the thing that gives way. In a 380px column a
+          `justify-between` row with three lines of prose starved it to 55px and
+          broke "Send a test" across three lines. Short copy, and a button that
+          refuses to shrink or wrap. */}
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
+        <p className="min-w-0 text-xs text-muted-foreground">
           {available.slack || available.telegram || available.whatsapp || available.email
-            ? 'Channels come from your connections. A run reports through every one switched on.'
-            : 'Connect Slack, Telegram, WhatsApp or Resend in Settings to be reached anywhere but here.'}
+            ? 'A run reports through every channel switched on.'
+            : 'Only this computer for now. Add a channel in Settings.'}
         </p>
         {anyChannel || available.desktop ? (
           <Button
             size="sm"
             variant="outline"
+            className="shrink-0 whitespace-nowrap"
             disabled={sending}
             onClick={async () => {
               setSending(true);
@@ -2345,7 +2356,12 @@ function NotifyBand({
             {sending ? 'Sending…' : 'Send a test'}
           </Button>
         ) : (
-          <Button size="sm" variant="outline" onClick={onOpenSettings}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 whitespace-nowrap"
+            onClick={onOpenSettings}
+          >
             Connect one
           </Button>
         )}

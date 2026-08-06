@@ -133,6 +133,15 @@ check(
   'notify: an unconnected channel cannot be switched on',
   await win.locator('[data-channel="slack"] button').first().isDisabled(),
 );
+// A button in a narrow column gets starved by the prose beside it. "Send a
+// test" was squeezed to 55px and broke across three lines; height is the tell,
+// since a wrapped label is taller than one line.
+const testBtn = await win.locator('button:has-text("Send a test")').boundingBox();
+check(
+  'notify: the test button is not squeezed',
+  testBtn && testBtn.height <= 40 && testBtn.width >= 80,
+  testBtn ? `${Math.round(testBtn.width)}×${Math.round(testBtn.height)}` : 'missing',
+);
 check(
   'notify: desktop can be switched',
   !(await win.locator('[data-channel="desktop"] button').first().isDisabled()),

@@ -16,6 +16,23 @@ import type { ReactNode } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import type { LucideIcon } from 'lucide-react';
 
+/**
+ * What went wrong, without the plumbing.
+ *
+ * Electron wraps anything thrown in a main-process handler, so a message
+ * written for a person — "pick another name" — reaches the window as
+ * `Error invoking remote method 'project:create': Error: … pick another name`.
+ * The useful sentence is at the end, behind two layers of machinery nobody
+ * outside this codebase should ever see.
+ */
+export function humanError(cause: unknown): string {
+  const raw = cause instanceof Error ? cause.message : String(cause);
+  return raw
+    .replace(/^Error invoking remote method '[^']*':\s*/, '')
+    .replace(/^(Error|TypeError):\s*/, '')
+    .trim();
+}
+
 export function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
 }

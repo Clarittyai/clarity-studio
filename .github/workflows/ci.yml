@@ -55,6 +55,11 @@ jobs:
       # caught the app never constructing a Dispatcher at all, so the triggers it
       # listed — with a next-run time — fired nothing.
       - run: pnpm proof:schedule
+      # "New automation" is the first thing anyone does, and most of it happens
+      # where a unit test cannot see: a dialog, a recursive copy, an adopt, and a
+      # coding agent handed the request. Any step can half-succeed and leave a
+      # folder that looks created and cannot run.
+      - run: pnpm proof:generation
 
   # The design system is generated from clarity-platform. If someone edits the
   # generated files by hand, or upstream moves a load-bearing value, this fails
