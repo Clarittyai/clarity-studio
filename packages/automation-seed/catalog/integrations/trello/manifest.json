@@ -31,7 +31,8 @@
           "type": "string",
           "required": true
         }
-      }
+      },
+      "local": false
     },
     {
       "id": "trello.list_cards",
@@ -47,7 +48,8 @@
           "type": "array",
           "required": true
         }
-      }
+      },
+      "local": false
     }
   ],
   "credentialFields": [
@@ -65,5 +67,7 @@
       "required": true,
       "help": "The user token generated from your API key."
     }
-  ]
+  ],
+  "localConnector": false,
+  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
 }

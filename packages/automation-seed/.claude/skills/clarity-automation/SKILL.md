@@ -35,6 +35,13 @@ below is here.
 
 `catalog/integrations/` in THIS repo, one directory per service, each with a
 `manifest.json` describing the tools it offers and the arguments they take.
+**Read `catalog/AVAILABLE.md` first.** It is the only list of what this machine
+can actually call. The manifests in `catalog/integrations/` describe the hosted
+platform, which is larger: a manifest with `"localConnector": false`, or a tool
+with `"local": false`, names something real that Studio cannot broker — the call
+fails at run time no matter how sensible the id looks. Jira is the usual trap.
+So is reaching for `brave-search.search` when the tool is `brave-search.web`.
+
 Read the manifest for the service you need — `catalog/integrations/gmail/manifest.json`
 for `gmail.send`, and so on — and declare the integration in `intelligence.yaml`
 before an agent may call its tools.

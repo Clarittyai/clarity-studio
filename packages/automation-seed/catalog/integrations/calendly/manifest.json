@@ -7,23 +7,45 @@
   "name": "Calendly",
   "vendor": "Calendly",
   "description": "List scheduled meetings and cancel events with a Calendly personal access token.",
-  "intentHints": ["calendly meetings", "cancel a calendly event", "list scheduled events"],
+  "intentHints": [
+    "calendly meetings",
+    "cancel a calendly event",
+    "list scheduled events"
+  ],
   "authType": "apiKey",
   "providedTools": [
     {
       "id": "calendly.list_events",
       "description": "List active scheduled events for your organization.",
       "input": {},
-      "output": { "events": { "type": "array", "required": true } }
+      "output": {
+        "events": {
+          "type": "array",
+          "required": true
+        }
+      },
+      "local": false
     },
     {
       "id": "calendly.cancel_event",
       "description": "Cancel a scheduled event by its id.",
       "input": {
-        "event_id": { "type": "string", "required": true },
-        "reason": { "type": "string", "required": false }
+        "event_id": {
+          "type": "string",
+          "required": true
+        },
+        "reason": {
+          "type": "string",
+          "required": false
+        }
       },
-      "output": { "ok": { "type": "boolean", "required": true } }
+      "output": {
+        "ok": {
+          "type": "boolean",
+          "required": true
+        }
+      },
+      "local": false
     }
   ],
   "credentialFields": [
@@ -42,5 +64,7 @@
       "placeholder": "https://api.calendly.com/organizations/XXXXXXXX",
       "help": "From GET https://api.calendly.com/users/me → current_organization."
     }
-  ]
+  ],
+  "localConnector": false,
+  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
 }

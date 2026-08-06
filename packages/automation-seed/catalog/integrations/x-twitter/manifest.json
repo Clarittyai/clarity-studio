@@ -7,10 +7,47 @@
   "name": "X (Twitter)",
   "vendor": "X",
   "description": "Post tweets and search recent tweets.",
-  "intentHints": ["post a tweet", "search tweets"],
+  "intentHints": [
+    "post a tweet",
+    "search tweets"
+  ],
   "authType": "oauth2",
   "providedTools": [
-    { "id": "x.post_tweet", "description": "Post a tweet.", "input": { "text": { "type": "string", "required": true } }, "output": { "tweet_id": { "type": "string", "required": true } } },
-    { "id": "x.search_tweets", "description": "Search tweets.", "input": { "query": { "type": "string", "required": true } }, "output": { "tweets": { "type": "array", "required": true } } }
-  ]
+    {
+      "id": "x.post_tweet",
+      "description": "Post a tweet.",
+      "input": {
+        "text": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "tweet_id": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "local": false
+    },
+    {
+      "id": "x.search_tweets",
+      "description": "Search tweets.",
+      "input": {
+        "query": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "tweets": {
+          "type": "array",
+          "required": true
+        }
+      },
+      "local": false
+    }
+  ],
+  "localConnector": false,
+  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
 }

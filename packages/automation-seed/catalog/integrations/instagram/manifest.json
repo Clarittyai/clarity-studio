@@ -7,10 +7,60 @@
   "name": "Instagram",
   "vendor": "Meta",
   "description": "Publish photos to and read the media of your Instagram Business account.",
-  "intentHints": ["post to instagram", "read our instagram posts", "instagram media"],
+  "intentHints": [
+    "post to instagram",
+    "read our instagram posts",
+    "instagram media"
+  ],
   "authType": "oauth2",
   "providedTools": [
-    { "id": "instagram.create_post", "description": "Publish a photo to Instagram (image_url is required — IG cannot post text-only; text becomes the caption).", "input": { "image_url": { "type": "string", "required": true }, "text": { "type": "string", "required": false }, "ig_account_id": { "type": "string", "required": false } }, "output": { "post_id": { "type": "string", "required": true } } },
-    { "id": "instagram.fetch_media", "description": "Read the connected account's own media.", "input": { "ig_account_id": { "type": "string", "required": false }, "limit": { "type": "number", "required": false } }, "output": { "media": { "type": "array", "required": true } } }
-  ]
+    {
+      "id": "instagram.create_post",
+      "description": "Publish a photo to Instagram (image_url is required — IG cannot post text-only; text becomes the caption).",
+      "input": {
+        "image_url": {
+          "type": "string",
+          "required": true
+        },
+        "text": {
+          "type": "string",
+          "required": false
+        },
+        "ig_account_id": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "post_id": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "local": false
+    },
+    {
+      "id": "instagram.fetch_media",
+      "description": "Read the connected account's own media.",
+      "input": {
+        "ig_account_id": {
+          "type": "string",
+          "required": false
+        },
+        "limit": {
+          "type": "number",
+          "required": false
+        }
+      },
+      "output": {
+        "media": {
+          "type": "array",
+          "required": true
+        }
+      },
+      "local": false
+    }
+  ],
+  "localConnector": false,
+  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
 }

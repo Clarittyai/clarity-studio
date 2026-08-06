@@ -7,11 +7,77 @@
   "name": "OpenAI",
   "vendor": "OpenAI",
   "description": "Call OpenAI chat completions, embeddings, and image generation. Routed via the Claritty proxy when no key is configured.",
-  "intentHints": ["openai chat", "embedding", "generate an image"],
+  "intentHints": [
+    "openai chat",
+    "embedding",
+    "generate an image"
+  ],
   "authType": "apiKey",
   "providedTools": [
-    { "id": "openai.chat", "description": "Chat completion.", "input": { "model": { "type": "string", "required": true }, "messages": { "type": "array", "required": true } }, "output": { "content": { "type": "string", "required": true } } },
-    { "id": "openai.embeddings", "description": "Generate embeddings.", "input": { "model": { "type": "string", "required": true }, "input": { "type": "string", "required": true } }, "output": { "embedding": { "type": "array", "required": true } } },
-    { "id": "openai.image_generate", "description": "Generate an image.", "input": { "prompt": { "type": "string", "required": true }, "size": { "type": "string", "required": false } }, "output": { "url": { "type": "string", "required": true } } }
-  ]
+    {
+      "id": "openai.chat",
+      "description": "Chat completion.",
+      "input": {
+        "model": {
+          "type": "string",
+          "required": true
+        },
+        "messages": {
+          "type": "array",
+          "required": true
+        }
+      },
+      "output": {
+        "content": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "local": false
+    },
+    {
+      "id": "openai.embeddings",
+      "description": "Generate embeddings.",
+      "input": {
+        "model": {
+          "type": "string",
+          "required": true
+        },
+        "input": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "embedding": {
+          "type": "array",
+          "required": true
+        }
+      },
+      "local": false
+    },
+    {
+      "id": "openai.image_generate",
+      "description": "Generate an image.",
+      "input": {
+        "prompt": {
+          "type": "string",
+          "required": true
+        },
+        "size": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "url": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "local": false
+    }
+  ],
+  "localConnector": false,
+  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
 }

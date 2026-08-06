@@ -1,0 +1,19 @@
+{
+  "id": "resend",
+  "kind": "integration",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "Email (Resend)",
+  "description": "Send an email.",
+  "setupGuide": "Create an API key at https://resend.com/api-keys and verify the domain you want to send from. The free tier covers a few thousand emails a month, which is more than an automation needs.",
+  "authType": "bearer",
+  "providedTools": [
+    {
+      "id": "resend.send",
+      "description": "Send an email.",
+      "local": true
+    }
+  ],
+  "localConnector": true,
+  "_localNote": "Studio can broker this. Only tools marked \"local\": true can be called — the rest are hosted-platform only."
+}

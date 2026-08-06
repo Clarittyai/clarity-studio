@@ -7,10 +7,67 @@
   "name": "Anthropic",
   "vendor": "Anthropic",
   "description": "Call Anthropic Messages directly. Most apps use the Claritty proxy instead and get this for free.",
-  "intentHints": ["call claude", "anthropic chat"],
+  "intentHints": [
+    "call claude",
+    "anthropic chat"
+  ],
   "authType": "apiKey",
   "providedTools": [
-    { "id": "anthropic.chat", "description": "Claude Messages chat.", "input": { "model": { "type": "string", "required": true }, "messages": { "type": "array", "required": true }, "system": { "type": "string", "required": false } }, "output": { "content": { "type": "string", "required": true } } },
-    { "id": "anthropic.with_tools", "description": "Claude Messages with tool use.", "input": { "model": { "type": "string", "required": true }, "messages": { "type": "array", "required": true }, "tools": { "type": "array", "required": true } }, "output": { "content": { "type": "string", "required": true }, "tool_calls": { "type": "array", "required": false } } }
-  ]
+    {
+      "id": "anthropic.chat",
+      "description": "Claude Messages chat.",
+      "input": {
+        "model": {
+          "type": "string",
+          "required": true
+        },
+        "messages": {
+          "type": "array",
+          "required": true
+        },
+        "system": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "content": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "local": false
+    },
+    {
+      "id": "anthropic.with_tools",
+      "description": "Claude Messages with tool use.",
+      "input": {
+        "model": {
+          "type": "string",
+          "required": true
+        },
+        "messages": {
+          "type": "array",
+          "required": true
+        },
+        "tools": {
+          "type": "array",
+          "required": true
+        }
+      },
+      "output": {
+        "content": {
+          "type": "string",
+          "required": true
+        },
+        "tool_calls": {
+          "type": "array",
+          "required": false
+        }
+      },
+      "local": false
+    }
+  ],
+  "localConnector": false,
+  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
 }

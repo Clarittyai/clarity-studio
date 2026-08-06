@@ -20,25 +20,52 @@
       "id": "quickbooks.list_bills",
       "description": "List vendor bills (accounts payable) for the connected company.",
       "input": {},
-      "output": { "bills": { "type": "array" } }
+      "output": {
+        "bills": {
+          "type": "array"
+        }
+      },
+      "local": false
     },
     {
       "id": "quickbooks.list_vendors",
       "description": "List vendors for the connected company.",
       "input": {},
-      "output": { "vendors": { "type": "array" } }
+      "output": {
+        "vendors": {
+          "type": "array"
+        }
+      },
+      "local": false
     },
     {
       "id": "quickbooks.get_bill",
       "description": "Fetch a single vendor bill by id.",
-      "input": { "bill_id": { "type": "string", "required": true } },
-      "output": { "bill": { "type": "object" } }
+      "input": {
+        "bill_id": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "bill": {
+          "type": "object"
+        }
+      },
+      "local": false
     },
     {
       "id": "quickbooks.list_vendor_credits",
       "description": "List vendor credits (AP credit memos) — the confirmation a vendor actually credited back an overbilling.",
       "input": {},
-      "output": { "credits": { "type": "array" } }
+      "output": {
+        "credits": {
+          "type": "array"
+        }
+      },
+      "local": false
     }
-  ]
+  ],
+  "localConnector": false,
+  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
 }

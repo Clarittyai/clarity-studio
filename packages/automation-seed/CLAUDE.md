@@ -16,7 +16,10 @@ part of an automation and are not present for anyone else. An answer found there
 is an answer the next person cannot reproduce.
 
 If you need to know what a tool takes, read its manifest in
-`catalog/integrations/<id>/manifest.json`. If the integration is not there, it is
+`catalog/integrations/<id>/manifest.json` — but check `catalog/AVAILABLE.md`
+before you build with one. That file lists what this machine can actually call;
+the manifests describe a larger hosted set, and a tool marked `"local": false`
+will fail at run time. If the integration is not there, it is
 not available: follow the `add-an-integration` skill and write the request. Do
 not go looking for it elsewhere.
 

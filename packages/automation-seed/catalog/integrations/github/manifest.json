@@ -13,7 +13,7 @@
     "search github code"
   ],
   "authType": "oauth2",
-  "_authNote": "OAuth endpoints, scopes, client secret ref and any identity step are PLATFORM-OWNED \u2014 they live in the private clarity-api (integrations-v2/config/oauth-configs.ts), never in this public repo. This manifest only declares that the integration uses oauth2 and which tools it provides.",
+  "_authNote": "OAuth endpoints, scopes, client secret ref and any identity step are PLATFORM-OWNED — they live in the private clarity-api (integrations-v2/config/oauth-configs.ts), never in this public repo. This manifest only declares that the integration uses oauth2 and which tools it provides.",
   "providedTools": [
     {
       "id": "github.list_issues",
@@ -33,7 +33,8 @@
           "type": "array",
           "required": true
         }
-      }
+      },
+      "local": true
     },
     {
       "id": "github.create_issue",
@@ -57,7 +58,8 @@
           "type": "integer",
           "required": true
         }
-      }
+      },
+      "local": true
     },
     {
       "id": "github.create_pr",
@@ -85,7 +87,8 @@
           "type": "integer",
           "required": true
         }
-      }
+      },
+      "local": false
     },
     {
       "id": "github.search_code",
@@ -101,7 +104,15 @@
           "type": "array",
           "required": true
         }
-      }
+      },
+      "local": false
+    },
+    {
+      "id": "github.comment",
+      "description": "Comment on an issue or pull request.",
+      "local": true
     }
-  ]
+  ],
+  "localConnector": true,
+  "_localNote": "Studio can broker this. Only tools marked \"local\": true can be called — the rest are hosted-platform only."
 }

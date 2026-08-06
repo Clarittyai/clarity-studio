@@ -7,24 +7,54 @@
   "name": "PostHog",
   "vendor": "PostHog",
   "description": "Capture events and run HogQL queries against your PostHog project.",
-  "intentHints": ["track an event", "query posthog", "capture analytics event"],
+  "intentHints": [
+    "track an event",
+    "query posthog",
+    "capture analytics event"
+  ],
   "authType": "apiKey",
   "providedTools": [
     {
       "id": "posthog.query",
       "description": "Run a HogQL query and return the result rows.",
-      "input": { "query": { "type": "string", "required": true } },
-      "output": { "results": { "type": "array", "required": true } }
+      "input": {
+        "query": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "results": {
+          "type": "array",
+          "required": true
+        }
+      },
+      "local": false
     },
     {
       "id": "posthog.capture_event",
       "description": "Capture an analytics event for a user.",
       "input": {
-        "distinct_id": { "type": "string", "required": true },
-        "event": { "type": "string", "required": true },
-        "properties": { "type": "object", "required": false }
+        "distinct_id": {
+          "type": "string",
+          "required": true
+        },
+        "event": {
+          "type": "string",
+          "required": true
+        },
+        "properties": {
+          "type": "object",
+          "required": false
+        }
       },
-      "output": { "ok": { "type": "boolean", "required": true } }
+      "output": {
+        "ok": {
+          "type": "boolean",
+          "required": true
+        }
+      },
+      "local": false
     }
   ],
   "credentialFields": [
@@ -57,5 +87,7 @@
       "required": true,
       "help": "Project settings → Project API key (phc_...), used to capture events."
     }
-  ]
+  ],
+  "localConnector": false,
+  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
 }

@@ -19,12 +19,29 @@
       "id": "brave-search.search",
       "description": "Search the web and return current results.",
       "input": {
-        "query": { "type": "string", "required": true },
-        "count": { "type": "number", "required": false }
+        "query": {
+          "type": "string",
+          "required": true
+        },
+        "count": {
+          "type": "number",
+          "required": false
+        }
       },
       "output": {
-        "results": { "type": "array", "required": true }
-      }
+        "results": {
+          "type": "array",
+          "required": true
+        }
+      },
+      "local": false
+    },
+    {
+      "id": "brave-search.web",
+      "description": "Search the web and return the top results.",
+      "local": true
     }
-  ]
+  ],
+  "localConnector": true,
+  "_localNote": "Studio can broker this. Only tools marked \"local\": true can be called — the rest are hosted-platform only."
 }

@@ -66,6 +66,18 @@ jobs:
       # so an unpublished version, a private index, or an SDK release that
       # tightens the schema fails here rather than on someone's machine.
       - run: pnpm proof:sdk
+      # The seed's catalog describes the hosted platform; Studio brokers a
+      # subset. An agent reading a manifest cannot tell the difference unless
+      # the annotations are current, and a stale annotation is worse than none —
+      # it reads as a checked fact. Regenerate and require no diff.
+      - name: Assert the catalog's local-availability marks are current
+        run: |
+          pnpm sync:catalog
+          if ! git diff --quiet -- packages/automation-seed/catalog; then
+            echo "catalog annotations are stale — run 'pnpm sync:catalog' and commit"
+            git diff --stat -- packages/automation-seed/catalog
+            exit 1
+          fi
 
   # The design system is generated from clarity-platform. If someone edits the
   # generated files by hand, or upstream moves a load-bearing value, this fails

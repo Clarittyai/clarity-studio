@@ -1,0 +1,19 @@
+{
+  "id": "whatsapp",
+  "kind": "integration",
+  "transport": "native",
+  "version": "1.0.0",
+  "name": "WhatsApp",
+  "description": "Send a text message.",
+  "setupGuide": "WhatsApp needs YOUR OWN Meta app — Studio never brokers this. At https://developers.facebook.com create an app, add the WhatsApp product, and from its API Setup page copy the phone number id and a permanent access token (generate one from a System User in Business Settings; the sample token shown there expires in 24 hours). Message your own number from that page once, so WhatsApp will let the number receive messages back.",
+  "authType": "bearer",
+  "providedTools": [
+    {
+      "id": "whatsapp.send_message",
+      "description": "Send a text message.",
+      "local": true
+    }
+  ],
+  "localConnector": true,
+  "_localNote": "Studio can broker this. Only tools marked \"local\": true can be called — the rest are hosted-platform only."
+}

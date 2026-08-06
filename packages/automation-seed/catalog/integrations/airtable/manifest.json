@@ -31,7 +31,8 @@
           "type": "array",
           "required": true
         }
-      }
+      },
+      "local": true
     },
     {
       "id": "airtable.create_record",
@@ -55,7 +56,10 @@
           "type": "string",
           "required": true
         }
-      }
+      },
+      "local": true
     }
-  ]
+  ],
+  "localConnector": true,
+  "_localNote": "Studio can broker this. Only tools marked \"local\": true can be called — the rest are hosted-platform only."
 }

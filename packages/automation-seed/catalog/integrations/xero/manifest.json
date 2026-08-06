@@ -20,25 +20,52 @@
       "id": "xero.list_bills",
       "description": "List supplier bills (AP invoices, Type=ACCPAY) for the connected org.",
       "input": {},
-      "output": { "bills": { "type": "array" } }
+      "output": {
+        "bills": {
+          "type": "array"
+        }
+      },
+      "local": false
     },
     {
       "id": "xero.list_vendors",
       "description": "List supplier contacts for the connected org.",
       "input": {},
-      "output": { "vendors": { "type": "array" } }
+      "output": {
+        "vendors": {
+          "type": "array"
+        }
+      },
+      "local": false
     },
     {
       "id": "xero.get_bill",
       "description": "Fetch a single supplier bill by id.",
-      "input": { "bill_id": { "type": "string", "required": true } },
-      "output": { "bill": { "type": "object" } }
+      "input": {
+        "bill_id": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "output": {
+        "bill": {
+          "type": "object"
+        }
+      },
+      "local": false
     },
     {
       "id": "xero.list_vendor_credits",
       "description": "List supplier (AP) credit notes — the confirmation a vendor actually credited back an overbilling.",
       "input": {},
-      "output": { "credits": { "type": "array" } }
+      "output": {
+        "credits": {
+          "type": "array"
+        }
+      },
+      "local": false
     }
-  ]
+  ],
+  "localConnector": false,
+  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
 }

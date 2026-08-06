@@ -27,7 +27,8 @@
           "type": "array",
           "required": true
         }
-      }
+      },
+      "local": false
     },
     {
       "id": "gitlab.create_mr",
@@ -55,7 +56,10 @@
           "type": "integer",
           "required": true
         }
-      }
+      },
+      "local": false
     }
-  ]
+  ],
+  "localConnector": false,
+  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
 }

@@ -36,7 +36,8 @@
           "type": "string",
           "required": true
         }
-      }
+      },
+      "local": true
     }
   ],
   "credentialFields": [
@@ -48,5 +49,7 @@
       "placeholder": "123456:ABC-DEF...",
       "help": "Create a bot with @BotFather on Telegram and paste its token."
     }
-  ]
+  ],
+  "localConnector": true,
+  "_localNote": "Studio can broker this. Only tools marked \"local\": true can be called — the rest are hosted-platform only."
 }

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync, readFileSync} from 'node:fs';
 import { join } from 'node:path';
 import { _electron as electron } from 'playwright';
 import { Store } from '../packages/db/dist/index.js';
@@ -121,6 +121,36 @@ check(
   dividers.curved.length === 0,
   dividers.curved.join(', ') || `${dividers.lists} lists clean`,
 );
+
+// THE PROMISE. You ask the agent for a change, it writes the manifest, and the
+// flow redraws — no restart, no refresh. That is the whole reason the terminal
+// and the diagram share a window, and it is invisible when it breaks: the
+// diagram just keeps showing what used to be true.
+//
+// Add a STEP, not a rename. A card is labelled by its agent or its tool id,
+// never by `step.id`, so changing the id redraws a diagram that looks identical
+// — which is exactly how I first "proved" this was broken when it was not.
+const manifestPath = join(PROJECT, 'intelligence.yaml');
+writeFileSync(
+  manifestPath,
+  readFileSync(manifestPath, 'utf8').replace(
+    '    outputs:\n      digest_id:',
+    [
+      '      - id: file-it',
+      '        tool: app.save_digest',
+      '        input:',
+      '          summary: "${steps.write.output.summary}"',
+      '          item_count: 1',
+      '    outputs:',
+      '      digest_id:',
+    ].join('\n'),
+  ),
+);
+const redrew = await win
+  .waitForSelector('text=app.save_digest', { timeout: 15000 })
+  .then(() => true)
+  .catch(() => false);
+check('an edit on disk redraws the flow', redrew, redrew ? 'new step appeared, no restart' : 'the diagram went stale');
 
 check('triggers band', /Triggers/.test(body));
 check('terminal dock present', /Build it/.test(body));

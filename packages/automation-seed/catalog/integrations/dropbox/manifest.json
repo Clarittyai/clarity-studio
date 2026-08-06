@@ -7,9 +7,30 @@
   "name": "Dropbox",
   "vendor": "Dropbox",
   "description": "List and upload files in Dropbox.",
-  "intentHints": ["upload to dropbox", "list dropbox files"],
+  "intentHints": [
+    "upload to dropbox",
+    "list dropbox files"
+  ],
   "authType": "oauth2",
   "providedTools": [
-    { "id": "dropbox.list_files", "description": "List files in a folder.", "input": { "path": { "type": "string", "required": false } }, "output": { "files": { "type": "array", "required": true } } }
-  ]
+    {
+      "id": "dropbox.list_files",
+      "description": "List files in a folder.",
+      "input": {
+        "path": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "output": {
+        "files": {
+          "type": "array",
+          "required": true
+        }
+      },
+      "local": false
+    }
+  ],
+  "localConnector": false,
+  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
 }
