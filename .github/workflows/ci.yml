@@ -66,6 +66,11 @@ jobs:
       # so an unpublished version, a private index, or an SDK release that
       # tightens the schema fails here rather than on someone's machine.
       - run: pnpm proof:sdk
+      # The promise on the Home screen — "it runs on its schedule" — is the one
+      # nothing covered end to end. proof:schedule drives the dispatcher against
+      # a stub listener; proof:run presses the button. Neither proves a schedule
+      # runs a real automation, which is the whole product.
+      - run: pnpm proof:scheduled-run
       # The seed's catalog describes the hosted platform; Studio brokers a
       # subset. An agent reading a manifest cannot tell the difference unless
       # the annotations are current, and a stale annotation is worse than none —
