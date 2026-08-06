@@ -60,6 +60,12 @@ jobs:
       # coding agent handed the request. Any step can half-succeed and leave a
       # folder that looks created and cannot run.
       - run: pnpm proof:generation
+      # Every automation runs on `claritty-sdk` from public PyPI and nothing
+      # else ships it. This installs the seed's own requirements into a clean
+      # venv and strict-validates the shipped manifest with what came back —
+      # so an unpublished version, a private index, or an SDK release that
+      # tightens the schema fails here rather than on someone's machine.
+      - run: pnpm proof:sdk
 
   # The design system is generated from clarity-platform. If someone edits the
   # generated files by hand, or upstream moves a load-bearing value, this fails
