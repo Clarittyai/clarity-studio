@@ -119,6 +119,23 @@ check('collapse hides but keeps session', (await win.locator('.xterm').count()) 
 await win.locator('button:has-text("Build it")').click();
 await win.waitForTimeout(500);
 
+// How to reach you. Nothing is connected yet, so every outside channel must
+// read as unavailable rather than as a switch that sends nothing.
+body = await t();
+check('notify: desktop channel', /This computer/.test(body));
+check(
+  'notify: unconnected channels say where to fix it',
+  /Connect Slack in Settings/.test(body) && /Connect Telegram in Settings/.test(body),
+);
+check(
+  'notify: an unconnected channel cannot be switched on',
+  await win.locator('[data-channel="slack"] button').first().isDisabled(),
+);
+check(
+  'notify: desktop can be switched',
+  !(await win.locator('[data-channel="desktop"] button').first().isDisabled()),
+);
+
 // Settings.
 await win.locator('button[title="Settings"]').click();
 await win.waitForTimeout(800);
@@ -155,6 +172,22 @@ await win.locator('[data-connector="telegram"] input:not([type="password"])').fi
 await win.locator('[data-connector="telegram"] button:has-text("Save")').click();
 await win.waitForSelector('[data-connector="telegram"] :text("Connected")', { timeout: 5000 });
 check('settings: saving connects it', true);
+// Back to the automation: connecting the account is what makes the channel
+// usable. This is the whole chain — Settings writes a credential, the panel
+// reads it, and the toggle stops being decorative.
+// Back via the sidebar, the way a person would: toggling Settings returns to
+// Home, not to the automation you came from.
+await win.locator('aside button', { hasText: 'fresh-auto' }).first().click();
+await win.waitForSelector('[data-channel="telegram"]', { timeout: 10000 });
+check(
+  'notify: connecting Telegram enables its channel',
+  !(await win.locator('[data-channel="telegram"] button').first().isDisabled()),
+);
+await win.locator('[data-channel="telegram"] button').first().click();
+await win.waitForTimeout(400);
+check('notify: the channel switches on', /Message you from your bot/.test(await t()));
+await win.locator('button[title="Settings"]').click();
+await win.waitForSelector('[data-connector="telegram"]', { timeout: 10000 });
 await win.locator('[data-connector="telegram"] button:has-text("Disconnect")').click();
 await win.waitForTimeout(600);
 check(

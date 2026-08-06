@@ -41,8 +41,9 @@ contextBridge.exposeInMainWorld('studio', {
     ipcRenderer.invoke('integrations:disconnect', projectId, id),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   getNotify: (projectId: string) => ipcRenderer.invoke('notify:get', projectId),
-  setNotify: (projectId: string, prefs: { desktop?: boolean; slack?: boolean }) =>
+  setNotify: (projectId: string, prefs: Record<string, unknown>) =>
     ipcRenderer.invoke('notify:set', projectId, prefs),
+  sendTestNotify: (projectId: string) => ipcRenderer.invoke('notify:send-test', projectId),
   testNotify: (title: string, body: string) => ipcRenderer.invoke('notify:test', title, body),
   chooseAutomationsRoot: () => ipcRenderer.invoke('settings:choose-automations-root'),
   deleteProject: (projectId: string) => ipcRenderer.invoke('project:delete', projectId),

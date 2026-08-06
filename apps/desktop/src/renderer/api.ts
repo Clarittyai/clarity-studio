@@ -87,6 +87,34 @@ export interface IntegrationState {
   fields: Array<{ key: string; label: string; secret: boolean; placeholder?: string }>;
 }
 
+/** Where a finished run should find you. */
+export interface NotifyPrefs {
+  desktop?: boolean;
+  slack?: boolean;
+  slackChannel?: string;
+  telegram?: boolean;
+  email?: boolean;
+  emailTo?: string;
+  emailFrom?: string;
+}
+
+/** What one channel did last time, so a failed send is visible rather than
+ *  assumed to have worked. */
+export interface DeliveryResult {
+  channel: 'slack' | 'telegram' | 'email';
+  ok: boolean;
+  error?: string;
+  at: number;
+}
+
+export interface NotifyState {
+  prefs: NotifyPrefs;
+  /** A channel with no credentials cannot be switched on — doing so would send
+   *  nothing, silently, which is the failure notifications exist to prevent. */
+  available: { desktop: boolean; slack: boolean; telegram: boolean; email: boolean };
+  lastDelivery: DeliveryResult[];
+}
+
 /** A model provider, and whether this machine has a key for it. */
 export interface ProviderKey {
   id: string;
@@ -172,9 +200,12 @@ export interface StudioApi {
   addKnowledge(projectId: string): Promise<number>;
   /** The running build, so "am I on an old version" is answerable. */
   appVersion(): Promise<string>;
-  /** How this automation should tell you a run finished. */
-  getNotify(projectId: string): Promise<{ desktop?: boolean; slack?: boolean }>;
-  setNotify(projectId: string, prefs: { desktop?: boolean; slack?: boolean }): Promise<void>;
+  /** How this automation should tell you a run finished, which channels this
+   *  machine can actually use, and how the last send went. */
+  getNotify(projectId: string): Promise<NotifyState>;
+  setNotify(projectId: string, prefs: NotifyPrefs): Promise<void>;
+  /** Send one now, down the same path a finished run uses. */
+  sendTestNotify(projectId: string): Promise<DeliveryResult[]>;
   /** Fire one now, so "did I allow notifications" is answerable. */
   testNotify(title: string, body: string): Promise<void>;
   /** Window preferences — currently just where new automations go. */
@@ -493,10 +524,17 @@ const fixtures: StudioApi = {
     return 'demo';
   },
   async getNotify() {
-    return { desktop: true };
+    return {
+      prefs: { desktop: true },
+      available: { desktop: true, slack: true, telegram: false, email: false },
+      lastDelivery: [],
+    };
   },
   async setNotify() {},
   async testNotify() {},
+  async sendTestNotify() {
+    return [];
+  },
   async getSettings() {
     return { automationsRoot: '~/Automations' };
   },

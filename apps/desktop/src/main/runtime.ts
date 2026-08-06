@@ -99,7 +99,16 @@ export class RuntimeHost {
   /** Serialises start/stop per project so a double-click cannot race itself. */
   private readonly pending = new Map<string, Promise<unknown>>();
 
-  constructor(private readonly store: () => Store) {}
+  /**
+   * `onRunComplete` fires for every finished run, whichever way it finished —
+   * fired from the UI, fired by a schedule, or failed before it ever reached the
+   * automation. Both call sites below funnel through here, which is why the hook
+   * lives at `completeRun` rather than next to one of them.
+   */
+  constructor(
+    private readonly store: () => Store,
+    private readonly onRunComplete: (runId: string) => void = () => {},
+  ) {}
 
   private async ensurePlane(): Promise<ControlPlane> {
     if (this.plane) return this.plane;
@@ -117,7 +126,10 @@ export class RuntimeHost {
       secrets: this.secrets,
       store: {
         checkpointStep: (cp) => store.checkpointStep(cp),
-        completeRun: (rc) => store.completeRun(rc),
+        completeRun: (rc) => {
+          store.completeRun(rc);
+          this.onRunComplete(rc.runId);
+        },
         recordLlmCall: (r) => store.recordLlmCall(r),
         getRun: (id) => store.getRun(id),
         getSteps: (id) => store.getSteps(id) as never,
@@ -254,6 +266,7 @@ export class RuntimeHost {
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       store.completeRun({ runId, status: 'failed', error: message });
+      this.onRunComplete(runId);
       throw cause;
     }
     return { runId };

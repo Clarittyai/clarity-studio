@@ -43,6 +43,8 @@ import {
   type Run,
   type Step,
   type Trigger,
+  type NotifyPrefs,
+  type NotifyState,
 } from './api.js';
 import { BrandLockup } from './components/Brand.js';
 import { AutomationFlow, type StepStatus } from './components/flow/AutomationFlow.js';
@@ -687,7 +689,7 @@ function ProjectView({
       </Band>
 
       <Band title="How to reach you" subtitle="Where a finished run finds you.">
-        <NotifyBand projectId={project.id} />
+        <NotifyBand projectId={project.id} onOpenSettings={onOpenSettings} />
       </Band>
 
       <Band title="Triggers" subtitle="What starts it, without you.">
@@ -2104,108 +2106,238 @@ function ConnectionsBand({
  * but holding a run and resuming it is runtime work, not a panel, and a toggle
  * that silently does nothing is worse than no toggle.
  */
-function NotifyBand({ projectId }: { projectId: string }) {
-  const [prefs, setPrefs] = useState<{ desktop?: boolean; slack?: boolean }>({ desktop: true });
-  const [note, setNote] = useState<string | undefined>();
-
-  useEffect(() => {
-    void api
-      .getNotify(projectId)
-      .then(setPrefs)
-      .catch(() => undefined);
-  }, [projectId]);
-
-  const update = useCallback(
-    async (next: { desktop?: boolean; slack?: boolean }) => {
-      const merged = { ...prefs, ...next };
-      setPrefs(merged);
-      await api.setNotify(projectId, merged).catch(() => undefined);
-    },
-    [prefs, projectId],
-  );
-
+/** One switch. Disabled channels say why rather than looking broken. */
+function ChannelRow({
+  icon,
+  name,
+  hint,
+  on,
+  available,
+  unavailableHint,
+  onToggle,
+  children,
+  testId,
+}: {
+  icon: React.ReactNode;
+  name: string;
+  hint: string;
+  on: boolean;
+  available: boolean;
+  unavailableHint?: string;
+  onToggle: () => void;
+  children?: React.ReactNode;
+  testId: string;
+}) {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="divide-y divide-border/60">
-        <button
-          type="button"
-          onClick={() => void update({ desktop: !prefs.desktop })}
-          className="-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
-        >
-          <Bell className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-foreground">This computer</div>
-            <div className="text-[11px] text-muted-foreground">
-              A desktop notification when a run finishes or fails.
-            </div>
+    <div data-channel={testId} className="py-3">
+      <button
+        type="button"
+        disabled={!available}
+        onClick={onToggle}
+        className={cn(
+          '-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-1 text-left transition-colors',
+          available ? 'hover:bg-foreground/[0.03]' : 'cursor-default',
+        )}
+      >
+        <span className={cn('shrink-0', available ? 'text-muted-foreground' : 'text-muted-foreground/50')}>
+          {icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className={cn('text-sm font-semibold', available ? 'text-foreground' : 'text-muted-foreground')}>
+            {name}
           </div>
+          <div className="text-[11px] text-muted-foreground">
+            {available ? hint : (unavailableHint ?? hint)}
+          </div>
+        </div>
+        <span
+          className={cn(
+            'relative h-5 w-9 shrink-0 rounded-full transition-colors',
+            !available ? 'bg-foreground/10' : on ? 'bg-accent' : 'bg-foreground/15',
+          )}
+        >
           <span
             className={cn(
-              'relative h-5 w-9 shrink-0 rounded-full transition-colors',
-              prefs.desktop ? 'bg-accent' : 'bg-foreground/15',
+              'absolute top-0.5 h-4 w-4 rounded-full transition-all',
+              available ? 'bg-white' : 'bg-white/40',
+              on && available ? 'left-[18px]' : 'left-0.5',
             )}
-          >
-            <span
-              className={cn(
-                'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all',
-                prefs.desktop ? 'left-[18px]' : 'left-0.5',
-              )}
-            />
-          </span>
-        </button>
+          />
+        </span>
+      </button>
+      {on && available && children && <div className="mt-2 flex flex-col gap-2 pl-7">{children}</div>}
+    </div>
+  );
+}
 
-        <div className="flex items-center gap-3 py-3">
-          <Send className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-foreground">Slack</div>
-            <div className="text-[11px] text-muted-foreground">
-              Connect Slack above and a run can post its result to a channel.
-            </div>
-          </div>
-        </div>
+function ChannelInput({
+  label,
+  value,
+  placeholder,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onCommit: (next: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+      <input
+        value={draft}
+        placeholder={placeholder}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => onCommit(draft)}
+        className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-[12px] outline-none focus:border-accent"
+      />
+    </label>
+  );
+}
 
-        {/* Real connectors, configured in Connections above and stored in this
-            machine's keyring — not a link to a tracker. */}
-        <div className="flex items-center gap-3 py-3">
-          <Send className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-foreground">Telegram</div>
-            <div className="text-[11px] text-muted-foreground">
-              A bot token from @BotFather. Connect it above and a run can message you.
-            </div>
-          </div>
-        </div>
+function NotifyBand({
+  projectId,
+  onOpenSettings,
+}: {
+  projectId: string;
+  onOpenSettings: () => void;
+}) {
+  const [state, setState] = useState<NotifyState>({
+    prefs: { desktop: true },
+    available: { desktop: true, slack: false, telegram: false, email: false },
+    lastDelivery: [],
+  });
+  const [sending, setSending] = useState(false);
 
-        <div className="flex items-center gap-3 py-3">
-          <Send className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-foreground">Email</div>
-            <div className="text-[11px] text-muted-foreground">
-              Through Resend, with your own API key. Connect it above.
-            </div>
-          </div>
-        </div>
+  const reload = useCallback(async () => {
+    const next = await api.getNotify(projectId).catch(() => undefined);
+    if (next) setState(next);
+  }, [projectId]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const update = useCallback(
+    async (next: NotifyPrefs) => {
+      const prefs = { ...state.prefs, ...next };
+      setState((prev) => ({ ...prev, prefs }));
+      await api.setNotify(projectId, prefs).catch(() => undefined);
+    },
+    [state.prefs, projectId],
+  );
+
+  const { prefs, available } = state;
+  const failed = state.lastDelivery.filter((d) => !d.ok);
+  const anyChannel = Boolean(prefs.slack || prefs.telegram || prefs.email);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="divide-y divide-border/60">
+        <ChannelRow
+          testId="desktop"
+          icon={<Bell className="h-4 w-4" />}
+          name="This computer"
+          hint="A desktop notification when a run finishes or fails."
+          unavailableHint="This system does not support desktop notifications."
+          on={prefs.desktop !== false}
+          available={available.desktop}
+          onToggle={() => void update({ desktop: prefs.desktop === false })}
+        />
+
+        <ChannelRow
+          testId="slack"
+          icon={<Send className="h-4 w-4" />}
+          name="Slack"
+          hint="Post the result to a channel."
+          unavailableHint="Connect Slack in Settings to use this."
+          on={Boolean(prefs.slack)}
+          available={available.slack}
+          onToggle={() => void update({ slack: !prefs.slack })}
+        >
+          <ChannelInput
+            label="Channel"
+            value={prefs.slackChannel ?? ''}
+            placeholder="#automations"
+            onCommit={(slackChannel) => void update({ slackChannel })}
+          />
+        </ChannelRow>
+
+        <ChannelRow
+          testId="telegram"
+          icon={<Send className="h-4 w-4" />}
+          name="Telegram"
+          hint="Message you from your bot."
+          unavailableHint="Connect Telegram in Settings to use this."
+          on={Boolean(prefs.telegram)}
+          available={available.telegram}
+          onToggle={() => void update({ telegram: !prefs.telegram })}
+        />
+
+        <ChannelRow
+          testId="email"
+          icon={<Send className="h-4 w-4" />}
+          name="Email"
+          hint="Send it through Resend, with your own key."
+          unavailableHint="Connect Resend in Settings to use this."
+          on={Boolean(prefs.email)}
+          available={available.email}
+          onToggle={() => void update({ email: !prefs.email })}
+        >
+          <ChannelInput
+            label="To"
+            value={prefs.emailTo ?? ''}
+            placeholder="you@example.com"
+            onCommit={(emailTo) => void update({ emailTo })}
+          />
+          {/* Resend refuses a from-address on a domain you have not verified,
+              so this is asked for rather than guessed at. */}
+          <ChannelInput
+            label="From (a verified Resend domain)"
+            value={prefs.emailFrom ?? ''}
+            placeholder="runs@yourdomain.com"
+            onCommit={(emailFrom) => void update({ emailFrom })}
+          />
+        </ChannelRow>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={async () => {
-            setNote(undefined);
-            try {
-              await api.testNotify('Claritty Studio', 'This is what a finished run looks like.');
-              setNote('Sent. If nothing appeared, allow notifications for Claritty Studio.');
-            } catch (cause) {
-              setNote(cause instanceof Error ? cause.message : String(cause));
-            }
-          }}
-        >
-          Send a test
-        </Button>
-        {/* macOS asks on first send, so silence is expected once and confusing
-            forever after if nothing says so. */}
-        {note && <span className="text-xs text-muted-foreground">{note}</span>}
+      {/* A send that failed is the one thing you must not have to go looking
+          for, since not having to look was the point of the channel. */}
+      {failed.length > 0 && (
+        <p className="text-xs text-destructive">
+          Last send failed on {failed.map((f) => f.channel).join(', ')}: {failed[0]?.error}
+        </p>
+      )}
+
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          {available.slack || available.telegram || available.email
+            ? 'Channels come from your connections. A run reports through every one switched on.'
+            : 'Connect Slack, Telegram or Resend in Settings to be reached anywhere but here.'}
+        </p>
+        {anyChannel || available.desktop ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={sending}
+            onClick={async () => {
+              setSending(true);
+              // The same delivery path a finished run uses. A test that took a
+              // different path would prove nothing about the real one.
+              await api.sendTestNotify(projectId).catch(() => undefined);
+              await reload();
+              setSending(false);
+            }}
+          >
+            {sending ? 'Sending…' : 'Send a test'}
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" onClick={onOpenSettings}>
+            Connect one
+          </Button>
+        )}
       </div>
     </div>
   );

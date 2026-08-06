@@ -39,6 +39,7 @@ import { watch, type FSWatcher } from 'node:fs';
 import { SafeStorageBackend, Vault, VaultUnavailableError, secretKey } from '@clarity-studio/vault';
 import { safeStorage } from 'electron';
 
+import { deliver, detail, headline, type DeliveryResult, type NotifyPrefs } from './notifier.js';
 import { RuntimeHost } from './runtime.js';
 import { TerminalHost } from './terminal.js';
 
@@ -107,7 +108,7 @@ function db(): Store {
 }
 
 /** Holds the control plane and the running automations for this window. */
-const runtime = new RuntimeHost(db);
+const runtime = new RuntimeHost(db, (runId) => void announce(runId));
 /** Holds the coding-agent pty sessions. */
 const terminals = new TerminalHost();
 
@@ -122,7 +123,7 @@ const terminals = new TerminalHost();
 interface Settings {
   automationsRoot?: string;
   /** Per project: how to be told when a run finishes. */
-  notify?: Record<string, { desktop?: boolean; slack?: boolean }>;
+  notify?: Record<string, NotifyPrefs>;
 }
 
 function settingsFile(): string {
@@ -173,6 +174,68 @@ function vault(): Vault {
 function scopeOf(projectId: unknown): { projectId?: string } {
   const id = String(projectId ?? '').trim();
   return id && id !== '*' ? { projectId: id } : {};
+}
+
+/**
+ * The last delivery attempt per project, so a channel that failed is visible
+ * where it was switched on.
+ *
+ * In memory rather than on disk: it describes this session's sends, and a stale
+ * "Slack failed" from three days ago sitting in a settings file would be read as
+ * current. If nothing has been sent since launch there is honestly nothing to
+ * report.
+ */
+const lastDelivery = new Map<string, DeliveryResult[]>();
+
+/**
+ * Tell the person a run finished, through whichever channels they chose.
+ *
+ * Called for every completed run — UI, schedule, or a failure before the
+ * automation was even reached. It must never throw: a notification that fails
+ * is not a reason for the run to be recorded differently than it happened.
+ */
+async function announce(runId: string): Promise<void> {
+  try {
+    const store = db();
+    const run = store.getRun(runId);
+    if (!run) return;
+    const prefs = readSettings().notify?.[run.projectId] ?? { desktop: true };
+    const project = store.listProjects().find((p) => p.id === run.projectId);
+    const summary = {
+      automation: project?.name ?? 'An automation',
+      status: run.status,
+      error: run.error,
+    };
+
+    if (prefs.desktop !== false && Notification.isSupported()) {
+      new Notification({ title: headline(summary), body: detail(summary) }).show();
+    }
+
+    const v = vault();
+    const results = await deliver(
+      prefs,
+      summary,
+      // Machine-wide first, overridden by anything this automation set for
+      // itself — the same resolution order every other credential read uses.
+      (integrationId) => v.bundle(integrationId, run.projectId),
+      Date.now(),
+    );
+    if (results.length > 0) {
+      lastDelivery.set(run.projectId, results);
+      // A failed send is the one thing a person must not have to go looking
+      // for, since the whole point of the channel was not having to look.
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length > 0 && Notification.isSupported()) {
+        new Notification({
+          title: `Could not reach you by ${failed.map((f) => f.channel).join(' or ')}`,
+          body: failed[0]?.error ?? 'The provider refused the message.',
+        }).show();
+      }
+    }
+  } catch {
+    // Already best-effort; there is no second channel to report a failure of
+    // the failure through.
+  }
 }
 
 /**
@@ -669,21 +732,61 @@ function registerIpc(): void {
     },
   );
 
+  /**
+   * The preference, plus the two things the panel cannot work out for itself:
+   * which channels this machine can actually use, and how the last send went.
+   *
+   * Availability is not cosmetic. A toggle you can switch on for a service with
+   * no credentials is a toggle that silently sends nothing, which is exactly the
+   * failure a notification exists to prevent.
+   */
   ipcMain.handle('notify:get', (_event, projectId: string) => {
-    const all = readSettings().notify ?? {};
-    return all[String(projectId)] ?? { desktop: true };
+    const id = String(projectId);
+    const v = vault();
+    const has = (integrationId: string) => Boolean(v.bundle(integrationId, id));
+    return {
+      prefs: readSettings().notify?.[id] ?? { desktop: true },
+      available: {
+        desktop: Notification.isSupported(),
+        slack: has('slack'),
+        telegram: has('telegram'),
+        email: has('resend'),
+      },
+      lastDelivery: lastDelivery.get(id) ?? [],
+    };
   });
 
-  ipcMain.handle(
-    'notify:set',
-    (_event, projectId: string, prefs: { desktop?: boolean; slack?: boolean }) => {
-      const current = readSettings();
-      writeSettings({
-        ...current,
-        notify: { ...(current.notify ?? {}), [String(projectId)]: { ...prefs } },
-      });
-    },
-  );
+  ipcMain.handle('notify:set', (_event, projectId: string, prefs: NotifyPrefs) => {
+    const current = readSettings();
+    writeSettings({
+      ...current,
+      notify: { ...(current.notify ?? {}), [String(projectId)]: { ...prefs } },
+    });
+  });
+
+  /**
+   * Send a real one, through the channels as configured, so "will this actually
+   * reach me" is answerable before a run depends on it. It uses the same
+   * delivery path a finished run uses — a test that took a different path would
+   * prove nothing about the real one.
+   */
+  ipcMain.handle('notify:send-test', async (_event, projectId: string) => {
+    const id = String(projectId);
+    const prefs = readSettings().notify?.[id] ?? { desktop: true };
+    const project = db().listProjects().find((p) => p.id === id);
+    const summary = {
+      automation: project?.name ?? 'An automation',
+      status: 'success',
+      error: null,
+    };
+    if (prefs.desktop !== false && Notification.isSupported()) {
+      new Notification({ title: headline(summary), body: 'This is a test.' }).show();
+    }
+    const v = vault();
+    const results = await deliver(prefs, summary, (i) => v.bundle(i, id), Date.now());
+    if (results.length > 0) lastDelivery.set(id, results);
+    return results;
+  });
 
   /** Every connector Studio can wire locally — for the "what can I use" question. */
   ipcMain.handle('integrations:catalog', () =>
