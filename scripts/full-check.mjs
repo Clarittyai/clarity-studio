@@ -191,6 +191,17 @@ check(
 await win.locator('[data-channel="telegram"] button').first().click();
 await win.waitForTimeout(400);
 check('notify: the channel switches on', /Message you from your bot/.test(await t()));
+
+// Pressing Run now with no model key must SAY so, on the automation's own page.
+// This guard runs BEFORE a run row is opened — which is also why it cannot
+// notify: no run happened. A guard that failed silently is a dead button.
+await win.locator('button:has-text("Run now")').click();
+// Wait for the text, not a guess at how long the runtime takes to refuse.
+await win.waitForSelector('text=/model provider key/i', { timeout: 20000 }).catch(() => {});
+body = await t();
+check('Run now explains what is missing', /model provider key/i.test(body));
+check('and says how to fix it', /keys set|ANTHROPIC_API_KEY/i.test(body));
+
 await win.locator('button[title="Settings"]').click();
 await win.waitForSelector('[data-connector="telegram"]', { timeout: 10000 });
 await win.locator('[data-connector="telegram"] button:has-text("Disconnect")').click();

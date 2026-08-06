@@ -97,9 +97,13 @@ jobs:
           #
           # Both spellings: the repo is one-`t`, the live domain is still two.
           LINKS='apps/desktop/src/renderer/components/cloud-links.ts'
+          # Built output inlines those constants, so a checkout that happens to
+          # have a dist/ would fail for no reason. This job does not build, but
+          # a local run does, and a gate that only passes by luck is not a gate.
           hits=$(grep -rInE 'https?://[a-z0-9.-]*(clarit{1,2}y\.ai|auth0\.com)' \
                    --include='*.ts' --include='*.tsx' --include='*.js' --include='*.mjs' \
                    --include='*.py' \
+                   --exclude-dir=dist --exclude-dir=release --exclude-dir=node_modules \
                    apps packages scripts 2>/dev/null \
                  | grep -v "^$LINKS:" || true)
           if [ -n "$hits" ]; then
