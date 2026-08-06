@@ -43,7 +43,8 @@ underneath, what the hosted version adds.*
 ![Settings](docs/img/settings.png)
 
 *Bring your own model: a provider key in the OS keyring, or point it at your own
-OpenAI-compatible endpoint. Ollama, LM Studio, vLLM and llama.cpp addresses are listed, with the
+OpenAI-compatible endpoint — the exact request Studio sends is written down in
+[docs/model-endpoint.md](docs/model-endpoint.md). Ollama, LM Studio, vLLM and llama.cpp addresses are listed, with the
 exact request Studio sends so you can check it with `curl` before trusting a run to it.*
 
 ---
