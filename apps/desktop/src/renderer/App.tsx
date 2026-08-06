@@ -440,6 +440,26 @@ function ProjectView({
    * any real build replaces, and a hash would go stale the moment someone
    * touched a comment.
    */
+  /**
+   * When the flow last actually changed.
+   *
+   * The redraw is instant and therefore easy to miss: you ask the agent for a
+   * step, glance down at the terminal, and by the time you look up the diagram
+   * has quietly become the new one. This is the difference between "it works"
+   * and "I can see that it worked".
+   *
+   * Undefined after a few seconds, because a permanent badge stops being read.
+   */
+  const [changedAt, setChangedAt] = useState<number | undefined>();
+  /** The last manifest we drew, serialised. Undefined until the first load, so
+   *  opening a project never counts as a change. */
+  const lastManifest = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!changedAt) return;
+    const timer = setTimeout(() => setChangedAt(undefined), 6000);
+    return () => clearTimeout(timer);
+  }, [changedAt]);
+
   const isUntouchedExample = (manifest as { id?: string } | undefined)?.id === 'my-automation';
 
   const load = useCallback(async () => {
@@ -462,7 +482,22 @@ function ProjectView({
     }
     if (t.status === 'fulfilled') setTriggers(t.value);
     if (s.status === 'fulfilled') setSpend(s.value);
-    if (m.status === 'fulfilled') setManifest(m.value);
+    if (m.status === 'fulfilled') {
+      // Compare, don't just assign. The watcher fires for every file in the
+      // folder — a .pyc, a log, the agent's own scratch — and flashing
+      // "updated" at each one teaches the person to ignore it, which costs the
+      // signal exactly when the manifest really does change.
+      //
+      // The comparison is held in a ref rather than derived inside the state
+      // updater: React may invoke an updater during render, and calling another
+      // setState from there is how a badge silently never appears.
+      const serialised = JSON.stringify(m.value ?? null);
+      if (lastManifest.current !== undefined && lastManifest.current !== serialised) {
+        setChangedAt(Date.now());
+      }
+      lastManifest.current = serialised;
+      setManifest(m.value);
+    }
     if (a.status === 'fulfilled') setAgents(a.value);
   }, [project.id]);
 
@@ -652,7 +687,20 @@ function ProjectView({
             ? 'What runs, in order, each time it fires.'
             : 'Every run, what it did, and what it cost.'
         }
-        action={<Segmented value={tab} onChange={setTab} options={[['flow', 'Flow'], ['runs', 'Executions']]} />}
+        action={
+          <div className="flex items-center gap-2">
+            {changedAt && tab === 'flow' && (
+              <span
+                data-updated-badge
+                className="flex items-center gap-1.5 rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                Updated
+              </span>
+            )}
+            <Segmented value={tab} onChange={setTab} options={[['flow', 'Flow'], ['runs', 'Executions']]} />
+          </div>
+        }
       >
         {tab === 'flow' ? (
           flow ? (

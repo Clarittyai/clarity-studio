@@ -157,6 +157,17 @@ const redrew = await win
   .then(() => true)
   .catch(() => false);
 check('an edit on disk redraws the flow', redrew, redrew ? 'new step appeared, no restart' : 'the diagram went stale');
+// The redraw is instant and easy to miss: you look down at the terminal and by
+// the time you look up the diagram is already the new one. The badge is what
+// makes "it changed" observable rather than merely true.
+// Wait for it rather than sampling once: the badge and the redrawn flow land in
+// the same render, but `waitForSelector` on the flow can resolve on the tick
+// before React has painted the sibling.
+const badged = await win
+  .waitForSelector('[data-updated-badge]', { timeout: 8000 })
+  .then(() => true)
+  .catch(() => false);
+check('and says it just changed', badged, badged ? '' : 'no Updated badge appeared');
 check(
   'and the notice stays while the id is still the example’s',
   /still the example/i.test(await t()),
