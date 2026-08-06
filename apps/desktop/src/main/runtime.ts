@@ -13,8 +13,11 @@
  * port or a secret — only the plain status the store already exposes.
  */
 
-import { basename } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+
+import { parse as parseYaml } from 'yaml';
 
 import { ControlPlane, EnvSecretSource, type SecretSource } from '@clarity-studio/control-plane';
 import { Dispatcher } from '@clarity-studio/scheduler';
@@ -89,9 +92,24 @@ class VaultSecretSource implements SecretSource {
 interface Live {
   runner: Runner;
   baseUrl: string;
+  /** The automation's own manifest, read once at start. Used to decide whether
+   *  a run needs a model key at all. */
+  manifest?: { agents?: unknown[]; workflows?: Array<{ steps?: Array<{ agent?: string }> }> };
   /** The project's CLARITY_INTERNAL_SECRET, which the scheduler must present
    *  when it asks the automation to run a due trigger. */
   internalSecret: string;
+}
+
+/** Does anything in this automation call a model? A workflow of pure tools does
+ *  not, and must not be blocked for want of a key it will never use. */
+function needsModel(manifest?: {
+  agents?: unknown[];
+  workflows?: Array<{ steps?: Array<{ agent?: string }> }>;
+}): boolean {
+  if (!manifest) return true; // unknown shape: keep the old, cautious answer
+  const declares = Array.isArray(manifest.agents) && manifest.agents.length > 0;
+  const calls = (manifest.workflows ?? []).some((w) => (w.steps ?? []).some((s) => Boolean(s.agent)));
+  return declares || calls;
 }
 
 export class RuntimeHost {
@@ -245,7 +263,18 @@ export class RuntimeHost {
         // An empty secret would not fail here — it would fail later, as a 401
         // on a scheduled trigger at 6am, reported as "the automation refused".
         if (!internalSecret) throw new Error('The control plane issued no internal secret.');
-        this.live.set(projectId, { runner, baseUrl: runner.baseUrl, internalSecret });
+        // Read once, here, rather than per run: it decides whether a run needs
+        // a model key, and re-parsing the manifest on every Run press would be
+        // work for an answer that cannot change while the runtime is up.
+        let manifest: Live['manifest'];
+        try {
+          const file = join(project.path, 'intelligence.yaml');
+          if (existsSync(file)) manifest = parseYaml(readFileSync(file, 'utf8')) as Live['manifest'];
+        } catch {
+          // Unreadable or mid-edit: leave it undefined, which keeps the old
+          // cautious answer of "assume it needs a model".
+        }
+        this.live.set(projectId, { runner, baseUrl: runner.baseUrl, internalSecret, manifest });
         return { baseUrl: runner.baseUrl };
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause);
@@ -294,7 +323,13 @@ export class RuntimeHost {
     // Checked before opening a run, not after it fails. Without a key every
     // agent step fails and the engine reports only "all workflow steps failed
     // or were skipped", which names neither the cause nor the fix.
-    if (!(await this.hasModelKey())) {
+    //
+    // Only when there are agent steps to call one. A workflow of pure tools
+    // needs no model, and demanding a key for it turned the one automation
+    // anybody can run with zero setup — no key, no connection, no account —
+    // into one that refuses at the button. A guard that blocks work it was
+    // never protecting is worse than no guard: it is wrong AND it is trusted.
+    if (needsModel(entry.manifest) && !(await this.hasModelKey())) {
       throw new Error(
         'No model provider key, so the agent steps have nothing to call. ' +
           'Add one with: clarity-studio keys set anthropic — or set ANTHROPIC_API_KEY / OPENAI_API_KEY.',
