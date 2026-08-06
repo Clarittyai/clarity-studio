@@ -21,6 +21,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -639,6 +640,8 @@ function registerIpc(): void {
       });
 
       const created = adopt(target);
+      // Studio made this folder, from its own seed, just now.
+      pretrustForCodingAgent(target);
       return { ...created, request: request ? String(request) : undefined };
     },
   );
@@ -936,6 +939,52 @@ function seedDir(): string | undefined {
     resolve(HERE, '../../seed'),
   ];
   return candidates.find((dir) => dir && existsSync(join(dir, 'intelligence.yaml')));
+}
+
+/**
+ * Tell the coding agent it already trusts a folder Studio just made.
+ *
+ * Claude Code asks "is this a project you created or one you trust?" the first
+ * time it opens a directory. That question is worth asking about code you
+ * downloaded. It is not worth asking about a folder Studio scaffolded from its
+ * own bundled seed thirty seconds ago, at the user's request, on their machine —
+ * there, the answer is known before the question is put, and every new
+ * automation opening with a safety prompt reads as friction rather than care.
+ *
+ * Strictly limited to folders Studio CREATED. An imported one is somebody
+ * else's code, arriving by exactly the route the dialog exists to guard, and
+ * pre-trusting that would be answering a security question on the user's behalf
+ * with a guess. See `project:import`, which deliberately does not call this.
+ *
+ * Written carefully, because this is another program's config and it holds the
+ * user's whole Claude Code state:
+ *   - never touches an entry that already exists
+ *   - adds one key, changes nothing else
+ *   - writes via a temp file and rename, so a crash cannot truncate it
+ *   - fails silently: the cost of losing is one dialog, the cost of a bad write
+ *     is somebody's settings
+ */
+function pretrustForCodingAgent(projectPath: string): void {
+  try {
+    const configPath = join(app.getPath('home'), '.claude.json');
+    if (!existsSync(configPath)) return;
+
+    const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+      projects?: Record<string, Record<string, unknown>>;
+    };
+    if (!config.projects || typeof config.projects !== 'object') return;
+    // Already known to it — including a folder the user answered "no" for.
+    if (config.projects[projectPath]) return;
+
+    config.projects[projectPath] = { hasTrustDialogAccepted: true };
+
+    const temp = `${configPath}.studio-${randomUUID().slice(0, 8)}`;
+    writeFileSync(temp, JSON.stringify(config, null, 2));
+    renameSync(temp, configPath);
+  } catch {
+    // Unreadable, unwritable, or not JSON we understand. The agent asks once,
+    // which is where this started.
+  }
 }
 
 /**

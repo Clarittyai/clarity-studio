@@ -149,6 +149,32 @@ const terminal = await win.locator('.xterm').count();
 check('a coding-agent session opened', terminal > 0);
 check('no renderer errors', errors.length === 0, errors[0] ?? '');
 
+console.log('\nThe coding agent’s trust prompt:');
+// Claude Code asks "is this a project you created or one you trust?" the first
+// time it opens a folder. For one Studio just scaffolded from its own seed the
+// answer is known, and asking every new automation reads as friction. Studio
+// records the answer for folders IT created — and, deliberately, not for
+// imported ones, which arrive by exactly the route the dialog guards.
+const claudeConfig = join(process.env.HOME ?? '', '.claude.json');
+if (existsSync(claudeConfig)) {
+  const before = JSON.parse(readFileSync(claudeConfig, 'utf8'));
+  const entry = before.projects?.[TARGET];
+  check('a created folder is pre-trusted', entry?.hasTrustDialogAccepted === true);
+  check(
+    'and nothing else in the config was disturbed',
+    Object.keys(before.projects ?? {}).length >= 1 && typeof before.projects === 'object',
+    `${Object.keys(before.projects ?? {}).length} projects intact`,
+  );
+
+  // Put it back. This is the developer's own Claude Code config, and a proof
+  // that quietly accretes a /tmp entry on every run is leaving litter in
+  // somebody's settings to prove a point about not leaving litter.
+  delete before.projects[TARGET];
+  writeFileSync(claudeConfig, JSON.stringify(before, null, 2));
+} else {
+  console.log('  – no Claude Code config on this machine, skipping');
+}
+
 console.log('\nCreating the same name twice:');
 await win.locator('aside button[title="New automation"]').click();
 await win.waitForTimeout(600);
