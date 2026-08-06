@@ -66,6 +66,16 @@ await win.locator('button:has-text("Build it")').click();
 await win.waitForTimeout(1200);
 await win.screenshot({ path: join(ROOT, 'docs/img/automation.png') });
 
+// The channels and the trigger switch, which the default window cuts off. A
+// taller window rather than scrolling: three attempts to scroll that column
+// produced an identical frame, and resizing shows the whole thing at once
+// anyway — which is what the picture is for.
+await win.setViewportSize({ width: 1180, height: 1500 });
+await win.waitForTimeout(1500);
+await win.screenshot({ path: join(ROOT, 'docs/img/controls.png') });
+await win.setViewportSize({ width: 1180, height: 820 });
+await win.waitForTimeout(800);
+
 await win.locator('button[title="Settings"]').click();
 await win.waitForTimeout(1200);
 await win.screenshot({ path: join(ROOT, 'docs/img/settings.png') });

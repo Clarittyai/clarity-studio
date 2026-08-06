@@ -19,11 +19,21 @@ dollar they spend.
 (`once per message · max 25`), an agent that decides what counts as an invoice, and a send marked
 `write` so a dry run previews it instead of mailing anyone.*
 
-*The right column is honest about something that matters: Gmail is **not** connectable here. Studio
-wires the nine connectors in `packages/connectors` — Slack, GitHub, Notion, Linear, Stripe,
-Brave Search and friends — by taking their credentials directly. The rest of the catalog is OAuth,
-and that sign-in belongs to the hosted platform. Saying so beats printing a command that will
-always fail.*
+*The right column is honest about what this machine can reach. Studio wires thirteen connectors
+from `packages/connectors` — Slack, Gmail, Jira, GitHub, Notion, Linear, Stripe, Brave Search,
+Telegram, WhatsApp and friends — by holding their credentials in the OS keyring and brokering every
+call, so an automation never sees a key. Gmail and Jira use **your own** app, not ours: there is no
+Claritty OAuth client to sign into. Anything the catalog names but Studio cannot broker says so,
+rather than printing a command that will always fail.*
+
+![Connections, channels and triggers](docs/img/controls.png)
+
+*Everything an automation needs from you, in one column. Accounts are connected once in Settings and
+shared by every automation. A finished run reports through whichever channels you switch on — and a
+channel with no credentials cannot be switched on at all, because a toggle that silently sends
+nothing is the failure a notification exists to prevent. Schedules arrive **off**: an automation
+that started running because you opened its page would be your machine doing work you never asked
+for.*
 
 ![Home](docs/img/home.png)
 
