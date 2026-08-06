@@ -96,6 +96,37 @@ not hold together. That is a feature: fix the manifest, don't work around it.
 - Nothing durable on local disk — the container is disposable.
 - Every persisted row carries a `user_id`.
 
+## Four things that only fail when it runs
+
+Every one of these passes `claritty-seed-verify`, boots cleanly, and fails on the
+first real run. They are here because each one cost a debugging session.
+
+**A `forEach` step collects into `{items: [...]}`, not a bare list.** So the next
+step reads `${steps.fanout.output.items}`. Writing `${steps.fanout.output}` hands
+the following tool a dict where it declared an array, and the run dies at the
+last step having done all the work.
+
+**An optional workflow input still binds as null.** `${input.folder}` on a run
+where nobody supplied `folder` resolves to null, and a tool field declared
+`type: string` rejects null even with `required: false`. Do not wire an optional
+workflow input into a tool field — give the tool its own default and read the
+environment, or make the input genuinely required.
+
+**A tool named in `agents[].tools` but never mentioned in the prompt is never
+called.** The step succeeds, does less than it looks like it did, and reports
+success. Name every tool in the prompt that may call it.
+
+**A tool id that no connector implements fails at call time, not at boot.**
+Check `catalog/AVAILABLE.md`: it is the only list of what this machine can reach.
+A manifest marked `"localConnector": false`, or a tool marked `"local": false`,
+names something real that Studio cannot call — `brave-search.search` looks right
+and does not exist; the tool is `brave-search.web`.
+
+And one thing that is not a trap but reads like one: a run whose steps all
+SKIPPED still reports `status: success`, because skipping is a strategy rather
+than a failure. Studio's timeline says what actually happened. Do not take the
+engine's verdict as proof the work was done — read the steps.
+
 ## Working loop
 
 After any change:
