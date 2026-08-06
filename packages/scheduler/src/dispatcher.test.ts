@@ -232,3 +232,52 @@ describe('counting missed windows', () => {
     expect(count).toBe(100);
   });
 });
+
+describe('bringing a stopped automation up', () => {
+  it('starts it, then fires', async () => {
+    // The desktop case: automations are normally stopped. Without this the
+    // schedule resolves to no target and skips, silently, every time.
+    const now = Date.parse('2026-06-15T09:00:01Z');
+    seedInstance({ dueAt: Date.parse('2026-06-15T09:00:00Z') });
+    const started: string[] = [];
+    let up = false;
+
+    const results = await new Dispatcher({
+      store,
+      now: () => now,
+      ensureRunning: async (projectId) => {
+        started.push(projectId);
+        up = true;
+      },
+      resolveTarget: () => (up ? { baseUrl: 'http://127.0.0.1:33001', internalSecret: 's' } : undefined),
+    }).tick();
+
+    expect(started).toEqual(['p1']);
+    expect(results[0]!.fired).toBe(true);
+  });
+
+  it('reports a failure to start rather than calling it a skip', async () => {
+    // "skipped" reads like a decision. An automation that could not start at
+    // its scheduled time is the thing you most need telling about.
+    const now = Date.parse('2026-06-15T09:00:01Z');
+    const instance = seedInstance({ dueAt: Date.parse('2026-06-15T09:00:00Z') });
+
+    const results = await new Dispatcher({
+      store,
+      now: () => now,
+      ensureRunning: async () => {
+        throw new Error('Docker is not running');
+      },
+      resolveTarget: () => undefined,
+    }).tick();
+
+    expect(results[0]!.fired).toBe(false);
+    expect(results[0]!.skipped).toBeUndefined();
+    expect(results[0]!.error).toMatch(/Docker is not running/);
+    expect(fetchMock).not.toHaveBeenCalled();
+    // And it must still be rescheduled, or one bad morning leaves it due
+    // forever, retrying every tick.
+    expect(store.triggers.list('p1')[0]!.nextRunAt).toBeGreaterThan(now);
+    expect(store.triggers.list('p1')[0]!.lastStatus).toBe('failed');
+  });
+});

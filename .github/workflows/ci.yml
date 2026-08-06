@@ -51,6 +51,10 @@ jobs:
       # "Bring your own model" is a promise too: a configured endpoint must
       # actually receive the run's model call.
       - run: pnpm proof:byom
+      # And "it runs on its schedule" is the biggest promise of the three. This
+      # caught the app never constructing a Dispatcher at all, so the triggers it
+      # listed — with a next-run time — fired nothing.
+      - run: pnpm proof:schedule
 
   # The design system is generated from clarity-platform. If someone edits the
   # generated files by hand, or upstream moves a load-bearing value, this fails

@@ -56,6 +56,20 @@ export interface DispatcherOptions {
   /** Resolve where a project's automation is reachable, or undefined when it
    *  is not currently running. */
   resolveTarget: (projectId: string) => DispatchTarget | undefined;
+  /**
+   * Bring a project up before firing, when the host can.
+   *
+   * `resolveTarget` answers "where is it"; this answers "make it be there". In
+   * a desktop app the automations are normally stopped — you open the window,
+   * you do not leave every automation running — so without this every schedule
+   * resolves to no target and skips, silently, forever. The CLI's `serve` has
+   * exactly one automation and it is already up, so it passes nothing.
+   *
+   * Throwing here is reported as a failed dispatch rather than a skip: an
+   * automation that cannot start at its scheduled time is the thing you most
+   * need telling about, and "skipped" reads like a decision.
+   */
+  ensureRunning?: (projectId: string) => Promise<void>;
   tickMs?: number;
   now?: () => number;
   onEvent?: (event: DispatchResult & { at: number }) => void;
@@ -143,6 +157,17 @@ export class Dispatcher {
       // every missed window in order — is deferred rather than faked: for most
       // automations, running eight backdated digests at once is worse than
       // running one, so pretending otherwise would be a trap.
+    }
+
+    if (this.opts.ensureRunning) {
+      try {
+        await this.opts.ensureRunning(instance.projectId);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        store.triggers.recordRun(instance.id, now, 'failed', message);
+        advance();
+        return { instanceId: instance.id, fired: false, error: message };
+      }
     }
 
     const target = this.opts.resolveTarget(instance.projectId);

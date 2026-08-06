@@ -25,7 +25,8 @@
     "app": "pnpm start",
     "check:app": "node scripts/full-check.mjs",
     "package": "pnpm --filter @clarity-studio/desktop package",
-    "shots": "node scripts/shots.mjs"
+    "shots": "node scripts/shots.mjs",
+    "proof:schedule": "node scripts/schedule-proof.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

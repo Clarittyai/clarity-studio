@@ -108,7 +108,11 @@ function db(): Store {
 }
 
 /** Holds the control plane and the running automations for this window. */
-const runtime = new RuntimeHost(db, (runId) => void announce(runId));
+const runtime = new RuntimeHost(
+  db,
+  (runId) => void announce(runId),
+  (event) => void announceScheduleFailure(event),
+);
 /** Holds the coding-agent pty sessions. */
 const terminals = new TerminalHost();
 
@@ -235,6 +239,40 @@ async function announce(runId: string): Promise<void> {
   } catch {
     // Already best-effort; there is no second channel to report a failure of
     // the failure through.
+  }
+}
+
+/**
+ * A scheduled run that failed before it began.
+ *
+ * The dispatcher writes this straight to the store — it never reaches the
+ * control plane's `completeRun`, where the normal notification hook lives. So
+ * without this the failures nobody was watching would be exactly the silent
+ * ones: the automation that could not start at 6am says nothing, and the first
+ * you hear of it is a digest that never arrived.
+ */
+async function announceScheduleFailure(event: { runId?: string; error: string }): Promise<void> {
+  try {
+    const store = db();
+    const run = event.runId ? store.getRun(event.runId) : undefined;
+    const project = run ? store.listProjects().find((p) => p.id === run.projectId) : undefined;
+    const prefs = run ? readSettings().notify?.[run.projectId] ?? { desktop: true } : { desktop: true };
+    const summary = {
+      automation: project?.name ?? 'A scheduled automation',
+      status: 'failed',
+      error: event.error,
+    };
+
+    if (prefs.desktop !== false && Notification.isSupported()) {
+      new Notification({ title: headline(summary), body: detail(summary) }).show();
+    }
+    if (!run) return;
+    const v = vault();
+    const results = await deliver(prefs, summary, (i) => v.bundle(i, run.projectId), Date.now());
+    if (results.length > 0) lastDelivery.set(run.projectId, results);
+  } catch {
+    // Best-effort, like announce(): there is no second channel through which to
+    // report the failure of the failure.
   }
 }
 
@@ -995,6 +1033,13 @@ void app.whenReady().then(() => {
   registerIpc();
   createWindow();
 
+  // Run the schedules. Until now Studio listed triggers and showed a next-run
+  // time while nothing fired them — the Dispatcher was only ever constructed by
+  // the CLI's `serve`, so a weekday-morning automation did nothing unless you
+  // separately kept a terminal open. An app that says "it runs on its schedule"
+  // has to be the thing that runs it.
+  runtime.startScheduling();
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -1013,6 +1058,7 @@ app.on('before-quit', (event) => {
   for (const w of watchers.values()) w.close();
   watchers.clear();
   terminals.shutdown();
+  runtime.stopScheduling();
   void runtime.shutdown().finally(() => {
     store?.close();
     store = undefined;

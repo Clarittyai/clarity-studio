@@ -17,6 +17,7 @@ import { basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import { ControlPlane, EnvSecretSource, type SecretSource } from '@clarity-studio/control-plane';
+import { Dispatcher } from '@clarity-studio/scheduler';
 import type { Store } from '@clarity-studio/db';
 import {
   allocatePort,
@@ -88,6 +89,9 @@ class VaultSecretSource implements SecretSource {
 interface Live {
   runner: Runner;
   baseUrl: string;
+  /** The project's CLARITY_INTERNAL_SECRET, which the scheduler must present
+   *  when it asks the automation to run a due trigger. */
+  internalSecret: string;
 }
 
 export class RuntimeHost {
@@ -105,10 +109,53 @@ export class RuntimeHost {
    * automation. Both call sites below funnel through here, which is why the hook
    * lives at `completeRun` rather than next to one of them.
    */
+  private dispatcher?: Dispatcher;
+
   constructor(
     private readonly store: () => Store,
     private readonly onRunComplete: (runId: string) => void = () => {},
+    /** How a scheduled run that failed before it began gets reported. The
+     *  dispatcher's own failure path writes straight to the store, so it never
+     *  passes through the control plane's completeRun where `onRunComplete`
+     *  lives — the runs you most need telling about would be the silent ones. */
+    private readonly onScheduleEvent: (event: { runId?: string; error: string }) => void = () => {},
   ) {}
+
+  /**
+   * Run the schedules while the window is open.
+   *
+   * Studio listed triggers and showed a next-run time, and nothing fired them:
+   * the Dispatcher was only ever constructed by the CLI's `serve`. A desktop app
+   * whose own copy says an automation "runs on its schedule" has to be the thing
+   * that runs it.
+   *
+   * `ensureRunning` is what makes this work here rather than in the CLI: the
+   * CLI has one automation and it is already up, whereas Studio's are normally
+   * stopped, so every schedule would resolve to no target and skip.
+   */
+  startScheduling(): void {
+    if (this.dispatcher) return;
+    this.dispatcher = new Dispatcher({
+      store: this.store(),
+      ensureRunning: async (projectId) => {
+        await this.start(projectId);
+      },
+      resolveTarget: (projectId) => {
+        const entry = this.live.get(projectId);
+        return entry ? { baseUrl: entry.baseUrl, internalSecret: entry.internalSecret } : undefined;
+      },
+      onEvent: (event) => {
+        if (event.error) this.onScheduleEvent({ runId: event.runId, error: event.error });
+        else if (event.fired && event.runId) this.onRunComplete(event.runId);
+      },
+    });
+    this.dispatcher.start();
+  }
+
+  stopScheduling(): void {
+    this.dispatcher?.stop();
+    this.dispatcher = undefined;
+  }
 
   private async ensurePlane(): Promise<ControlPlane> {
     if (this.plane) return this.plane;
@@ -194,7 +241,11 @@ export class RuntimeHost {
         await runner.start();
         await runner.waitUntilHealthy();
         store.setProjectStatus(projectId, 'running');
-        this.live.set(projectId, { runner, baseUrl: runner.baseUrl });
+        const internalSecret = environment.CLARITY_INTERNAL_SECRET;
+        // An empty secret would not fail here — it would fail later, as a 401
+        // on a scheduled trigger at 6am, reported as "the automation refused".
+        if (!internalSecret) throw new Error('The control plane issued no internal secret.');
+        this.live.set(projectId, { runner, baseUrl: runner.baseUrl, internalSecret });
         return { baseUrl: runner.baseUrl };
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause);
