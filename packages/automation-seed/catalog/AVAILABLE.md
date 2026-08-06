@@ -12,7 +12,7 @@ If you need something that is not here, do not reach for the closest-looking id.
 Read `.claude/skills/add-an-integration/SKILL.md` and write the connector
 request — that is a defined path, and it takes an afternoon.
 
-## Available (12)
+## Available (13)
 
 | Integration | Tools you can call | Credentials it asks for |
 | --- | --- | --- |
@@ -20,6 +20,7 @@ request — that is a defined path, and it takes an afternoon.
 | **Brave Search** (`brave-search`) | `brave-search.web` | `api_key` |
 | **GitHub** (`github`) | `github.list_issues`<br>`github.create_issue`<br>`github.comment` | `token` |
 | **Gmail** (`gmail`) | `gmail.send`<br>`gmail.search`<br>`gmail.get_message` | `client_id`, `client_secret`, `refresh_token` |
+| **Jira** (`jira`) | `jira.create_issue`<br>`jira.search_jql`<br>`jira.add_comment` | `site`, `email`, `api_token` |
 | **Linear** (`linear`) | `linear.create_issue` | `api_key` |
 | **Notion** (`notion`) | `notion.create_page`<br>`notion.query_database` | `token` |
 | **Outbound webhook** (`outbound-webhook`) | `outbound-webhook.post` | — |
@@ -29,10 +30,10 @@ request — that is a defined path, and it takes an afternoon.
 | **Telegram** (`telegram`) | `telegram.send_message` | `bot_token`, `chat_id` |
 | **WhatsApp** (`whatsapp`) | `whatsapp.send_message` | `access_token`, `phone_number_id`, `to` |
 
-## Not available here yet (28)
+## Not available here yet (27)
 
 The platform provides these; Studio has no connector for them. Their manifests
 are still in `integrations/` because knowing the service exists is useful — but
 every tool they name will fail if you call it.
 
-`anthropic` · `asana` · `calendly` · `clickup` · `discord` · `dropbox` · `facebook` · `gitlab` · `google-calendar` · `google-drive` · `hubspot` · `instagram` · `jira` · `linkedin` · `mailchimp` · `microsoft-teams` · `openai` · `outlook` · `outlook-calendar` · `pipedrive` · `posthog` · `quickbooks` · `salesforce` · `tiktok` · `trello` · `twilio` · `x-twitter` · `xero`
+`anthropic` · `asana` · `calendly` · `clickup` · `discord` · `dropbox` · `facebook` · `gitlab` · `google-calendar` · `google-drive` · `hubspot` · `instagram` · `linkedin` · `mailchimp` · `microsoft-teams` · `openai` · `outlook` · `outlook-calendar` · `pipedrive` · `posthog` · `quickbooks` · `salesforce` · `tiktok` · `trello` · `twilio` · `x-twitter` · `xero`

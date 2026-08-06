@@ -295,6 +295,60 @@ describe('the catalog', () => {
     ).rejects.toThrow(/must never appear in a URL/);
   });
 
+  it('gives Jira basic auth, the site in the host, and rich text where it wants it', async () => {
+    // Three things Jira fails on, each only at run time on someone's real
+    // instance: the site is part of the host, the credential pair is basic
+    // auth, and v3 rejects a plain string where it wants a document.
+    const { resolveTool } = await import('./catalog.js');
+    const found = resolveTool('jira', 'create_issue')!;
+
+    const fetchImpl = ok({ key: 'BANK-42', id: '10001' });
+    const result = await executeTool({
+      spec: found.tool,
+      args: {
+        project: 'BANK',
+        summary: '[Leumi] 2026-07 Statement.pdf',
+        issue_type: 'Task',
+        description: 'Filed automatically.',
+      },
+      credentials: { site: 'acme.atlassian.net', email: 'me@acme.com', api_token: 'tok' },
+      fetchImpl,
+    });
+
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('https://acme.atlassian.net/rest/api/3/issue');
+    expect((init as RequestInit).headers).toMatchObject({
+      authorization: `Basic ${Buffer.from('me@acme.com:tok').toString('base64')}`,
+    });
+
+    const body = JSON.parse(String((init as RequestInit).body));
+    expect(body.fields.summary).toBe('[Leumi] 2026-07 Statement.pdf');
+    expect(body.fields.project).toEqual({ key: 'BANK' });
+    // Atlassian Document Format, not a string.
+    expect(body.fields.description.type).toBe('doc');
+    expect(body.fields.description.content[0].content[0].text).toBe('Filed automatically.');
+    expect(result).toBe('BANK-42');
+  });
+
+  it('does not leak the Jira token into the url', async () => {
+    // `site` is named in pathCredentials; the token is not, and must still be
+    // refused there.
+    await expect(
+      executeTool({
+        spec: {
+          id: 'jira.bad',
+          method: 'GET',
+          url: 'https://{creds.site}/x/{creds.api_token}',
+          auth: { type: 'none' },
+          pathCredentials: ['site'],
+        },
+        args: {},
+        credentials: { site: 'acme.atlassian.net', api_token: 'tok' },
+        fetchImpl: ok({}),
+      }),
+    ).rejects.toThrow(/must never appear in a URL/);
+  });
+
   it('every catalog tool has a public https URL and a real auth field', async () => {
     const { CATALOG } = await import('./catalog.js');
     for (const integration of CATALOG) {

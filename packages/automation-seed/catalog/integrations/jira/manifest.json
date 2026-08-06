@@ -38,7 +38,7 @@
           "required": true
         }
       },
-      "local": false
+      "local": true
     },
     {
       "id": "jira.search_jql",
@@ -55,7 +55,7 @@
           "required": true
         }
       },
-      "local": false
+      "local": true
     },
     {
       "id": "jira.transition",
@@ -77,8 +77,13 @@
         }
       },
       "local": false
+    },
+    {
+      "id": "jira.add_comment",
+      "description": "Comment on an issue.",
+      "local": true
     }
   ],
-  "localConnector": false,
-  "_localNote": "Studio CANNOT broker this yet: no connector in packages/connectors. Calling any of these tools from an automation will fail at run time. See .claude/skills/add-an-integration/SKILL.md to request one."
+  "localConnector": true,
+  "_localNote": "Studio can broker this. Only tools marked \"local\": true can be called — the rest are hosted-platform only."
 }

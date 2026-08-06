@@ -268,6 +268,74 @@ export const CATALOG: IntegrationSpec[] = [
   },
 
   {
+    id: 'jira',
+    name: 'Jira',
+    howToConnect:
+      'Create an API token at https://id.atlassian.com/manage-profile/security/api-tokens, then give your ' +
+      'site (the yourcompany.atlassian.net part, no https://), the email you sign in with, and that token. ' +
+      'Jira Cloud authenticates the pair as HTTP basic — there is no OAuth app to register and no admin needed.',
+    fields: [
+      { key: 'site', label: 'Site', secret: false, placeholder: 'yourcompany.atlassian.net' },
+      { key: 'email', label: 'Account email', secret: false, placeholder: 'you@company.com' },
+      { key: 'api_token', label: 'API token', secret: true },
+    ],
+    tools: [
+      {
+        id: 'jira.create_issue',
+        summary: 'Create an issue.',
+        method: 'POST',
+        // The site is in the host, so it must be interpolated — and it is an
+        // address, not a secret, which is exactly what pathCredentials is for.
+        url: 'https://{creds.site}/rest/api/3/issue',
+        auth: { type: 'basic', userField: 'email', passwordField: 'api_token' },
+        pathCredentials: ['site'],
+        body: {
+          fields: {
+            project: { key: '{arg.project}' },
+            summary: '{arg.summary}',
+            issuetype: { name: '{arg.issue_type}' },
+            // Jira Cloud v3 takes rich text, not a string. A plain string is
+            // accepted by the schema and rejected by the API, which is the kind
+            // of failure that only shows up on someone's first real run.
+            description: {
+              type: 'doc',
+              version: 1,
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: '{arg.description}' }] }],
+            },
+          },
+        },
+        result: 'key',
+      },
+      {
+        id: 'jira.search_jql',
+        summary: 'Find issues with JQL — use it to avoid filing the same thing twice.',
+        method: 'GET',
+        url: 'https://{creds.site}/rest/api/3/search/jql',
+        auth: { type: 'basic', userField: 'email', passwordField: 'api_token' },
+        pathCredentials: ['site'],
+        query: { jql: '{arg.jql}', maxResults: '{arg.max_results}', fields: 'summary' },
+        result: 'issues',
+      },
+      {
+        id: 'jira.add_comment',
+        summary: 'Comment on an issue.',
+        method: 'POST',
+        url: 'https://{creds.site}/rest/api/3/issue/{arg.issue}/comment',
+        auth: { type: 'basic', userField: 'email', passwordField: 'api_token' },
+        pathCredentials: ['site'],
+        body: {
+          body: {
+            type: 'doc',
+            version: 1,
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: '{arg.text}' }] }],
+          },
+        },
+        result: 'id',
+      },
+    ],
+  },
+
+  {
     id: 'linear',
     name: 'Linear',
     howToConnect: 'Create a personal API key in Linear under Settings → Security & access → Personal API keys.',
