@@ -139,7 +139,11 @@ export class ControlPlane {
       CLARITTY_PLATFORM_URL: base,
       CLARITY_PLATFORM_URL: base,
       CLARITTY_LLM_PROXY_URL: `${base}/api/v1`,
-      CLARITTY_OTEL_ENDPOINT: base,
+      // No CLARITTY_OTEL_ENDPOINT. Setting it made the SDK try to import
+      // opentelemetry, which nothing installs, so every automation started with
+      // a red traceback about missing packages — for traces nothing here
+      // collects. An app whose promise is "no telemetry" should not be asking
+      // for a tracing exporter it has no use for.
       CLARITTY_AUTH_TOKEN: id.authToken,
       CLARITY_INTERNAL_SECRET: id.internalSecret,
       CLARITY_APP_INTEGRATION_SECRET: id.appSecret,
