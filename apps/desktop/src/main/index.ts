@@ -41,6 +41,7 @@ import { SafeStorageBackend, Vault, VaultUnavailableError, secretKey } from '@cl
 import { safeStorage } from 'electron';
 
 import { deliver, detail, headline, type DeliveryResult, type NotifyPrefs } from './notifier.js';
+import { nextRunAt } from '@clarity-studio/scheduler';
 import { RuntimeHost } from './runtime.js';
 import { TerminalHost } from './terminal.js';
 
@@ -334,8 +335,84 @@ function registerIpc(): void {
 
   ipcMain.handle('steps:list', (_event, runId: string) => db().getSteps(String(runId)));
 
-  ipcMain.handle('triggers:list', (_event, projectId: string) =>
-    db()
+/**
+ * Make the store's trigger rows match what the manifest declares.
+ *
+ * The manifest DECLARES triggers; the dispatcher fires INSTANCES; nothing in
+ * Studio created the instances. Only the CLI's `trigger add` did. So the
+ * Triggers band was empty for every automation, and the scheduler I wired had
+ * nothing to dispatch — the mechanism worked and fired nothing.
+ *
+ * Created DISABLED, always. An automation that starts running on a schedule
+ * because you opened it is not a convenience; it is your machine doing work you
+ * never asked for, possibly outward-facing, possibly at 3am. Turning it on is
+ * one switch, and it should be yours to throw.
+ *
+ * Reconciles rather than appends: a trigger removed from the manifest has its
+ * instance removed too, because an instance with no declaration behind it fires
+ * a workflow the automation no longer describes.
+ */
+function syncTriggers(projectId: string): void {
+  const store = db();
+  const project = store.getProject(projectId);
+  if (!project) return;
+  const file = manifestIn(project.path);
+  if (!file) return;
+
+  let declared: Array<Record<string, unknown>> = [];
+  try {
+    const parsed = parseYaml(readFileSync(file, 'utf8')) as { triggers?: Array<Record<string, unknown>> };
+    declared = Array.isArray(parsed?.triggers) ? parsed.triggers : [];
+  } catch {
+    // Mid-edit. Leave what is there rather than deleting on a half-written file.
+    return;
+  }
+
+  const existing = store.triggers.list(projectId);
+  const declaredIds = new Set(declared.map((t) => String(t.id ?? '')).filter(Boolean));
+
+  for (const row of existing) {
+    if (!declaredIds.has(row.recipeTriggerId)) store.triggers.remove(row.id);
+  }
+
+  for (const decl of declared) {
+    const recipeId = String(decl.id ?? '');
+    if (!recipeId) continue;
+    if (existing.some((row) => row.recipeTriggerId === recipeId)) continue;
+
+    const type = String(decl.type ?? 'SCHEDULE');
+    // The defaults the automation itself suggests, so the row is usable the
+    // moment it is switched on rather than needing a time typed in first.
+    const fields = Array.isArray(decl.configFields) ? (decl.configFields as Array<Record<string, unknown>>) : [];
+    const defaultOf = (key: string) =>
+      fields.find((f) => f.key === key)?.default as string | undefined;
+    const time = defaultOf('time') ?? '09:00';
+    const timezone =
+      defaultOf('timezone') ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+
+    store.triggers.add({
+      projectId,
+      recipeTriggerId: recipeId,
+      workflowId: (decl.workflow as string | undefined) ?? null,
+      type,
+      // Never on by default. See above.
+      enabled: false,
+      schedule: type === 'SCHEDULE' ? { mode: 'DAILY', time, timezone } : undefined,
+      timezone,
+      // No next run until it is enabled — a due time on a disabled trigger
+      // reads as "this will happen".
+      nextRunAt: null,
+      missedPolicy: 'skip',
+    });
+  }
+}
+
+  ipcMain.handle('triggers:list', (_event, projectId: string) => {
+    // Reconciled on read: the manifest is the source of truth and it changes
+    // under us every time the agent writes. A separate "sync" call would be one
+    // more thing to forget at one more call site.
+    syncTriggers(String(projectId));
+    return db()
       .triggers.list(String(projectId))
       .map((t) => ({
         id: t.id,
@@ -346,8 +423,28 @@ function registerIpc(): void {
         nextRunAt: t.nextRunAt,
         lastStatus: t.lastStatus,
         missedCount: t.missedCount,
-      })),
-  );
+      }));
+  });
+
+  /**
+   * Switch a trigger on or off.
+   *
+   * Enabling is what gives it a next run: a disabled row has none, because a
+   * time shown against something that will not fire reads as a promise. On the
+   * way off it is cleared again for the same reason.
+   */
+  ipcMain.handle('trigger:enable', (_event, triggerId: string, enabled: boolean) => {
+    const store = db();
+    const row = store.triggers.get(String(triggerId));
+    if (!row) return;
+    store.triggers.setEnabled(row.id, Boolean(enabled));
+    if (!enabled) {
+      store.triggers.setNextRun(row.id, null);
+      return;
+    }
+    const schedule = row.schedule as Parameters<typeof nextRunAt>[0] | undefined;
+    store.triggers.setNextRun(row.id, schedule ? nextRunAt(schedule) : null);
+  });
 
   ipcMain.handle('spend:get', (_event, projectId: string, sinceMs: number) =>
     db().spendSince(String(projectId), Number(sinceMs)),

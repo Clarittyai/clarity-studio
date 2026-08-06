@@ -186,7 +186,21 @@ const cleared = await win
   .catch(() => false);
 check('and clears once the agent renames it', cleared, cleared ? '' : 'the notice is stuck');
 
-check('triggers band', /Triggers/.test(body));
+// The seed declares one schedule. Studio must turn that declaration into a row
+// you can arm — nothing did, so the band was empty for every automation and the
+// dispatcher had nothing to fire.
+check('the manifest’s trigger appears', /every-morning/i.test(await t()));
+// And it must arrive OFF. An automation that starts running because you opened
+// it is your machine doing work you did not ask for.
+check('and arrives switched off', /—\s*off/.test(await t()));
+const armed = await win.locator('[data-trigger] button[title*="Turn this schedule on"]').count();
+check('with a switch to arm it', armed === 1, `${armed} switch(es)`);
+await win.locator('[data-trigger] button[title*="Turn this schedule on"]').click();
+await win.waitForTimeout(900);
+check('arming it gives it a next run', /\bin\s/.test(await t()) && !/—\s*off/.test(await t()));
+await win.locator('[data-trigger] button[title*="Turn this schedule off"]').click();
+await win.waitForTimeout(700);
+check('and switching it off clears that', /—\s*off/.test(await t()));
 check('terminal dock present', /Build it/.test(body));
 check('xterm mounted', (await win.locator('.xterm').count()) === 1);
 check('no pty error', !/posix_spawnp|Error invoking/.test(body));

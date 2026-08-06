@@ -775,12 +775,19 @@ function ProjectView({
           <EmptyState
             size="section"
             title="Nothing scheduled"
-            body="This automation only runs when you press Run. Give it a schedule and it will run on its own — while Studio is open."
+            body="This automation declares no trigger. Add one to intelligence.yaml and it appears here, ready to switch on."
           />
         ) : (
           <div className="divide-y divide-border/60">
             {triggers.map((trigger) => (
-              <TriggerRow key={trigger.id} trigger={trigger} />
+              <TriggerRow
+                key={trigger.id}
+                trigger={trigger}
+                onToggle={async (on) => {
+                  await api.enableTrigger(trigger.id, on).catch(() => undefined);
+                  await load();
+                }}
+              />
             ))}
           </div>
         )}
@@ -1029,21 +1036,48 @@ function nextRunLabel(triggers: Trigger[]): string {
   return `${Math.round(mins / 1440)}d`;
 }
 
-function TriggerRow({ trigger }: { trigger: Trigger }) {
+/**
+ * One trigger, and the switch that arms it.
+ *
+ * Instances arrive disabled — Studio creates them from the manifest, and an
+ * automation that began running on a schedule because you opened it would be
+ * your machine doing work you never asked for. So this switch is the moment a
+ * schedule becomes real, and it should feel like one.
+ */
+function TriggerRow({ trigger, onToggle }: { trigger: Trigger; onToggle: (on: boolean) => void }) {
   return (
-    <div className="flex items-center gap-3 py-3">
+    <div data-trigger className="flex items-center gap-3 py-3">
       <StatusDot status={trigger.enabled ? 'running' : 'stopped'} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{trigger.recipeTriggerId}</p>
-        <p className="text-xs text-muted-foreground">{trigger.description}</p>
+        <p className="text-xs text-muted-foreground">
+          {trigger.description}
+          {!trigger.enabled && ' — off'}
+        </p>
       </div>
       {trigger.missedCount > 0 && <Badge tone="warning">{trigger.missedCount} missed</Badge>}
       {trigger.type === 'WEBHOOK' && <Badge>webhook</Badge>}
-      {trigger.nextRunAt && (
+      {trigger.enabled && trigger.nextRunAt && (
         <span className="text-xs tabular-nums text-muted-foreground">
           in {nextRunLabel([trigger])}
         </span>
       )}
+      <button
+        type="button"
+        title={trigger.enabled ? 'Turn this schedule off' : 'Turn this schedule on'}
+        onClick={() => onToggle(!trigger.enabled)}
+        className={cn(
+          'relative h-5 w-9 shrink-0 rounded-full transition-colors',
+          trigger.enabled ? 'bg-accent' : 'bg-foreground/15',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all',
+            trigger.enabled ? 'left-[18px]' : 'left-0.5',
+          )}
+        />
+      </button>
     </div>
   );
 }

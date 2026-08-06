@@ -146,6 +146,8 @@ export interface StudioApi {
   listRuns(projectId: string): Promise<Run[]>;
   listSteps(runId: string): Promise<Step[]>;
   listTriggers(projectId: string): Promise<Trigger[]>;
+  /** Switch a schedule on. Nothing fires until you do. */
+  enableTrigger(triggerId: string, enabled: boolean): Promise<void>;
   spend(projectId: string, sinceMs: number): Promise<{ costMicros: number; calls: number }>;
   /** Start (or reuse) a coding-agent session in the project folder. */
   openTerminal(
@@ -430,6 +432,7 @@ const fixtures: StudioApi = {
   async listTriggers(projectId) {
     return projectId === 'demo-1' ? demoTriggers : [];
   },
+  async enableTrigger() {},
   async spend() {
     return { costMicros: 89_100, calls: 12 };
   },

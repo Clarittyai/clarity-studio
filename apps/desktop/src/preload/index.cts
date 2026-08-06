@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('studio', {
   listRuns: (projectId: string) => ipcRenderer.invoke('runs:list', projectId),
   listSteps: (runId: string) => ipcRenderer.invoke('steps:list', runId),
   listTriggers: (projectId: string) => ipcRenderer.invoke('triggers:list', projectId),
+  enableTrigger: (triggerId: string, enabled: boolean) =>
+    ipcRenderer.invoke('trigger:enable', triggerId, enabled),
   spend: (projectId: string, sinceMs: number) => ipcRenderer.invoke('spend:get', projectId, sinceMs),
   // These two were declared on the renderer's API and called on every project
   // screen, but never bridged — so in Electron they were `undefined`, and the
