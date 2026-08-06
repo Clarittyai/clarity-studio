@@ -1160,8 +1160,9 @@ function AgentsBand({
       {agents.map((agent) => {
         const used = spent.get(agent.id);
         return (
+          /* Same as the Home list: the rule is the row's, not the button's. */
+          <div key={agent.id} className="py-0.5">
           <button
-            key={agent.id}
             type="button"
             onClick={() => onOpen(agent)}
             className="-mx-2 flex w-full items-start gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
@@ -1209,6 +1210,7 @@ function AgentsBand({
               )}
             </div>
           </button>
+          </div>
         );
       })}
     </div>
@@ -1760,8 +1762,14 @@ function HomeView({
                 const run = lastRun[project.id];
                 const broken = project.status === 'crashed' || run?.status === 'failed';
                 return (
+                  /* The divider belongs to the LIST, not to the button. With
+                     `divide-y` on the wrapper the line was the button's own top
+                     border, so it followed the button's `rounded-xl` and lifted
+                     into a curve at both ends — and `-mx-2` pushed those ends
+                     past the column. The row carries the rule; the button keeps
+                     its rounded hover. */
+                  <div key={project.id} className="py-0.5">
                   <button
-                    key={project.id}
                     type="button"
                     onClick={() => onSelect(project.id)}
                     className="-mx-2 flex w-full items-start gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
@@ -1787,6 +1795,7 @@ function HomeView({
                       {project.runtime === 'docker' ? 'docker' : 'venv'}
                     </span>
                   </button>
+                  </div>
                 );
               })}
             </div>

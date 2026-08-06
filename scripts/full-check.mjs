@@ -79,6 +79,49 @@ check('brand is platform-size', brandBox.height >= 28, `h=${Math.round(brandBox.
 let body = await t();
 check('flow renders from manifest', /Flow/.test(body) && /write|Trigger/.test(body));
 check('agents band', /digest-writer/.test(body));
+// A `divide-y` list draws its rule as each child's top border. If that child is
+// a rounded button the rule follows the curve and lifts at both ends, and a
+// negative margin pushes those ends past the column. General, because the shape
+// recurs: the rule belongs to the row, the rounding to the control inside it.
+//
+// Run here, on the automation, because this is the view carrying the most
+// lists — Connections, Agents, channels, Triggers. Run at the end of the script
+// it inspected one.
+const dividers = await win.evaluate(() => {
+  const curvedIn = (root) =>
+    [...root.querySelectorAll('.divide-y')].flatMap((list) =>
+      [...list.children]
+        .filter((child) => {
+          const s = getComputedStyle(child);
+          return parseFloat(s.borderTopWidth) > 0 && parseFloat(s.borderTopLeftRadius) > 0;
+        })
+        .map((child) => `${child.tagName.toLowerCase()}.${child.className.split(' ')[0]}`),
+    );
+
+  // Prove the detector is not vacuous before trusting a clean result: plant the
+  // exact shape it hunts for and confirm it is found. A check that inspects
+  // nothing passes just as quietly as one that inspects something good.
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-9999px';
+  host.innerHTML = '<div class="divide-y"><div></div><button class="probe-row"></button></div>';
+  document.body.append(host);
+  host.querySelector('.probe-row').style.cssText = 'border-top:1px solid red;border-radius:12px';
+  const detectorWorks = curvedIn(host).length === 1;
+  host.remove();
+
+  return { lists: document.querySelectorAll('.divide-y').length, curved: curvedIn(document), detectorWorks };
+});
+check('the divider detector actually detects', dividers.detectorWorks);
+// Two on this fixture — the agents band and the notify channels. Connections
+// and Triggers render empty states for `fresh-auto`, which have no list at all.
+// The floor exists so a page that rendered nothing cannot pass as "clean".
+check('there are lists to check', dividers.lists >= 2, `${dividers.lists} lists`);
+check(
+  'no divider follows a rounded corner',
+  dividers.curved.length === 0,
+  dividers.curved.join(', ') || `${dividers.lists} lists clean`,
+);
+
 check('triggers band', /Triggers/.test(body));
 check('terminal dock present', /Build it/.test(body));
 check('xterm mounted', (await win.locator('.xterm').count()) === 1);
