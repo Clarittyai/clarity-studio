@@ -914,12 +914,28 @@ function manifestIn(dir: string): string | undefined {
  * The automation seed, resolved the same way the CLI resolves it — from the
  * checkout when running from source, from the bundled copy otherwise.
  */
+/**
+ * Where the automation seed lives.
+ *
+ * Two homes, because the app has two lives. Running from the repo it is the
+ * workspace package; packaged it is copied into the bundle's Resources by
+ * electron-builder's `extraResources` and is NOT inside the asar, which is why
+ * `process.resourcesPath` is the right root rather than anything relative to
+ * this file.
+ *
+ * It shipped without that copy, so every packaged install failed at "New
+ * automation" — the first thing anyone does — with "Could not find the
+ * automation seed". Only the dev path was ever exercised.
+ */
 function seedDir(): string | undefined {
   const candidates = [
+    // Packaged: Contents/Resources/seed
+    join(process.resourcesPath ?? '', 'seed'),
+    // From the repo, running `electron .`
     resolve(HERE, '../../../../packages/automation-seed'),
     resolve(HERE, '../../seed'),
   ];
-  return candidates.find((dir) => existsSync(join(dir, 'intelligence.yaml')));
+  return candidates.find((dir) => dir && existsSync(join(dir, 'intelligence.yaml')));
 }
 
 /**

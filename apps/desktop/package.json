@@ -62,6 +62,19 @@
       "assets/**",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "../../packages/automation-seed",
+        "to": "seed",
+        "filter": [
+          "**/*",
+          "!**/__pycache__",
+          "!**/.venv",
+          "!**/.studio",
+          "!**/node_modules"
+        ]
+      }
+    ],
     "mac": {
       "icon": "assets/icon.png",
       "category": "public.app-category.developer-tools",

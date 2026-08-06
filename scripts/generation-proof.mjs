@@ -48,11 +48,19 @@ const REQUEST = 'Every Monday, read last week’s invoices from Gmail and send m
 const SLUG = 'weekly-invoice-digest';
 const TARGET = join(LIBRARY, SLUG);
 
-const app = await electron.launch({
-  args: ['.'],
-  cwd: join(ROOT, 'apps/desktop'),
-  env: { ...process.env, STUDIO_HOME: HOME },
-});
+// Against the PACKAGED app when one exists, because that is the only build a
+// user ever runs — and the difference is not cosmetic. The seed is copied into
+// Contents/Resources by electron-builder; running `electron .` finds it in the
+// workspace instead, so a bundle that shipped without it passed this proof
+// while every real install failed at "New automation".
+const PACKAGED = join(ROOT, 'apps/desktop/release/mac-arm64/Claritty Studio.app/Contents/MacOS/Claritty Studio');
+const packaged = existsSync(PACKAGED);
+console.log(packaged ? `Against the packaged app: ${PACKAGED}` : 'Against the dev build (no package found)');
+const app = await electron.launch(
+  packaged
+    ? { executablePath: PACKAGED, args: [], env: { ...process.env, STUDIO_HOME: HOME } }
+    : { args: ['.'], cwd: join(ROOT, 'apps/desktop'), env: { ...process.env, STUDIO_HOME: HOME } },
+);
 const win = await app.firstWindow();
 const errors = [];
 win.on('pageerror', (e) => errors.push(String(e)));
