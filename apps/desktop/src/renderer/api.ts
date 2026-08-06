@@ -93,6 +93,7 @@ export interface NotifyPrefs {
   slack?: boolean;
   slackChannel?: string;
   telegram?: boolean;
+  whatsapp?: boolean;
   email?: boolean;
   emailTo?: string;
   emailFrom?: string;
@@ -101,7 +102,7 @@ export interface NotifyPrefs {
 /** What one channel did last time, so a failed send is visible rather than
  *  assumed to have worked. */
 export interface DeliveryResult {
-  channel: 'slack' | 'telegram' | 'email';
+  channel: 'slack' | 'telegram' | 'whatsapp' | 'email';
   ok: boolean;
   error?: string;
   at: number;
@@ -111,7 +112,13 @@ export interface NotifyState {
   prefs: NotifyPrefs;
   /** A channel with no credentials cannot be switched on — doing so would send
    *  nothing, silently, which is the failure notifications exist to prevent. */
-  available: { desktop: boolean; slack: boolean; telegram: boolean; email: boolean };
+  available: {
+    desktop: boolean;
+    slack: boolean;
+    telegram: boolean;
+    whatsapp: boolean;
+    email: boolean;
+  };
   lastDelivery: DeliveryResult[];
 }
 
@@ -526,7 +533,7 @@ const fixtures: StudioApi = {
   async getNotify() {
     return {
       prefs: { desktop: true },
-      available: { desktop: true, slack: true, telegram: false, email: false },
+      available: { desktop: true, slack: true, telegram: false, whatsapp: false, email: false },
       lastDelivery: [],
     };
   },

@@ -6,7 +6,14 @@ const ok = () =>
   vi.fn().mockResolvedValue({
     ok: true,
     status: 200,
-    text: async () => JSON.stringify({ ok: true, ts: '1', id: 'e1', result: { message_id: 5 } }),
+    text: async () =>
+      JSON.stringify({
+        ok: true,
+        ts: '1',
+        id: 'e1',
+        result: { message_id: 5 },
+        messages: [{ id: 'wamid.1' }],
+      }),
   } as unknown as Response);
 
 const FINISHED = { automation: 'Invoice digest', status: 'success', error: null };
@@ -91,6 +98,34 @@ describe('delivering', () => {
     );
     expect(result!.ok).toBe(false);
     expect(result!.error).toMatch(/chat id/i);
+  });
+
+  it('messages the WhatsApp number from the connection', async () => {
+    const fetchImpl = ok();
+    const [result] = await deliver(
+      { whatsapp: true },
+      FINISHED,
+      creds({ whatsapp: { access_token: 'EAA-1', phone_number_id: '55501', to: '447700900000' } }),
+      1,
+      fetchImpl,
+    );
+    expect(result).toMatchObject({ channel: 'whatsapp', ok: true });
+    expect(String(fetchImpl.mock.calls[0]![0])).toBe(
+      'https://graph.facebook.com/v21.0/55501/messages',
+    );
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]![1].body)).to).toBe('447700900000');
+  });
+
+  it('says so when WhatsApp has no number to message', async () => {
+    const [result] = await deliver(
+      { whatsapp: true },
+      FINISHED,
+      creds({ whatsapp: { access_token: 'EAA-1', phone_number_id: '55501' } }),
+      1,
+      ok(),
+    );
+    expect(result!.ok).toBe(false);
+    expect(result!.error).toMatch(/number/i);
   });
 
   it('needs both ends of an email before sending one', async () => {

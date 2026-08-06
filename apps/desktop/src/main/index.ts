@@ -750,6 +750,7 @@ function registerIpc(): void {
         desktop: Notification.isSupported(),
         slack: has('slack'),
         telegram: has('telegram'),
+        whatsapp: has('whatsapp'),
         email: has('resend'),
       },
       lastDelivery: lastDelivery.get(id) ?? [],

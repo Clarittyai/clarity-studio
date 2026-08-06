@@ -22,9 +22,7 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export interface HttpAuthSpec {
   /** `bearer` → Authorization: Bearer <field>; `header` → a named header;
    *  `query` → a query parameter; `basic` → base64 user:pass. */
-  /** `path` — the credential goes IN the url, because the provider offers no
-   *  other way (Telegram). Declared per spec so it is a decision, not a leak. */
-  type: 'bearer' | 'header' | 'query' | 'basic' | 'none' | 'oauth2' | 'path';
+  type: 'bearer' | 'header' | 'query' | 'basic' | 'none' | 'oauth2';
   /** `oauth2` only: where a refresh token is exchanged for an access token. */
   tokenUrl?: string;
   /** `oauth2` only: the credential fields holding the user's OWN app. */
@@ -46,9 +44,24 @@ export interface HttpToolSpec {
   /** Dotted id the manifest uses, e.g. 'slack.post_message'. */
   id: string;
   method: HttpMethod;
-  /** May contain `{arg.x}` placeholders. Never `{creds.*}` — see above. */
+  /** May contain `{arg.x}` placeholders. `{creds.x}` only for the fields named
+   *  in `pathCredentials`. */
   url: string;
   auth: HttpAuthSpec;
+  /**
+   * Credential fields this spec is permitted to interpolate into its URL.
+   *
+   * A credential in a URL is forbidden by default: URLs reach logs, error
+   * messages, referrers and run history. Some providers accept a value nowhere
+   * else — Telegram puts the bot token in the path, WhatsApp the phone number
+   * id — so a spec may name those fields here. Naming them makes it a decision
+   * recorded in the connector rather than a hole in the rule, and every listed
+   * value is scrubbed from anything the call throws.
+   *
+   * This is deliberately separate from `auth`: WhatsApp needs a bearer token in
+   * a header AND an id in the path, which an auth *type* could not express.
+   */
+  pathCredentials?: string[];
   query?: Record<string, string>;
   headers?: Record<string, string>;
   /** JSON body template. Values may contain placeholders; a value that is
@@ -93,14 +106,19 @@ function fill(
   template: string,
   args: Record<string, unknown>,
   creds: Record<string, string>,
-  opts: { allowCreds: boolean; what: string },
+  /** `true` allows any credential; an array allows only the named fields. */
+  opts: { allowCreds: boolean | string[]; what: string },
 ): string {
   return template.replace(PLACEHOLDER, (_match, source: string, key: string) => {
     if (source === 'creds') {
-      if (!opts.allowCreds) {
+      const permitted =
+        opts.allowCreds === true ||
+        (Array.isArray(opts.allowCreds) && opts.allowCreds.includes(key));
+      if (!permitted) {
         throw new ConnectorError(
           `Spec error: ${opts.what} interpolates {creds.${key}}. Credentials must never appear ` +
-            `in a URL — they leak into logs, error messages and run history. Use auth instead.`,
+            `in a URL — they leak into logs, error messages and run history. Use auth, or name ` +
+            `the field in this spec's pathCredentials if the provider accepts it nowhere else.`,
           'spec',
         );
       }
@@ -228,16 +246,14 @@ export async function executeTool(opts: ExecuteOptions): Promise<unknown> {
   const doFetch = opts.fetchImpl ?? fetch;
 
   // Credentials are explicitly disallowed in the URL.
-  // A credential in a URL is forbidden by default because it leaks into logs,
-  // error messages and run history. Some providers — Telegram — accept it
-  // nowhere else, so a spec may declare `auth: { type: 'path' }` and opt in.
-  // The value is then scrubbed from anything this function throws.
-  const inPath = spec.auth.type === 'path';
+  // Only the fields the spec named may reach the URL; anything else still
+  // fails loudly. See `pathCredentials` for why the default is a refusal.
+  const allowed = spec.pathCredentials ?? [];
   const urlString = fill(spec.url, args, credentials, {
-    allowCreds: inPath,
+    allowCreds: allowed,
     what: `${spec.id} url`,
   });
-  const pathSecret = inPath && spec.auth.field ? credentials[spec.auth.field] : undefined;
+  const pathSecrets = allowed.map((f) => credentials[f]).filter((v): v is string => Boolean(v));
   const url = assertPublicUrl(urlString, opts.allowPrivateHosts ?? false);
 
   for (const [key, template] of Object.entries(spec.query ?? {})) {
@@ -291,7 +307,7 @@ export async function executeTool(opts: ExecuteOptions): Promise<unknown> {
   // bodies. Scrubbed here so opting in to `path` auth does not quietly turn
   // every failed call into a log line containing the token.
   const scrub = (message: string): string =>
-    pathSecret ? message.split(pathSecret).join('***') : message;
+    pathSecrets.reduce((out, secret) => out.split(secret).join('***'), message);
 
   if (!response.ok) {
     throw new ConnectorError(
@@ -422,9 +438,6 @@ function applyAuth(
       // Least-preferred: a key in a query string ends up in server logs. Kept
       // because some providers offer nothing else.
       url.searchParams.set(auth.name, need(auth.field));
-      return;
-    case 'path':
-      // Already interpolated into the url — nothing to add to the request.
       return;
     case 'oauth2':
       // Resolved before this call — see executeTool.

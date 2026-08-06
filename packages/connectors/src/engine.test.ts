@@ -227,11 +227,12 @@ describe('the catalog', () => {
   it('carries the Telegram token in the path, because that is where Telegram wants it', async () => {
     // Telegram accepts its token nowhere else. Rather than special-case the
     // provider inside resolveTool — which put the secret in the URL with
-    // nothing scrubbing it back out of errors — the spec DECLARES `path` auth
-    // and the engine handles it uniformly. See oauth.test.ts for the scrub.
+    // nothing scrubbing it back out of errors — the spec NAMES the field in
+    // `pathCredentials` and the engine handles it uniformly. See oauth.test.ts
+    // for the scrub.
     const { resolveTool } = await import('./catalog.js');
     const found = resolveTool('telegram', 'send_message')!;
-    expect(found.tool.auth.type).toBe('path');
+    expect(found.tool.pathCredentials).toEqual(['bot_token']);
     expect(found.tool.url).toBe('https://api.telegram.org/bot{creds.bot_token}/sendMessage');
 
     const fetchImpl = ok({ ok: true, result: { message_id: 9 } });
@@ -244,6 +245,54 @@ describe('the catalog', () => {
     expect(String(fetchImpl.mock.calls[0]![0])).toBe(
       'https://api.telegram.org/bot123:ABC/sendMessage',
     );
+  });
+
+  it('gives WhatsApp a bearer token AND an id in the path', async () => {
+    // The case `path` auth could not express, and the reason pathCredentials is
+    // separate from auth: Meta wants the token in a header and the phone number
+    // id in the URL. Getting one of the two wrong fails at send time, on
+    // someone's real automation.
+    const { resolveTool } = await import('./catalog.js');
+    const found = resolveTool('whatsapp', 'send_message')!;
+
+    const fetchImpl = ok({ messages: [{ id: 'wamid.ABC' }] });
+    const result = await executeTool({
+      spec: found.tool,
+      args: { to: '447700900000', text: 'Digest finished' },
+      credentials: { access_token: 'EAA-secret', phone_number_id: '55501' },
+      fetchImpl,
+    });
+
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('https://graph.facebook.com/v21.0/55501/messages');
+    expect((init as RequestInit).headers).toMatchObject({ authorization: 'Bearer EAA-secret' });
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      messaging_product: 'whatsapp',
+      to: '447700900000',
+      type: 'text',
+      text: { body: 'Digest finished' },
+    });
+    // `messages.0.id` walks an array — a result path that silently resolved to
+    // undefined would report a send nobody can trace.
+    expect(result).toBe('wamid.ABC');
+  });
+
+  it('refuses to put WhatsApp’s access token in the url', async () => {
+    // Naming one field must not open the door for the rest.
+    await expect(
+      executeTool({
+        spec: {
+          id: 'whatsapp.bad',
+          method: 'POST',
+          url: 'https://graph.facebook.com/v21.0/{creds.access_token}/messages',
+          auth: { type: 'none' },
+          pathCredentials: ['phone_number_id'],
+        },
+        args: {},
+        credentials: { access_token: 'EAA-secret', phone_number_id: '1' },
+        fetchImpl: ok({}),
+      }),
+    ).rejects.toThrow(/must never appear in a URL/);
   });
 
   it('every catalog tool has a public https URL and a real auth field', async () => {

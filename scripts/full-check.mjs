@@ -125,7 +125,9 @@ body = await t();
 check('notify: desktop channel', /This computer/.test(body));
 check(
   'notify: unconnected channels say where to fix it',
-  /Connect Slack in Settings/.test(body) && /Connect Telegram in Settings/.test(body),
+  /Connect Slack in Settings/.test(body) &&
+    /Connect Telegram in Settings/.test(body) &&
+    /Connect WhatsApp in Settings/.test(body),
 );
 check(
   'notify: an unconnected channel cannot be switched on',
@@ -147,7 +149,10 @@ check('settings: local model examples', /11434|Ollama/.test(body) && /chat\/comp
 // Connections live here, not inside an automation: the whole catalog, with a
 // form built from each connector's own fields. The regression this guards is
 // the one that started it — Telegram and email as a link to a tracker.
-check('settings: connections list', /Connections/.test(body) && /Slack/i.test(body) && /Telegram/i.test(body));
+check(
+  'settings: connections list',
+  /Connections/.test(body) && /Slack/i.test(body) && /Telegram/i.test(body) && /WhatsApp/i.test(body),
+);
 check('settings: shared across automations', /every automation/i.test(body));
 await win.locator('[data-connector="telegram"] button:has-text("Connect")').click();
 await win.waitForTimeout(500);

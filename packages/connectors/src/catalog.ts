@@ -43,12 +43,48 @@ export const CATALOG: IntegrationSpec[] = [
         id: 'telegram.send_message',
         summary: 'Send a message to a chat.',
         method: 'POST',
-        // Telegram accepts the token nowhere but the path, which is why this
-        // spec declares `path` auth rather than smuggling it into a header.
+        // Telegram accepts the token nowhere but the path, so the spec names it
+        // in `pathCredentials` — an opt-in recorded here, not a hole in the rule.
         url: 'https://api.telegram.org/bot{creds.bot_token}/sendMessage',
-        auth: { type: 'path', field: 'bot_token' },
+        auth: { type: 'none' },
+        pathCredentials: ['bot_token'],
         body: { chat_id: '{arg.chat_id}', text: '{arg.text}', parse_mode: '{arg.parse_mode}' },
         result: 'result.message_id',
+      },
+    ],
+  },
+
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp',
+    howToConnect:
+      'WhatsApp needs YOUR OWN Meta app — Studio never brokers this. At https://developers.facebook.com ' +
+      'create an app, add the WhatsApp product, and from its API Setup page copy the phone number id and ' +
+      'a permanent access token (generate one from a System User in Business Settings; the sample token ' +
+      'shown there expires in 24 hours). Message your own number from that page once, so WhatsApp will ' +
+      'let the number receive messages back.',
+    fields: [
+      { key: 'access_token', label: 'Access token', secret: true, placeholder: 'EAA…' },
+      { key: 'phone_number_id', label: 'Phone number id', secret: false, placeholder: '1234567890' },
+      { key: 'to', label: 'Your number, with country code', secret: false, placeholder: '447700900000' },
+    ],
+    tools: [
+      {
+        id: 'whatsapp.send_message',
+        summary: 'Send a text message.',
+        method: 'POST',
+        // The id belongs in the path and the token in a header — the case an
+        // auth *type* could not express, and why pathCredentials is separate.
+        url: 'https://graph.facebook.com/v21.0/{creds.phone_number_id}/messages',
+        auth: { type: 'bearer', field: 'access_token' },
+        pathCredentials: ['phone_number_id'],
+        body: {
+          messaging_product: 'whatsapp',
+          to: '{arg.to}',
+          type: 'text',
+          text: { body: '{arg.text}' },
+        },
+        result: 'messages.0.id',
       },
     ],
   },

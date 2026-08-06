@@ -2206,7 +2206,7 @@ function NotifyBand({
 }) {
   const [state, setState] = useState<NotifyState>({
     prefs: { desktop: true },
-    available: { desktop: true, slack: false, telegram: false, email: false },
+    available: { desktop: true, slack: false, telegram: false, whatsapp: false, email: false },
     lastDelivery: [],
   });
   const [sending, setSending] = useState(false);
@@ -2231,7 +2231,7 @@ function NotifyBand({
 
   const { prefs, available } = state;
   const failed = state.lastDelivery.filter((d) => !d.ok);
-  const anyChannel = Boolean(prefs.slack || prefs.telegram || prefs.email);
+  const anyChannel = Boolean(prefs.slack || prefs.telegram || prefs.whatsapp || prefs.email);
 
   return (
     <div className="flex flex-col gap-3">
@@ -2277,6 +2277,17 @@ function NotifyBand({
         />
 
         <ChannelRow
+          testId="whatsapp"
+          icon={<Send className="h-4 w-4" />}
+          name="WhatsApp"
+          hint="Message your own number, through your Meta app."
+          unavailableHint="Connect WhatsApp in Settings to use this."
+          on={Boolean(prefs.whatsapp)}
+          available={available.whatsapp}
+          onToggle={() => void update({ whatsapp: !prefs.whatsapp })}
+        />
+
+        <ChannelRow
           testId="email"
           icon={<Send className="h-4 w-4" />}
           name="Email"
@@ -2313,9 +2324,9 @@ function NotifyBand({
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          {available.slack || available.telegram || available.email
+          {available.slack || available.telegram || available.whatsapp || available.email
             ? 'Channels come from your connections. A run reports through every one switched on.'
-            : 'Connect Slack, Telegram or Resend in Settings to be reached anywhere but here.'}
+            : 'Connect Slack, Telegram, WhatsApp or Resend in Settings to be reached anywhere but here.'}
         </p>
         {anyChannel || available.desktop ? (
           <Button

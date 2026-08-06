@@ -25,6 +25,7 @@ export interface NotifyPrefs {
   /** Where to post. Slack needs one; the bot must be in it. */
   slackChannel?: string;
   telegram?: boolean;
+  whatsapp?: boolean;
   email?: boolean;
   emailTo?: string;
   /** Resend refuses a from-address on an unverified domain, so this is asked
@@ -35,7 +36,7 @@ export interface NotifyPrefs {
 /** What one channel did, kept so the UI can show a failure rather than imply
  *  everything is fine. */
 export interface DeliveryResult {
-  channel: 'slack' | 'telegram' | 'email';
+  channel: 'slack' | 'telegram' | 'whatsapp' | 'email';
   ok: boolean;
   /** The provider's own words when it refused. */
   error?: string;
@@ -120,6 +121,22 @@ export async function deliver(
             channel: 'telegram' as const,
             ok: false,
             error: 'Telegram has no chat id — add one in Settings › Connections.',
+            at: now,
+          }),
+    );
+  }
+
+  if (prefs.whatsapp) {
+    // Both the destination number and the id are part of which WhatsApp account
+    // this is, so they live with the connection rather than in preferences.
+    const to = credentialsFor('whatsapp')?.to;
+    jobs.push(
+      to
+        ? send('whatsapp', 'whatsapp', 'whatsapp.send_message', { to, text })
+        : Promise.resolve({
+            channel: 'whatsapp' as const,
+            ok: false,
+            error: 'WhatsApp has no number to message — add one in Settings › Connections.',
             at: now,
           }),
     );

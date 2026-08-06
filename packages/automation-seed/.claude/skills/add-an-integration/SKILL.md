@@ -47,17 +47,32 @@ Then the fields, one row each:
 | bot_token | Bot user OAuth token | yes | xoxb-… |
 
 ## Auth type
-One of the engine's five, and which field carries it:
+One of the engine's six, and which field carries it:
 
   bearer   Authorization: Bearer <field>        ← most APIs
   header   a named header, with an optional prefix
   query    a query parameter
   basic    base64 user:pass, from two fields
+  oauth2   a refresh token exchanged for an access token, against the
+           provider's own token endpoint, using the USER'S OWN app
   none     public API
 
-If the service uses **OAuth with expiring tokens** say so plainly and stop
-there: the engine has no refresh yet, so that connector needs an engine change
-first and the request should say which grant type it needs.
+**OAuth means the user's own app, not Studio's.** There is no Claritty client id
+to fall back on: the request must say where a person creates the app, which
+scopes it needs, and where the token endpoint is. Three fields, by convention
+`client_id`, `client_secret`, `refresh_token`.
+
+## If the provider only accepts a value in the URL
+Some do. Telegram takes the bot token in the path; WhatsApp takes the phone
+number id. Name those fields in `pathCredentials` on the tool:
+
+  url              https://api.telegram.org/bot{creds.bot_token}/sendMessage
+  pathCredentials  ['bot_token']
+
+That is an opt-in recorded in the connector, and every named value is scrubbed
+out of anything the call throws. It is separate from `auth` on purpose: WhatsApp
+needs a bearer token in a header AND an id in the path, which an auth *type*
+could not express. Name only the fields the provider genuinely requires there.
 
 ## Tools
 One block per operation the automation actually uses. Not the whole API —
@@ -72,9 +87,9 @@ a connector with three used tools beats one with thirty untested ones.
   summary  Send an email.
 
 ## Rules the engine enforces
-- **A credential may never appear in a URL.** `{creds.*}` in a url or query is
-  rejected outright — they leak into logs, error messages and run history. Use
-  `auth`.
+- **A credential may not appear in a URL** unless the spec names it in
+  `pathCredentials`. `{creds.*}` in a url or query is otherwise rejected
+  outright — they leak into logs, error messages and run history. Use `auth`.
 - **Public hosts only.** No localhost, link-local or private ranges: an
   automation that takes a URL as input must not become a way to reach the
   user's router or a cloud metadata endpoint.

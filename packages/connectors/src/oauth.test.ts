@@ -99,7 +99,7 @@ describe('oauth2 with the user’s own app', () => {
   });
 });
 
-describe('path auth', () => {
+describe('credentials the provider only accepts in a URL', () => {
   it('puts the token in the url and keeps it out of the error', async () => {
     const [server, base] = await listen((req, res) => {
       // Telegram-shaped: the token is in the path, and it echoes back on error.
@@ -111,7 +111,8 @@ describe('path auth', () => {
       id: 'telegram.send_message',
       method: 'POST' as const,
       url: `${base}/bot{creds.bot_token}/sendMessage`,
-      auth: { type: 'path' as const, field: 'bot_token' },
+      auth: { type: 'none' as const },
+      pathCredentials: ['bot_token'],
       body: { text: '{arg.text}' },
     };
 
@@ -137,7 +138,7 @@ describe('path auth', () => {
     server.close();
   });
 
-  it('still refuses a credential in a url when auth does not declare path', async () => {
+  it('still refuses a credential the spec did not name', async () => {
     await expect(
       executeTool({
         spec: {
