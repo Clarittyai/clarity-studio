@@ -1,6 +1,19 @@
+<div align="center">
+
+<img src="docs/img/org-avatar.png" alt="Claritty" width="88" />
+
 # Clarity Studio
 
 **Build, run, schedule and observe AI automations on your own machine, with your own keys.**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Built for Claude Code and Codex](https://img.shields.io/badge/writes%20with-Claude%20Code%20%C2%B7%20Codex-8b5cf6)](#getting-started)
+
+### [Get started »](https://claritty.ai/docs) · [Claritty Cloud](https://claritty.ai) · [Report an issue](https://github.com/Clarittyai/clarity-studio/issues) · [Contribute](#contributing)
+
+</div>
+
+---
 
 Clarity Studio is an open-source desktop app for agentic automations — the ones that keep working
 after you close the laptop lid. Write them with the coding agent you already use, run them in Docker,
@@ -51,7 +64,8 @@ exact request Studio sends so you can check it with `curl` before trusting a run
 
 ## Getting started
 
-Three stages, and **each one buys a specific capability**. Most tools open with
+The full walkthrough lives at **[claritty.ai/docs](https://claritty.ai/docs)**. The short version is
+three stages, and **each one buys a specific capability**. Most tools open with
 "first, get an API key" — you can get further than that here before spending
 anything, and it is worth doing in order so that when something breaks you know
 which layer broke.
