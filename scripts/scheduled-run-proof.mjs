@@ -19,7 +19,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -46,6 +46,40 @@ cpSync(SOURCE, PROJECT, {
   filter: (s) => !s.includes('__pycache__') && !s.includes('/.studio') && !s.includes('/reports'),
 });
 
+// Declare every schedule mode IN THE COPY, so the ids are real.
+//
+// The first attempt seeded trigger rows the manifest knew nothing about and
+// nothing fired — the automation looks a trigger up by its recipe id, and
+// syncTriggers deletes instances with no declaration behind them. A fixture no
+// user could produce tests nothing, which is how three checks today turned out
+// to be the bug rather than find one.
+const manifestPath = join(PROJECT, 'intelligence.yaml');
+const MODES = [
+  { id: 'mode-daily', schedule: { mode: 'DAILY', time: '18:00', timezone: 'UTC' }, repeats: true },
+  { id: 'mode-interval', schedule: { mode: 'INTERVAL', everyMinutes: 30 }, repeats: true },
+  { id: 'mode-weekly', schedule: { mode: 'WEEKLY', time: '09:00', timezone: 'UTC', daysOfWeek: [1, 3, 5] }, repeats: true },
+  { id: 'mode-monthly', schedule: { mode: 'MONTHLY', time: '09:00', timezone: 'UTC', dayOfMonth: 1 }, repeats: true },
+  // Must fire once and STOP. If it rescheduled it would run every tick forever.
+  { id: 'mode-one-time', schedule: { mode: 'ONE_TIME', at: new Date(Date.now() - 60_000).toISOString() }, repeats: false },
+];
+writeFileSync(
+  manifestPath,
+  readFileSync(manifestPath, 'utf8').replace(
+    /^triggers:[\s\S]*$/m,
+    ['triggers:', ...MODES.map((m) => [
+      `  - id: ${m.id}`,
+      '    type: SCHEDULE',
+      `    name: ${m.schedule.mode}`,
+      '    workflow: downloads-report',
+      '    supportedSchedules: [DAILY, INTERVAL, WEEKLY, MONTHLY, ONE_TIME]',
+      '    maxInstancesPerUser: 1',
+      '    configFields:',
+      '      - { key: time, type: time, required: true, label: "Run at", default: "09:00" }',
+      '      - { key: timezone, type: timezone, required: true, label: "Timezone" }',
+    ].join('\n'))].join('\n') + '\n',
+  ),
+);
+
 const store = new Store(join(HOME, 'studio.db'));
 const projectId = randomUUID();
 store.upsertProject({
@@ -56,17 +90,22 @@ store.upsertProject({
 // Armed, and already due. This is the state the switch in the Triggers band
 // produces — enabled with a next run — brought forward so the proof does not
 // wait until tomorrow morning to find out whether schedules work.
-const trigger = store.triggers.add({
-  projectId,
-  recipeTriggerId: 'weekday-evening',
-  workflowId: 'downloads-report',
-  type: 'SCHEDULE',
-  enabled: true,
-  schedule: { mode: 'DAILY', time: '18:00', timezone: 'UTC' },
-  timezone: 'UTC',
-  nextRunAt: Date.now() - 1000,
-  missedPolicy: 'run-once',
-});
+const seeded = MODES.map((m) =>
+  Object.assign(
+    store.triggers.add({
+      projectId,
+      recipeTriggerId: m.id,
+      workflowId: 'downloads-report',
+      type: 'SCHEDULE',
+      enabled: true,
+      schedule: m.schedule,
+      timezone: 'UTC',
+      nextRunAt: Date.now() - 1000,
+      missedPolicy: 'run-once',
+    }),
+    { mode: m.schedule.mode, repeats: m.repeats },
+  ),
+);
 store.close();
 
 const PACKAGED = join(ROOT, 'apps/desktop/release/mac-arm64/Claritty Studio.app/Contents/MacOS/Claritty Studio');
@@ -87,7 +126,7 @@ await win.waitForSelector('[data-brand]');
 // only fires while you are looking at the automation is not a schedule.
 check('the app opens without the automation being opened', true);
 
-const deadline = Date.now() + 8 * 60_000;
+const deadline = Date.now() + 10 * 60_000;
 let run;
 while (Date.now() < deadline) {
   const probe = new Store(join(HOME, 'studio.db'));
@@ -97,7 +136,19 @@ while (Date.now() < deadline) {
   await win.waitForTimeout(3000);
 }
 
-check('a run happened with nobody pressing anything', Boolean(run), run ? '' : 'nothing fired in eight minutes');
+// All five, not just the first: a dispatcher that fired one and stopped would
+// pass a one-trigger proof perfectly.
+const allDeadline = Date.now() + 10 * 60_000;
+let done = [];
+while (Date.now() < allDeadline) {
+  const probe = new Store(join(HOME, 'studio.db'));
+  done = probe.listRuns(projectId).filter((r) => r.status !== 'running');
+  probe.close();
+  if (done.length >= MODES.length) break;
+  await win.waitForTimeout(3000);
+}
+check('every schedule mode fired, with nobody pressing anything', done.length === MODES.length,
+  `${done.length}/${MODES.length} ran`);
 
 const after = new Store(join(HOME, 'studio.db'));
 if (run) {
@@ -110,11 +161,19 @@ if (run) {
   check('the run says success', run.status === 'success', run.status + (run.error ? ` — ${run.error}` : ''));
 }
 
-// It must not fire again on the next tick, and it must not be left due forever.
-const instance = after.triggers.list(projectId).find((t) => t.id === trigger.id);
-check('the trigger was rescheduled', Boolean(instance?.nextRunAt) && instance.nextRunAt > Date.now(),
-  instance?.nextRunAt ? new Date(instance.nextRunAt).toISOString() : 'no next run');
-check('and it recorded the outcome', instance?.lastStatus === 'success', instance?.lastStatus ?? 'none');
+// Each mode reschedules on its own terms, and one deliberately does not.
+const rows = after.triggers.list(projectId);
+for (const t of seeded) {
+  const row = rows.find((r) => r.id === t.id);
+  const next = row?.nextRunAt;
+  if (t.repeats) {
+    check(`  ${t.mode} is due again`, Boolean(next) && next > Date.now(),
+      next ? new Date(next).toISOString() : 'no next run — it would never fire again');
+  } else {
+    check(`  ${t.mode} is finished, not due again`, !next, next ? new Date(next).toISOString() : '');
+  }
+  check(`  ${t.mode} recorded its outcome`, row?.lastStatus === 'success', row?.lastStatus ?? 'none');
+}
 
 const before = after.listRuns(projectId).length;
 after.close();
