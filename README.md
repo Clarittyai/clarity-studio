@@ -26,7 +26,16 @@ dollar they spend.
 
 ---
 
+![Saying what it should do](docs/img/create.png)
+
+*Where it starts: a sentence about what you want. Claude Code takes that as its
+opening instruction and writes the automation — you are not filling in a form.*
+
 ![An automation in Studio](docs/img/automation.png)
+
+*The agent and the diagram in one window. It writes `intelligence.yaml`, the flow
+above redraws as it saves, and an **Updated** badge says so — no restart, no
+refresh. That loop is the product; a diagram on its own could be any workflow tool.*
 
 *A real automation: a weekday trigger, a Gmail search, a fan-out that hydrates each message
 (`once per message · max 25`), an agent that decides what counts as an invoice, and a send marked
