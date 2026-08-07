@@ -49,9 +49,89 @@ exact request Studio sends so you can check it with `curl` before trusting a run
 
 ---
 
-## Quickstart
+## Getting started
 
-Needs **Node 22+**. Python 3.9+ and Docker are optional — see below.
+Three stages, and **each one buys a specific capability**. Most tools open with
+"first, get an API key" — you can get further than that here before spending
+anything, and it is worth doing in order so that when something breaks you know
+which layer broke.
+
+### 1. Run one, with no credentials at all
+
+Needs **Node 22+**, **pnpm** and **Python 3.12+**.
+
+```bash
+pnpm install && pnpm build && pnpm package
+open "apps/desktop/release/mac-arm64/Claritty Studio.app"
+```
+
+Press **New automation**, call it `downloads-report`, and say: *"every weekday
+evening, look through my Downloads folder, group what's there by kind and age,
+and write me a short report."* Then press **Run now**.
+
+No model key. No account. Nothing connected. That run proves the machine works —
+the Python runtime, the workflow engine, the step timeline — so anything that
+fails later is about a credential rather than the install.
+
+### 2. Add a model, and the agents wake up
+
+**Settings → Model.** An Anthropic or OpenAI key, or your own endpoint.
+
+Until now every step has been deterministic Python. A model is what lets an
+automation *decide* — which of these emails is a real request, which of these
+results matter, is this the same issue as that one. That judgement is the reason
+to use Studio rather than a cron job.
+
+Running your own server instead? The exact request Studio sends is written down
+in [docs/model-endpoint.md](docs/model-endpoint.md). Anything OpenAI-compatible
+works, but test it with tools before trusting it with an agent — a server that
+answers prose perfectly can still drive agents that never call a tool.
+
+### 3. Connect a service, and it reaches the world
+
+**Settings → Connections.** Thirteen services, each with the exact steps in
+[docs/connectors.md](docs/connectors.md) — generated from the connector specs, so
+it cannot drift from what the app asks you for.
+
+Credentials go to your OS keyring and are **brokered**: the automation's own
+process never sees a key. Where a service needs an OAuth app — Gmail, Jira,
+WhatsApp — **you create your own**. There is no Claritty client id to sign into.
+
+### Then give it a schedule
+
+Open the automation, find **Triggers**, and throw the switch. They arrive off on
+purpose: an automation that started running because you opened its page would be
+your machine doing work you never asked for.
+
+One limit to know up front — **schedules fire only while Studio is open.** The
+dispatcher lives in the app. For unattended runs, `clarity-studio serve` keeps
+one automation going headless.
+
+---
+
+## Local or hosted
+
+Studio is the whole product locally. The hosted version at
+[claritty.ai](https://claritty.ai) is for the parts a laptop cannot do.
+
+| | Clarity Studio | Claritty Cloud |
+| --- | --- | --- |
+| Runs your automations | on your machine | on ours, always on |
+| Your keys | your OS keyring, brokered | managed, brokered |
+| Schedules | while the app is open | unattended |
+| Webhooks | headless CLI only | hosted endpoints |
+| Integrations | 13, with your own OAuth apps | the full catalog, sign-in only |
+| Sharing, teams, marketplace | — | yes |
+| Cost | free, your model spend | plans |
+
+You do not need an account to use everything above, and nothing here reports
+back — [see for yourself](#why-this-exists).
+
+---
+
+## Working headless
+
+The CLI runs the same automations without the app, for a server or a terminal.
 
 ```bash
 pnpm setup                       # checks the machine, builds, prepares Python
