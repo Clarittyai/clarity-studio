@@ -168,14 +168,30 @@ routes are prerendered, because an unlisted `/docs/*` path falls through to the
 SPA rewrite and is served the home page's markup, which is not what a stranger
 arriving from GitHub should be handed.
 
+### Since then
+
+- **The connector page covers the whole catalog.** It listed 13 services in full
+  and then 27 bare ids. Every one of those ids is real, and the id nobody can
+  see is the one an agent guesses, so the generator now emits all of them with
+  what each does and the tool ids it names, plus how to write the connector:
+  the request, the auth types (read out of the engine's own union), the spec in
+  `catalog.ts`, the gates. It also emits its counts as an HTML comment so the
+  website can state the catalog size without parsing prose.
+- **`llms.txt` on claritty.ai**, generated from the built HTML the same way the
+  sitemap is, so a page's title and description are the only things anyone has
+  to keep right. Studio first.
+- **Every docs section is prerendered**, platform ones included. Both generators
+  now skip a page whose canonical points elsewhere, so `/docs/start-here` is not
+  submitted as a duplicate of `/docs`.
+
 ### Still open
 
 - **Per-connector credential screenshots** (Gmail, Jira, WhatsApp). Needs a
   human in someone else's dashboard. Everything is text until then, and the text
   is generated, so it is at least correct.
-- **`llms.txt` on the website.** `docs/llms.txt` exists here and is worth
-  generating from the site's nav too. Cheap, and this is a product whose users
-  point coding agents at it. Not done.
-- **The platform docs sections are still not prerendered.** They have the same
-  SPA-fallback problem the Studio pages just fixed. Out of scope for this pass,
-  and a one-line-per-route fix when someone wants it.
+- **The hosted platform's integration count on claritty.ai says 32.** The
+  catalog it ships is 38, each with an executor path, but eleven of those fail
+  without an OAuth client secret that has to exist in Secrets Manager. So the
+  honest number depends on prod state rather than on the repo, and nobody should
+  change the claim by counting files. Worth settling once and then deriving,
+  the way the Studio numbers now are.
