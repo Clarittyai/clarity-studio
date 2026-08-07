@@ -195,5 +195,41 @@ const connectorDoc = [
 mkdirSync(join(ROOT, 'docs'), { recursive: true });
 writeFileSync(join(ROOT, 'docs/connectors.md'), `${connectorDoc}\n`);
 
+// An index for the agents that read this repo. Postiz publishes one; here it is
+// less of a nicety, because the people using Studio point Claude Code and Codex
+// at these files daily. An agent that finds connectors.md does not invent a tool
+// id — which is the failure that has cost the most here.
+writeFileSync(
+  join(ROOT, 'docs/llms.txt'),
+  [
+    '# Clarity Studio',
+    '',
+    '> Open-source desktop app for agentic automations. Runs on your machine with',
+    '> your own keys: no account, no telemetry. Automations are declared in',
+    '> `intelligence.yaml` and executed by the published `claritty-sdk` from PyPI.',
+    '',
+    '## Docs',
+    '',
+    '- [README](README.md): what it is, and getting started in three stages — run one with no credentials, add a model, connect a service.',
+    `- [Connecting a service](docs/connectors.md): all ${available.length} connectors, their exact setup steps, credential fields and callable tool ids. GENERATED — the authority on what a tool id is.`,
+    '- [Custom model endpoint](docs/model-endpoint.md): the exact request Studio sends to an OpenAI-compatible server, and what a response must contain for an agent loop to complete.',
+    '- [Contributing](CONTRIBUTING.md): how to get green, and the four things that catch people out.',
+    '',
+    '## For an agent writing an automation',
+    '',
+    'Inside an automation folder, read `CLAUDE.md` and `catalog/AVAILABLE.md` first.',
+    'AVAILABLE.md is the only list of what the machine can actually call: a tool',
+    'marked `"local": false` names something real that Studio cannot broker, and',
+    'calling it fails at run time however sensible the id looks.',
+    '',
+    '## Notes',
+    '',
+    `- Connectable now: ${available.map((r) => r.id).join(', ')}.`,
+    '- Schedules fire only while the app is open. Webhooks are served by the CLI, not the desktop app.',
+    '- There is no Claritty OAuth client. Where a service needs an app — Gmail, Jira, WhatsApp — the user creates their own.',
+    '',
+  ].join('\n'),
+);
+
 console.log(`catalog annotated — ${available.length} brokerable, ${missing.length} not`);
 console.log(`available: ${available.map((r) => r.id).join(', ')}`);

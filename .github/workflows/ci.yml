@@ -78,9 +78,9 @@ jobs:
       - name: Assert the catalog's local-availability marks are current
         run: |
           pnpm sync:catalog
-          if ! git diff --quiet -- packages/automation-seed/catalog docs/connectors.md; then
+          if ! git diff --quiet -- packages/automation-seed/catalog docs/connectors.md docs/llms.txt; then
             echo "catalog annotations are stale — run 'pnpm sync:catalog' and commit"
-            git diff --stat -- packages/automation-seed/catalog docs/connectors.md
+            git diff --stat -- packages/automation-seed/catalog docs/connectors.md docs/llms.txt
             exit 1
           fi
 
