@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Built for Claude Code and Codex](https://img.shields.io/badge/writes%20with-Claude%20Code%20%C2%B7%20Codex-8b5cf6)](#getting-started)
 
-### [Get started »](https://claritty.ai/docs) · [Claritty Cloud](https://claritty.ai) · [Report an issue](https://github.com/Clarittyai/clarity-studio/issues) · [Contribute](#contributing)
+### [Get started »](https://claritty.ai/docs) · [Claritty Cloud](https://claritty.ai) · [Report an issue](https://github.com/Clarittyai/clarity-studio/issues) · [Contribute](CONTRIBUTING.md)
 
 </div>
 
