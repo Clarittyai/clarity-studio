@@ -7,7 +7,7 @@
 ## Docs
 
 - [README](README.md): what it is, and getting started in three stages — run one with no credentials, add a model, connect a service.
-- [Connecting a service](docs/connectors.md): all 13 connectors, their exact setup steps, credential fields and callable tool ids. GENERATED — the authority on what a tool id is.
+- [Connecting a service](docs/connectors.md): all 13 connectors, their exact setup steps, credential fields and callable tool ids; the 27 the platform provides that Studio cannot broker yet, with the tool ids they name; and how to add one. GENERATED — the authority on what a tool id is.
 - [Custom model endpoint](docs/model-endpoint.md): the exact request Studio sends to an OpenAI-compatible server, and what a response must contain for an agent loop to complete.
 - [Contributing](CONTRIBUTING.md): how to get green, and the four things that catch people out.
 
