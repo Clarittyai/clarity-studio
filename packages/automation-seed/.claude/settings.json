@@ -1,0 +1,28 @@
+{
+  "$comment": "Pre-approves the commands an agent needs to inspect and verify THIS automation, so building one is not a stream of permission prompts. Deliberately narrow: reading, searching, and the offline verify gate. Anything that writes outside the folder, installs software, or touches the network still asks.",
+  "permissions": {
+    "allow": [
+      "Bash(claritty-seed-verify:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(python3 -c:*)",
+      "Bash(python3 -m json.tool:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git push:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)"
+    ]
+  }
+}
