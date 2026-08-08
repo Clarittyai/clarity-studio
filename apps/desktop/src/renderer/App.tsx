@@ -1939,11 +1939,12 @@ function HomeView({
                   <button
                     type="button"
                     onClick={() => onSelect(project.id)}
-                    /* Full-bleed hover, no radius. A rounded inset highlight
-                       reads as a bordered card sitting inside the row; a band
-                       that runs the width of the list reads as the row itself
-                       being pointed at, which is what a hover means. */
-                    className="-mx-4 flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.04]"
+                    /* The hover band matches the divider exactly: same left
+                       and right edge, no radius. `w-full` with a negative
+                       margin does not widen an element, it offsets it — which
+                       hung the band past the list on one side and short on the
+                       other. */
+                    className="flex w-full items-start gap-3 py-3 text-left transition-colors hover:bg-foreground/[0.04]"
                   >
                     <StatusDot status={project.status as Status} className="mt-1.5" />
                     <div className="min-w-0 flex-1">

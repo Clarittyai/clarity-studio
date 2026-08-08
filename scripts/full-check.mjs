@@ -56,6 +56,24 @@ const t = () => win.locator('body').innerText();
 // runs where Claude Code is installed, so its absence is the assertion — a
 // banner telling someone to install software they already have is worse than
 // no banner at all.
+// A hover band that hangs past the row on one side and stops short on the other
+// is what `w-full` plus a negative margin gives you — it offsets an element, it
+// does not widen one. Measured rather than eyeballed.
+const hover = await win.evaluate(() => {
+  const list = [...document.querySelectorAll('.divide-y')].find((l) => l.querySelector('button'));
+  if (!list) return null;
+  const row = list.children[0];
+  const btn = row?.querySelector('button');
+  if (!btn) return null;
+  const a = row.getBoundingClientRect(), b = btn.getBoundingClientRect();
+  return { left: Math.round(b.left - a.left), right: Math.round(a.right - b.right) };
+});
+check(
+  'a list row’s hover band matches its divider',
+  hover && hover.left === 0 && hover.right === 0,
+  hover ? `left ${hover.left}px, right ${hover.right}px` : 'no list row found',
+);
+
 check('no false alarm about a missing coding agent', !/No coding agent found on this machine/.test(await t()));
 check('sidebar Home row', (await win.locator('aside button:has-text("Home")').count()) === 1);
 }
