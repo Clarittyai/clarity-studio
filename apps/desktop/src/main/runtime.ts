@@ -112,6 +112,10 @@ function needsModel(manifest?: {
   return declares || calls;
 }
 
+const MISSING_MODEL_KEY =
+  'No model provider key, so the agent steps have nothing to call. ' +
+  'Add one in Settings → Model — or set ANTHROPIC_API_KEY / OPENAI_API_KEY.';
+
 export class RuntimeHost {
   private plane?: ControlPlane;
   private planeUrl?: string;
@@ -311,6 +315,27 @@ export class RuntimeHost {
     workflowId?: string,
     inputs?: Record<string, unknown>,
   ): Promise<{ runId: string }> {
+    // Before starting anything. Starting builds a Python venv the first time,
+    // so checking the key afterwards meant pressing Run now and waiting a
+    // minute or more to be told you needed one — an expensive answer to a
+    // question answerable from a file. The manifest on disk says whether any
+    // step calls a model; it does not need a running runtime to say so.
+    if (!this.live.has(projectId)) {
+      const project = this.store().getProject(projectId);
+      const file = project ? join(project.path, 'intelligence.yaml') : undefined;
+      if (file && existsSync(file)) {
+        let onDisk: Live['manifest'];
+        try {
+          onDisk = parseYaml(readFileSync(file, 'utf8')) as Live['manifest'];
+        } catch {
+          // Mid-edit. Fall through and let the usual boot error explain it.
+        }
+        if (onDisk && needsModel(onDisk) && !(await this.hasModelKey())) {
+          throw new Error(MISSING_MODEL_KEY);
+        }
+      }
+    }
+
     if (!this.live.has(projectId)) await this.start(projectId);
     const entry = this.live.get(projectId);
     if (!entry) throw new Error('The automation is not running.');
@@ -329,11 +354,10 @@ export class RuntimeHost {
     // anybody can run with zero setup — no key, no connection, no account —
     // into one that refuses at the button. A guard that blocks work it was
     // never protecting is worse than no guard: it is wrong AND it is trusted.
+    // Still checked here: an automation already running was started before the
+    // key was removed, and the pre-check above only runs on a cold start.
     if (needsModel(entry.manifest) && !(await this.hasModelKey())) {
-      throw new Error(
-        'No model provider key, so the agent steps have nothing to call. ' +
-          'Add one with: clarity-studio keys set anthropic — or set ANTHROPIC_API_KEY / OPENAI_API_KEY.',
-      );
+      throw new Error(MISSING_MODEL_KEY);
     }
 
     const store = this.store();
