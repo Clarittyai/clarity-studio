@@ -1775,6 +1775,23 @@ function HomeView({
   const [nextRunAt, setNextRunAt] = useState<number | undefined>();
   /** Per project: its most recent run, for the row's status line. */
   const [lastRun, setLastRun] = useState<Record<string, Run | undefined>>({});
+  /**
+   * Whether this machine has a coding agent at all.
+   *
+   * `undefined` until we know — the difference between "no agent" and "not
+   * asked yet" matters, because rendering the warning during the first frame
+   * and then removing it is worse than waiting a beat.
+   */
+  const [hasAgent, setHasAgent] = useState<boolean | undefined>();
+
+  useEffect(() => {
+    void api
+      .agents()
+      .then((found) => setHasAgent(found.length > 0))
+      // A detection failure is not proof of absence, and telling someone to
+      // install software they already have is worse than saying nothing.
+      .catch(() => setHasAgent(true));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1832,6 +1849,43 @@ function HomeView({
           bottom of the pane, not floating a third of the way up it with dead
           space underneath. */}
       <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-10 p-8">
+        {/* Said here, on the screen you land on, because without one of these
+            the central loop does not work: you describe an automation and
+            something writes it. Until now this was only discoverable inside the
+            terminal, after creating an automation — by which point the person
+            has done the work and found out it was pointless. */}
+        {hasAgent === false && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-warning/10 px-4 py-3">
+            <TerminalSquare className="h-4 w-4 shrink-0 text-warning" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-warning">
+                No coding agent found on this machine
+              </p>
+              <p className="text-[12px] text-warning/80">
+                Studio has an agent write your automations. Install Claude Code or Codex, then
+                reopen Studio. Everything else works without one — you would just be writing the
+                Python yourself.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 whitespace-nowrap"
+              onClick={() => api.openExternal('https://claude.com/claude-code')}
+            >
+              Install Claude Code
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="shrink-0 whitespace-nowrap"
+              onClick={() => api.openExternal('https://developers.openai.com/codex/cli')}
+            >
+              Codex
+            </Button>
+          </div>
+        )}
+
         <CloudShowcase />
 
         <header>
@@ -1885,7 +1939,11 @@ function HomeView({
                   <button
                     type="button"
                     onClick={() => onSelect(project.id)}
-                    className="-mx-2 flex w-full items-start gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
+                    /* Full-bleed hover, no radius. A rounded inset highlight
+                       reads as a bordered card sitting inside the row; a band
+                       that runs the width of the list reads as the row itself
+                       being pointed at, which is what a hover means. */
+                    className="-mx-4 flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.04]"
                   >
                     <StatusDot status={project.status as Status} className="mt-1.5" />
                     <div className="min-w-0 flex-1">

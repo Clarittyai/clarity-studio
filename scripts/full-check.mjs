@@ -52,7 +52,12 @@ const t = () => win.locator('body').innerText();
   check('showcase present', (await win.locator('[class*="rounded-3xl"] h2').count()) > 0);
   check('aggregate tiles', /Tokens, 7 days/.test(home) && /Next run/.test(home));
   check('contribute + issues', /come and read it/.test(home) && /report an issue/.test(home));
-  check('sidebar Home row', (await win.locator('aside button:has-text("Home")').count()) === 1);
+  // The agent warning must NOT appear on a machine that has one. This harness
+// runs where Claude Code is installed, so its absence is the assertion — a
+// banner telling someone to install software they already have is worse than
+// no banner at all.
+check('no false alarm about a missing coding agent', !/No coding agent found on this machine/.test(await t()));
+check('sidebar Home row', (await win.locator('aside button:has-text("Home")').count()) === 1);
 }
 
 // Open the automation; everything below is the project screen.
