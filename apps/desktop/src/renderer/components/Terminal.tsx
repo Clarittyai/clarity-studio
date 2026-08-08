@@ -128,15 +128,27 @@ export function TerminalPanel({
       offData();
       offExit();
       ro.disconnect();
-      api.closeTerminal(projectId);
-      term.dispose();
+      // Deliberately NOT closing the session or disposing the terminal.
+      //
+      // This cleanup runs whenever the panel unmounts — navigating to Home, to
+      // Settings, anywhere. Killing the pty there meant a Claude Code
+      // conversation died because you looked at something else, and disposing
+      // the terminal threw away the only copy of the scrollback, since nothing
+      // buffers it. A session ends when the user ends it, when its automation
+      // is deleted, or when the app quits.
       termRef.current = undefined;
     };
     // `request` is deliberately not a dependency: it is the opening instruction
     // for a session that has already started, and re-running this would kill a
     // live conversation to say the same thing again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, agentId]);
+    // `agentId` is deliberately not a dependency either. It arrives undefined
+    // and becomes the detected agent a moment later, which re-ran this effect
+    // and killed the session it had only just spawned — a wasted Claude Code
+    // launch on every single open. Switching agents restarts the session, but
+    // that is done by remounting the panel, not by a dependency changing under
+    // it.
+  }, [projectId]);
 
   return (
     <div className="flex flex-col gap-3">

@@ -27,6 +27,9 @@ mkdirSync(HOME, { recursive: true });
 const s = new Store(join(HOME, 'studio.db'));
 const id = randomUUID();
 s.upsertProject({ id, name: 'fresh-auto', slug: 'fresh-auto', path: PROJECT, runtime: 'native', status: 'stopped' });
+// A second automation, so the terminal can be tested across a switch. Same
+// folder on purpose — this is about session lifetime, not about the manifest.
+s.upsertProject({ id: randomUUID(), name: 'second-auto', slug: 'second-auto', path: PROJECT, runtime: 'native', status: 'stopped' });
 s.close();
 
 const app = await electron.launch({ args: ['.'], cwd: join(ROOT, 'apps/desktop'), env: { ...process.env, STUDIO_HOME: HOME } });
@@ -293,6 +296,34 @@ check(
   'notify: desktop can be switched',
   !(await win.locator('[data-channel="desktop"] button').first().isDisabled()),
 );
+
+// THE ONE THAT WAS REPORTED. A Claude Code session is a conversation, and
+// switching automations used to kill it and start over.
+//
+// Asserting on the mechanism rather than on typed text: each automation keeps
+// its own xterm, mounted, hidden when not current. Two live terminals after
+// visiting two automations is exactly what "the session survived" means here,
+// and unlike typing into a TUI it cannot fail for reasons unrelated to the
+// thing being tested.
+const termsBefore = await win.locator('.xterm').count();
+check('the open automation has a terminal', termsBefore === 1, `${termsBefore}`);
+
+await win.locator('aside button', { hasText: 'second-auto' }).first().click();
+await win.waitForTimeout(3000);
+const termsAfter = await win.locator('.xterm').count();
+check(
+  'switching automations keeps the first session alive',
+  termsAfter === 2,
+  `${termsAfter} terminal(s) mounted — the previous one was killed if this is 1`,
+);
+check(
+  'and only the current one is visible',
+  (await win.locator('.xterm:visible').count()) === 1,
+);
+
+await win.locator('aside button', { hasText: 'fresh-auto' }).first().click();
+await win.waitForTimeout(2000);
+check('switching back does not spawn a third', (await win.locator('.xterm').count()) === 2);
 
 // Settings.
 await win.locator('button[title="Settings"]').click();

@@ -850,6 +850,16 @@ function TerminalDock({
   const chosen = agentId ?? agents[0]?.id;
 
   /**
+   * Every automation whose terminal has been opened, in visit order. Nothing is
+   * removed: a session you walked away from is still working, and its panel is
+   * what holds the scrollback.
+   */
+  const [seen, setSeen] = useState<string[]>([]);
+  useEffect(() => {
+    setSeen((prev) => (prev.includes(projectId) ? prev : [...prev, projectId]));
+  }, [projectId]);
+
+  /**
    * Drag the top edge to resize.
    *
    * Clamped: below MIN the terminal is too short to read a prompt in, and above
@@ -945,14 +955,22 @@ function TerminalDock({
           )}
         />
       </button>
-      {/* Kept mounted when collapsed: unmounting would kill a live session. */}
+      {/* One panel per automation you have opened, all kept mounted — the same
+          reason collapsing hides rather than unmounts. Switching automations
+          used to change `projectId` on a single panel, whose effect cleanup
+          killed the previous session and threw away its scrollback. Now the
+          panel for each automation simply stops being visible. */}
       <div className={cn(open ? 'block' : 'hidden')}>
-        <TerminalPanel
-          projectId={projectId}
-          request={request}
-          agentId={chosen}
-          height={height}
-        />
+        {seen.map((id) => (
+          <div key={id} className={cn(id === projectId ? 'block' : 'hidden')}>
+            <TerminalPanel
+              projectId={id}
+              request={id === projectId ? request : undefined}
+              agentId={chosen}
+              height={height}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
