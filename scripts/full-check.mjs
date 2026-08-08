@@ -189,7 +189,10 @@ check('and clears once the agent renames it', cleared, cleared ? '' : 'the notic
 // The seed declares one schedule. Studio must turn that declaration into a row
 // you can arm — nothing did, so the band was empty for every automation and the
 // dispatcher had nothing to fire.
-check('the manifest’s trigger appears', /every-morning/i.test(await t()));
+// The manifest names this trigger "Every morning"; its id is `every-morning`.
+// Showing the id put a slug where a label belongs.
+check('the trigger shows its name, not its id', /Every morning/.test(await t()));
+check('the raw id is not on screen', !/every-morning/.test(await t()));
 // And it must arrive OFF. An automation that starts running because you opened
 // it is your machine doing work you did not ask for.
 check('and arrives switched off', /—\s*off/.test(await t()));

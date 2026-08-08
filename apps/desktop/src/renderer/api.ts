@@ -49,6 +49,8 @@ export interface Step {
 export interface Trigger {
   id: string;
   recipeTriggerId: string;
+  /** The manifest's human name for it. Absent when the automation set none. */
+  name?: string;
   type: string;
   enabled: boolean;
   description: string;

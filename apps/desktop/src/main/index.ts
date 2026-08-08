@@ -352,12 +352,12 @@ function registerIpc(): void {
  * instance removed too, because an instance with no declaration behind it fires
  * a workflow the automation no longer describes.
  */
-function syncTriggers(projectId: string): void {
+function syncTriggers(projectId: string): Array<Record<string, unknown>> {
   const store = db();
   const project = store.getProject(projectId);
-  if (!project) return;
+  if (!project) return [];
   const file = manifestIn(project.path);
-  if (!file) return;
+  if (!file) return [];
 
   let declared: Array<Record<string, unknown>> = [];
   try {
@@ -365,7 +365,7 @@ function syncTriggers(projectId: string): void {
     declared = Array.isArray(parsed?.triggers) ? parsed.triggers : [];
   } catch {
     // Mid-edit. Leave what is there rather than deleting on a half-written file.
-    return;
+    return [];
   }
 
   const existing = store.triggers.list(projectId);
@@ -405,18 +405,28 @@ function syncTriggers(projectId: string): void {
       missedPolicy: 'skip',
     });
   }
+
+  return declared;
 }
 
   ipcMain.handle('triggers:list', (_event, projectId: string) => {
     // Reconciled on read: the manifest is the source of truth and it changes
     // under us every time the agent writes. A separate "sync" call would be one
     // more thing to forget at one more call site.
-    syncTriggers(String(projectId));
+    const declared = syncTriggers(String(projectId));
+    // The manifest gives each trigger a human `name`; the row only stores the
+    // id. Rendering the id put a slug in the UI — "weekday-morning-triage" where
+    // the automation had written "Weekday mornings" — which reads as a key
+    // leaking through rather than a label.
+    const names = new Map(
+      declared.map((d) => [String(d.id ?? ''), typeof d.name === 'string' ? d.name : undefined]),
+    );
     return db()
       .triggers.list(String(projectId))
       .map((t) => ({
         id: t.id,
         recipeTriggerId: t.recipeTriggerId,
+        name: names.get(t.recipeTriggerId),
         type: t.type,
         enabled: t.enabled,
         description: describe(t.schedule, t.type),

@@ -1049,7 +1049,9 @@ function TriggerRow({ trigger, onToggle }: { trigger: Trigger; onToggle: (on: bo
     <div data-trigger className="flex items-center gap-3 py-3">
       <StatusDot status={trigger.enabled ? 'running' : 'stopped'} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{trigger.recipeTriggerId}</p>
+        {/* The automation's own name for it, falling back to the id only when it
+            declared none — a slug in the UI means a key is showing through. */}
+        <p className="truncate text-sm font-medium">{trigger.name || trigger.recipeTriggerId}</p>
         <p className="text-xs text-muted-foreground">
           {trigger.description}
           {!trigger.enabled && ' — off'}
