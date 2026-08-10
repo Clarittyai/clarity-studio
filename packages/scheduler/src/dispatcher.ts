@@ -70,6 +70,20 @@ export interface DispatcherOptions {
    * need telling about, and "skipped" reads like a decision.
    */
   ensureRunning?: (projectId: string) => Promise<void>;
+  /**
+   * The REQUIRED services this project still has no credential for.
+   *
+   * Firing without them is not a cheaper version of firing — it is more
+   * expensive than not firing at all. `client-summary` was run by hand with
+   * Gmail unconnected and reached its agent anyway: two model calls, 2.3k
+   * tokens, no possible answer, and a run that recorded success with every
+   * output null. On a schedule that repeats every morning until somebody reads
+   * the timeline closely enough to notice.
+   *
+   * Checked before `ensureRunning`, so a project that cannot work is not even
+   * booted for it.
+   */
+  blockedBy?: (projectId: string) => Promise<string[]>;
   tickMs?: number;
   now?: () => number;
   onEvent?: (event: DispatchResult & { at: number }) => void;
@@ -157,6 +171,26 @@ export class Dispatcher {
       // every missed window in order — is deferred rather than faked: for most
       // automations, running eight backdated digests at once is worse than
       // running one, so pretending otherwise would be a trap.
+    }
+
+    if (this.opts.blockedBy) {
+      // FAIL OPEN when the check itself cannot answer. A vault that is briefly
+      // unreadable must not silently stop a working automation from firing —
+      // that would be a worse fault than the one this guards against, and a
+      // quieter one.
+      const missing = await this.opts.blockedBy(instance.projectId).catch(() => []);
+      if (missing.length > 0) {
+        // `failed`, not `skipped`, for the reason `ensureRunning` gives below:
+        // an automation that cannot run at its scheduled time is the thing you
+        // most need telling about, and "skipped" reads like a decision somebody
+        // made on purpose.
+        const message = `Did not run — ${missing.join(' and ')} ${
+          missing.length === 1 ? 'is' : 'are'
+        } not connected. Connect in Settings; running would have spent tokens and finished with nothing.`;
+        store.triggers.recordRun(instance.id, now, 'failed', message);
+        advance();
+        return { instanceId: instance.id, fired: false, error: message };
+      }
     }
 
     if (this.opts.ensureRunning) {

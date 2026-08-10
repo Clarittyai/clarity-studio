@@ -115,7 +115,45 @@ const runtime = new RuntimeHost(
   (runId) => void announce(runId),
   (event) => void announceScheduleFailure(event),
   () => modelOverride(),
+  (projectId) => Promise.resolve(missingRequiredFor(projectId)),
 );
+
+/**
+ * The REQUIRED services this project declares and still has no credential for.
+ *
+ * The same two questions `integrations:status` answers — is there a connector
+ * for it, and is there a bundle — asked of the manifest's required entries
+ * only. An OPTIONAL integration resolves to null at run time on purpose so a
+ * tool can degrade, and a service Studio has no connector for cannot be
+ * connected from here at all; neither should stop a schedule.
+ */
+function missingRequiredFor(projectId: string): string[] {
+  const project = db().getProject(String(projectId));
+  if (!project) return [];
+  const file = manifestIn(project.path);
+  if (!file) return [];
+  let manifest: Record<string, unknown>;
+  try {
+    manifest = parseYaml(readFileSync(file, 'utf8')) as Record<string, unknown>;
+  } catch {
+    // A manifest mid-edit is a normal state. Blocking a schedule over one would
+    // be a worse fault than the one this prevents, and a quieter one.
+    return [];
+  }
+  const declared =
+    (manifest as { integrations?: Array<{ id?: string; required?: boolean } | string> })
+      .integrations ?? [];
+  const v = vault();
+  return declared
+    .map((i) =>
+      typeof i === 'string'
+        ? { id: i, required: true }
+        : { id: i.id ?? '', required: i.required !== false },
+    )
+    .filter((i) => i.id && i.required)
+    .filter((i) => Boolean(findIntegration(i.id)) && !v.bundle(i.id, String(projectId)))
+    .map((i) => i.id);
+}
 /** Holds the coding-agent pty sessions. */
 const terminals = new TerminalHost();
 

@@ -106,8 +106,6 @@ interface Live {
   internalSecret: string;
 }
 
-/** Does anything in this automation call a model? A workflow of pure tools does
- *  not, and must not be blocked for want of a key it will never use. */
 /**
  * Give a model running on this machine longer to answer than a hosted one.
  *
@@ -166,6 +164,8 @@ function writeBootLog(projectPath: string, message: string, output: string): voi
   }
 }
 
+/** Does anything in this automation call a model? A workflow of pure tools does
+ *  not, and must not be blocked for want of a key it will never use. */
 function needsModel(manifest?: {
   agents?: unknown[];
   workflows?: Array<{ steps?: Array<{ agent?: string }> }>;
@@ -227,6 +227,15 @@ export class RuntimeHost {
      *  than captured, so changing it in Settings takes effect on the next run
      *  instead of the next launch. */
     private readonly modelOverride: () => string | undefined = () => undefined,
+    /**
+     * The REQUIRED services a project still has no credential for.
+     *
+     * Injected rather than read here: the vault and the connector catalog both
+     * live in the main entry point, and the host has no business growing a
+     * second opinion about either. Defaults to "nothing is blocking", so a host
+     * that does not supply it — the CLI — behaves exactly as before.
+     */
+    private readonly blockedBy: (projectId: string) => Promise<string[]> = async () => [],
   ) {}
 
   /**
@@ -245,6 +254,12 @@ export class RuntimeHost {
     if (this.dispatcher) return;
     this.dispatcher = new Dispatcher({
       store: this.store(),
+      // Firing an automation whose required services have no credential costs
+      // more than not firing it: it reaches the agent, spends the tokens, and
+      // records a success with nothing in it — every morning, unnoticed. The
+      // Run-now button already refuses; a schedule is the case where nobody is
+      // watching, so it matters more here.
+      blockedBy: this.blockedBy,
       ensureRunning: async (projectId) => {
         await this.start(projectId);
       },

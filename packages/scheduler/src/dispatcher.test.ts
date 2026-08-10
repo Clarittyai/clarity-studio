@@ -281,3 +281,97 @@ describe('bringing a stopped automation up', () => {
     expect(store.triggers.list('p1')[0]!.lastStatus).toBe('failed');
   });
 });
+
+describe('a schedule whose services are not connected', () => {
+  /** A dispatcher that also knows which required services are missing. */
+  function gated(now: number, missing: string[], ensureRunning?: () => Promise<void>) {
+    return new Dispatcher({
+      store,
+      now: () => now,
+      resolveTarget: () => ({ baseUrl: 'http://127.0.0.1:33001', internalSecret: 'secret' }),
+      ensureRunning,
+      blockedBy: async () => missing,
+    });
+  }
+
+  it('does not fire, and says which service and what to do', async () => {
+    // The whole point. Firing is not a cheaper version of not firing: the run
+    // reaches its agent, spends its tokens, cannot do the job, and records
+    // success with every output null — every morning, until somebody reads the
+    // timeline closely enough to notice.
+    seedInstance({ dueAt: 1_000 });
+    const results = await gated(1_000, ['gmail']).tick();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(results[0]!.fired).toBe(false);
+    expect(results[0]!.error).toMatch(/gmail is not connected/i);
+    expect(results[0]!.error).toMatch(/Settings/);
+  });
+
+  it('records it as FAILED, because it is not a decision anybody made', async () => {
+    // "Skipped" reads like policy. An automation that could not run at its
+    // scheduled time is the thing you most need telling about — the same
+    // reasoning `ensureRunning` already uses one branch below.
+    const instance = seedInstance({ dueAt: 1_000 });
+    await gated(1_000, ['gmail']).tick();
+
+    const after = store.triggers.get(instance.id)!;
+    expect(after.lastStatus).toBe('failed');
+    expect(after.lastError).toMatch(/not connected/i);
+  });
+
+  it('still reschedules, so one missing credential does not wedge it forever', async () => {
+    // A due instance left with no future next_run_at retries every tick for
+    // ever. Connecting the service later has to be enough to fix it.
+    const instance = seedInstance({ dueAt: 1_000 });
+    await gated(1_000, ['gmail']).tick();
+
+    expect(store.triggers.get(instance.id)!.nextRunAt).toBeGreaterThan(1_000);
+  });
+
+  it('does not even boot the project for a run that cannot work', async () => {
+    const ensureRunning = vi.fn().mockResolvedValue(undefined);
+    seedInstance({ dueAt: 1_000 });
+    await gated(1_000, ['gmail'], ensureRunning).tick();
+
+    expect(ensureRunning).not.toHaveBeenCalled();
+  });
+
+  it('names every missing service, not just the first', async () => {
+    seedInstance({ dueAt: 1_000 });
+    const results = await gated(1_000, ['gmail', 'slack']).tick();
+    expect(results[0]!.error).toMatch(/gmail and slack are not connected/i);
+  });
+
+  it('fires normally when nothing is missing', async () => {
+    seedInstance({ dueAt: 1_000 });
+    const results = await gated(1_000, []).tick();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(results[0]!.fired).toBe(true);
+  });
+
+  it('FAILS OPEN when the check itself cannot answer', async () => {
+    // A briefly unreadable vault must not silently stop a working automation.
+    // That would be a worse fault than the one this guards against, and a
+    // quieter one — nothing would run and nothing would say why.
+    seedInstance({ dueAt: 1_000 });
+    const dispatcher = new Dispatcher({
+      store,
+      now: () => 1_000,
+      resolveTarget: () => ({ baseUrl: 'http://127.0.0.1:33001', internalSecret: 'secret' }),
+      blockedBy: async () => {
+        throw new Error('vault locked');
+      },
+    });
+
+    const results = await dispatcher.tick();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(results[0]!.fired).toBe(true);
+  });
+
+  it('is absent by default, so a host that does not check is unaffected', async () => {
+    seedInstance({ dueAt: 1_000 });
+    const results = await dispatcher(1_000).tick();
+    expect(results[0]!.fired).toBe(true);
+  });
+});
