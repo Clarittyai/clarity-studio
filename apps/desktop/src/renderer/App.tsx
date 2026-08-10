@@ -47,6 +47,7 @@ import {
   type NotifyState,
 } from './api.js';
 import { BrandLockup } from './components/Brand.js';
+import { declaredIntegrations, missingRequired } from './connections.js';
 import { AutomationFlow, type StepStatus } from './components/flow/AutomationFlow.js';
 import { toFlow, type Flow } from './components/flow/blocks.js';
 import { AgentAvatar } from './components/live/AgentAvatar.js';
@@ -550,6 +551,21 @@ function ProjectView({
    * into the void, and refreshes afterwards so the timeline reflects what just
    * happened rather than waiting for a poll.
    */
+  /**
+   * The REQUIRED services this automation still has no credential for.
+   *
+   * `required: false` is deliberately excluded — the runtime resolves an
+   * optional integration to null so a tool can degrade on purpose, and blocking
+   * on one would stop an automation designed to cope without it.
+   */
+  const blockingConnections = useCallback(async (): Promise<string[]> => {
+    const declared = declaredIntegrations(manifest);
+    const ids = declared.filter((i) => i.required).map((i) => i.id);
+    if (ids.length === 0) return [];
+    const rows = await api.integrationStatus(project.id, ids).catch(() => []);
+    return missingRequired(declared, rows);
+  }, [manifest, project.id]);
+
   const act = useCallback(
     async (what: 'start' | 'stop' | 'run' | 'rebuild', inputs?: Record<string, unknown>) => {
       setBusy(what);
@@ -558,7 +574,30 @@ function ProjectView({
         if (what === 'start') await api.start(project.id);
         else if (what === 'stop') await api.stop(project.id);
         else if (what === 'rebuild') await api.rebuildProject(project.id);
-        else await api.runWorkflow(project.id, flow?.workflowId, inputs);
+        else {
+          // A run that cannot possibly work must not be started, because
+          // starting it is not free. `client-summary` with Gmail unconnected
+          // reached its agent, spent 2.3k tokens over two model calls, could
+          // not do the job, said so in prose instead of returning the shape it
+          // promised — and the runner rightly refused to guess. The step failed,
+          // the skip strategy carried the workflow on, the run recorded SUCCESS,
+          // and every declared output was stored as null.
+          //
+          // None of that is reachable from here. What is reachable is not
+          // starting: the credential is missing before the first token is spent,
+          // and saying so costs nothing and is the one thing the person can act
+          // on.
+          const missing = await blockingConnections();
+          if (missing.length > 0) {
+            setActionError(
+              `This automation needs ${missing.join(' and ')} connected before it can run. ` +
+                'Connect it in Settings and try again — running now would spend tokens ' +
+                'and finish with nothing to show.',
+            );
+            return;
+          }
+          await api.runWorkflow(project.id, flow?.workflowId, inputs);
+        }
         await load();
       } catch (cause) {
         setActionError(humanError(cause));
@@ -566,7 +605,7 @@ function ProjectView({
         setBusy(undefined);
       }
     },
-    [project.id, load, flow?.workflowId],
+    [project.id, load, flow?.workflowId, blockingConnections],
   );
 
   /** Opening a file is the main process's job, so the only thing that can go
@@ -2310,10 +2349,7 @@ function ConnectionsBand({
   onOpenSettings: () => void;
 }) {
   const declared = useMemo(() => {
-    const list =
-      (manifest as { integrations?: Array<{ id?: string } | string> } | undefined)?.integrations ??
-      [];
-    return list.map((i) => (typeof i === 'string' ? i : (i.id ?? ''))).filter(Boolean);
+    return declaredIntegrations(manifest);
   }, [manifest]);
 
   const [rows, setRows] = useState<IntegrationState[]>([]);
@@ -2323,7 +2359,9 @@ function ConnectionsBand({
       setRows([]);
       return;
     }
-    setRows(await api.integrationStatus(projectId, declared).catch(() => []));
+    setRows(
+      await api.integrationStatus(projectId, declared.map((d) => d.id)).catch(() => []),
+    );
   }, [projectId, declared]);
 
   useEffect(() => {
@@ -2360,7 +2398,14 @@ function ConnectionsBand({
                 </div>
               ) : row.local ? (
                 <div className="text-[11px] text-warning">
-                  Not connected — steps that use it will be skipped
+                  {/* A REQUIRED service does not degrade. Saying "steps that use
+                      it will be skipped" promised a graceful skip that does not
+                      happen: the agent is reached anyway, spends its tokens,
+                      cannot do the job, and the run finishes with every output
+                      null. Only an OPTIONAL integration is the skip case. */}
+                  {declared.find((d) => d.id === row.id)?.required
+                    ? 'Not connected — this automation cannot run until it is'
+                    : 'Not connected — steps that use it will be skipped'}
                 </div>
               ) : (
                 <div className="text-[11px] text-muted-foreground">
