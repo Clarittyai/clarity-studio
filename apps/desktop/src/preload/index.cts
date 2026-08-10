@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld('studio', {
     ipcRenderer.invoke('integrations:disconnect', projectId, id),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setModelOverride: (model: string) => ipcRenderer.invoke('settings:set-model-override', model),
+  rebuildProject: (projectId: string) => ipcRenderer.invoke('project:rebuild', projectId),
+  openProjectLogs: (projectId: string) => ipcRenderer.invoke('project:open-logs', projectId),
   getNotify: (projectId: string) => ipcRenderer.invoke('notify:get', projectId),
   setNotify: (projectId: string, prefs: Record<string, unknown>) =>
     ipcRenderer.invoke('notify:set', projectId, prefs),

@@ -42,7 +42,7 @@ import { safeStorage } from 'electron';
 
 import { deliver, detail, headline, type DeliveryResult, type NotifyPrefs } from './notifier.js';
 import { nextRunAt } from '@clarity-studio/scheduler';
-import { RuntimeHost } from './runtime.js';
+import { bootLogPath, RuntimeHost } from './runtime.js';
 import { TerminalHost } from './terminal.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -584,6 +584,42 @@ function syncTriggers(projectId: string): Array<Record<string, unknown>> {
 
   ipcMain.handle('project:stop', async (_event, projectId: string) => {
     await runtime.stop(String(projectId));
+  });
+
+  /** Throw the Python environment away and start again. The automation's own
+   *  files are never touched — see RuntimeHost.rebuild. */
+  ipcMain.handle('project:rebuild', async (_event, projectId: string) => {
+    await runtime.rebuild(String(projectId));
+  });
+
+  /**
+   * Open the full output of the last failed start.
+   *
+   * The panel shows the tail of it; the cause is often above that. When there
+   * is no log — a project that has never failed, or one whose `.studio` was
+   * cleaned out — reveal the folder rather than silently doing nothing, which
+   * is what this button did before it was wired.
+   */
+  ipcMain.handle('project:open-logs', async (_event, projectId: string) => {
+    const project = db().getProject(String(projectId));
+    if (!project) throw new Error('That automation is not in the library.');
+
+    const log = bootLogPath(project.path);
+    if (existsSync(log)) {
+      // openPath returns a REASON on failure and resolves either way — an
+      // empty string is success. Without this check a missing text-file
+      // association looks exactly like a working button.
+      const failed = await shell.openPath(log);
+      if (!failed) return { opened: log };
+      shell.showItemInFolder(log);
+      return { opened: log, revealed: true };
+    }
+
+    const studio = join(project.path, '.studio');
+    const fallback = existsSync(studio) ? studio : project.path;
+    const failed = await shell.openPath(fallback);
+    if (failed) throw new Error(`Could not open ${fallback}: ${failed}`);
+    return { opened: fallback, revealed: true };
   });
 
   ipcMain.handle(

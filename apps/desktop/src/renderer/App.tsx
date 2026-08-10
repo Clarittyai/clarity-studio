@@ -401,7 +401,7 @@ function ProjectView({
   >();
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(project.name);
-  const [busy, setBusy] = useState<'start' | 'stop' | 'run' | undefined>();
+  const [busy, setBusy] = useState<'start' | 'stop' | 'run' | 'rebuild' | undefined>();
   const [actionError, setActionError] = useState<string | undefined>();
   const [tab, setTab] = useState<'flow' | 'runs'>('flow');
   const [latestSteps, setLatestSteps] = useState<Step[]>([]);
@@ -551,12 +551,13 @@ function ProjectView({
    * happened rather than waiting for a poll.
    */
   const act = useCallback(
-    async (what: 'start' | 'stop' | 'run', inputs?: Record<string, unknown>) => {
+    async (what: 'start' | 'stop' | 'run' | 'rebuild', inputs?: Record<string, unknown>) => {
       setBusy(what);
       setActionError(undefined);
       try {
         if (what === 'start') await api.start(project.id);
         else if (what === 'stop') await api.stop(project.id);
+        else if (what === 'rebuild') await api.rebuildProject(project.id);
         else await api.runWorkflow(project.id, flow?.workflowId, inputs);
         await load();
       } catch (cause) {
@@ -567,6 +568,18 @@ function ProjectView({
     },
     [project.id, load, flow?.workflowId],
   );
+
+  /** Opening a file is the main process's job, so the only thing that can go
+   *  wrong here is that there was nothing to open — which the user still needs
+   *  telling about, rather than a button that appears to do nothing. */
+  const openLogs = useCallback(async () => {
+    setActionError(undefined);
+    try {
+      await api.openProjectLogs(project.id);
+    } catch (cause) {
+      setActionError(humanError(cause));
+    }
+  }, [project.id]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -658,9 +671,24 @@ function ProjectView({
           <p className="mt-1 font-mono text-xs text-muted-foreground" data-selectable>
             {project.lastError}
           </p>
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" variant="outline">Rebuild</Button>
-            <Button size="sm" variant="ghost">Open logs</Button>
+          <div className="mt-3 flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy !== undefined}
+              title="Delete the Python environment and start again. Your automation's files are not touched."
+              onClick={() => void act('rebuild')}
+            >
+              {busy === 'rebuild' ? 'Rebuilding…' : 'Rebuild'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => void openLogs()}>
+              Open logs
+            </Button>
+            {/* The panel above is the tail of the output. Saying where the rest
+                went is what makes the button worth pressing. */}
+            <span className="text-xs text-muted-foreground">
+              Rebuild reinstalls dependencies; the log has the full output.
+            </span>
           </div>
         </Card>
       )}

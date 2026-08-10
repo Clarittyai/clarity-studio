@@ -234,6 +234,12 @@ export interface StudioApi {
   importProject(): Promise<{ id: string } | undefined>;
   start(projectId: string): Promise<void>;
   stop(projectId: string): Promise<void>;
+  /** Delete the Python environment and start again. Leaves the automation's
+   *  own files alone — only the environment is rebuilt. */
+  rebuildProject(projectId: string): Promise<void>;
+  /** Open the full output of the last failed start, falling back to revealing
+   *  `.studio/` when there is no log to open. */
+  openProjectLogs(projectId: string): Promise<{ opened: string; revealed?: boolean }>;
   /**
    * Fire a workflow. `inputs` is the only channel a person has to tell a
    * running automation anything — the engine binds them to `${inputs.x}`.
@@ -569,6 +575,10 @@ const fixtures: StudioApi = {
   },
   async start() {},
   async stop() {},
+  async rebuildProject() {},
+  async openProjectLogs() {
+    return { opened: '' };
+  },
   async runWorkflow() {},
 };
 
