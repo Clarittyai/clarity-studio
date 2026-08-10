@@ -59,3 +59,25 @@ export function missingRequired(
     .filter((r) => required.has(r.id) && !r.connected && r.local)
     .map((r) => r.id);
 }
+
+/**
+ * Did this run produce nothing at all?
+ *
+ * True when the outputs are an object with at least one key and every value is
+ * null — the shape a workflow leaves behind when the step that fills its
+ * declared outputs never finished. `client-summary` recorded
+ * `{"summary":null,"message_count":null,"summary_id":null,"email_message_id":null}`
+ * and a green tick, which is four facts wide and says one thing.
+ *
+ * Deliberately narrow. A run with SOME nulls has done part of its job and the
+ * values are worth reading; an empty object is a workflow that declares no
+ * outputs, which is ordinary and not worth remarking on. Only the all-null case
+ * is an absence pretending to be data.
+ */
+export function nothingCameBack(outputs: unknown): boolean {
+  if (typeof outputs !== 'object' || outputs === null || Array.isArray(outputs)) {
+    return false;
+  }
+  const values = Object.values(outputs as Record<string, unknown>);
+  return values.length > 0 && values.every((v) => v === null);
+}

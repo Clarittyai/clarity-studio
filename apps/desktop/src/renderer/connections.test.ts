@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { declaredIntegrations, missingRequired } from './connections.js';
+import { declaredIntegrations, missingRequired, nothingCameBack } from './connections.js';
 
 /**
  * What decides whether a run is allowed to start.
@@ -103,5 +103,47 @@ describe('what stops a run', () => {
         rows(['gmail', false, true], ['slack', false, true], ['notion', false, true]),
       ),
     ).toEqual(['gmail', 'slack']);
+  });
+});
+
+describe('a run that produced nothing', () => {
+  it('recognises the shape a step that never finished leaves behind', () => {
+    // Verbatim from the `client-summary` run that prompted this: four declared
+    // outputs, every one null, and a green tick above them.
+    expect(
+      nothingCameBack({
+        summary: null,
+        message_count: null,
+        summary_id: null,
+        email_message_id: null,
+      }),
+    ).toBe(true);
+  });
+
+  it('leaves a partial result alone, because those values are worth reading', () => {
+    // Some nulls means the run did part of its job. Calling that "nothing came
+    // back" would hide the part that did.
+    expect(nothingCameBack({ summary: 'a digest', message_count: null })).toBe(false);
+  });
+
+  it('says nothing about a workflow that declares no outputs', () => {
+    // Ordinary, and not worth remarking on.
+    expect(nothingCameBack({})).toBe(false);
+  });
+
+  it('is not fooled by things that are not an output object', () => {
+    expect(nothingCameBack(null)).toBe(false);
+    expect(nothingCameBack(undefined)).toBe(false);
+    expect(nothingCameBack([null, null])).toBe(false);
+    expect(nothingCameBack('nope')).toBe(false);
+    expect(nothingCameBack(0)).toBe(false);
+  });
+
+  it('does not treat a falsy-but-real value as absent', () => {
+    // 0, '' and false are answers. Only null is the engine saying it never got
+    // one, which is the distinction the whole check rests on.
+    expect(nothingCameBack({ count: 0 })).toBe(false);
+    expect(nothingCameBack({ summary: '' })).toBe(false);
+    expect(nothingCameBack({ ok: false })).toBe(false);
   });
 });

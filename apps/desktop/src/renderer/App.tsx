@@ -47,7 +47,7 @@ import {
   type NotifyState,
 } from './api.js';
 import { BrandLockup } from './components/Brand.js';
-import { declaredIntegrations, missingRequired } from './connections.js';
+import { declaredIntegrations, missingRequired, nothingCameBack } from './connections.js';
 import { AutomationFlow, type StepStatus } from './components/flow/AutomationFlow.js';
 import { toFlow, type Flow } from './components/flow/blocks.js';
 import { AgentAvatar } from './components/live/AgentAvatar.js';
@@ -1259,20 +1259,45 @@ function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
             const width = step.endedAt ? Math.max(1.5, ((step.endedAt - step.startedAt) / span) * 100) : 3;
             const failed = step.status !== 'success';
             return (
-              <div key={step.stepId} className="flex items-center gap-3">
-                <span className="w-24 shrink-0 truncate text-xs font-medium">{step.stepId}</span>
-                <div className="relative h-5 flex-1 overflow-hidden rounded-md bg-foreground/[0.04]">
-                  <div
-                    className={cn(
-                      'absolute inset-y-0 rounded-md',
-                      failed ? 'bg-destructive/70' : 'bg-accent/70',
-                    )}
-                    style={{ left: `${offset}%`, width: `${width}%` }}
-                  />
+              <div key={step.stepId} className="flex flex-col gap-1">
+                <div className="flex items-center gap-3">
+                  <span className="w-24 shrink-0 truncate text-xs font-medium">{step.stepId}</span>
+                  <div className="relative h-5 flex-1 overflow-hidden rounded-md bg-foreground/[0.04]">
+                    <div
+                      className={cn(
+                        'absolute inset-y-0 rounded-md',
+                        failed ? 'bg-destructive/70' : 'bg-accent/70',
+                      )}
+                      style={{ left: `${offset}%`, width: `${width}%` }}
+                    />
+                  </div>
+                  <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
+                    {duration(step.startedAt, step.endedAt)}
+                  </span>
                 </div>
-                <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
-                  {duration(step.startedAt, step.endedAt)}
-                </span>
+                {/* WHY it did not run, in the one place someone is already
+                    looking.
+
+                    A step carries its own error and this drew only a red bar
+                    and a duration, so a run that had failed showed a coloured
+                    rectangle above a JSON blob of nulls and no words at all.
+                    The reason was one field away the whole time: "model
+                    returned non-JSON text without calling the __finish tool —
+                    refusing to guess output shape" is the difference between a
+                    person knowing to connect Gmail and a person asking someone
+                    else what happened.
+
+                    The run-level error below is a different thing — it is set
+                    when the WORKFLOW failed, and a workflow that carried on
+                    past a failed step under the skip strategy has none. */}
+                {step.error && (
+                  <p
+                    className="ml-[6.75rem] font-mono text-[11px] leading-snug text-destructive"
+                    data-selectable
+                  >
+                    {step.error}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -1284,11 +1309,23 @@ function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
           {run.error}
         </p>
       )}
-      {run.outputs != null && (
-        <p className="mt-3 font-mono text-[11px] text-muted-foreground" data-selectable>
-          {JSON.stringify(run.outputs)}
-        </p>
-      )}
+      {run.outputs != null &&
+        (nothingCameBack(run.outputs) ? (
+          /* Every declared output is null, which happens when the step that
+             produces them never ran. Printing
+             {"summary":null,"message_count":null,"summary_id":null,…} is worse
+             than printing nothing: it is four facts wide and says one thing,
+             and it reads like data rather than like an absence. The step's own
+             error above says why; this says what it cost. */
+          <p className="mt-3 text-[11px] text-warning" data-selectable>
+            Nothing came back — every output of this run is empty because the
+            step that fills them did not finish.
+          </p>
+        ) : (
+          <p className="mt-3 font-mono text-[11px] text-muted-foreground" data-selectable>
+            {JSON.stringify(run.outputs)}
+          </p>
+        ))}
       {/* In and out separately: they are priced differently everywhere and a
           run that is mostly output behaves nothing like one that is mostly
           input, which a single total hides. */}
