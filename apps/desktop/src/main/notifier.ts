@@ -19,6 +19,8 @@
 
 import { executeTool, findIntegration } from '@clarity-studio/connectors';
 
+import { verdictDetail, verdictHeadline, type RunVerdict } from '../shared/run-verdict.js';
+
 export interface NotifyPrefs {
   desktop?: boolean;
   slack?: boolean;
@@ -47,15 +49,29 @@ export interface RunSummary {
   automation: string;
   status: string;
   error?: string | null;
+  /**
+   * What the run actually achieved, which `status` does not say. The engine
+   * calls a run successful when ANY step succeeded, so an automation whose only
+   * real step could not run still arrives here as `success` with no error — and
+   * this file then said "finished — The run completed."
+   *
+   * That is the same failure the docstring above warns about for a channel that
+   * silently drops a message. The point of the notification is not having to
+   * look; being told it worked is worse than being told nothing, because you
+   * stop looking. Optional so a caller with no steps to hand still works.
+   */
+  verdict?: RunVerdict;
 }
 
 /** One line, because that is what a phone shows. */
 export function headline(run: RunSummary): string {
+  if (run.verdict) return verdictHeadline(run.automation, run.verdict);
   const ok = run.status === 'success';
   return `${run.automation} ${ok ? 'finished' : run.status === 'failed' ? 'failed' : run.status}`;
 }
 
 export function detail(run: RunSummary): string {
+  if (run.verdict) return verdictDetail(run.verdict);
   if (run.error) return run.error.slice(0, 500);
   return run.status === 'success' ? 'The run completed.' : `The run ended as ${run.status}.`;
 }

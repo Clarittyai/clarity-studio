@@ -55,6 +55,7 @@ import { AutomationGraphScene } from './components/live/AutomationGraphScene.js'
 import { CONTRIBUTE } from './components/cloud-links.js';
 import { CloudShowcase } from './components/CloudShowcase.js';
 import { REQUEST_INTEGRATION, TerminalPanel } from './components/Terminal.js';
+import { runVerdict } from '../shared/run-verdict.js';
 import {
   Badge,
   Button,
@@ -1171,24 +1172,6 @@ function TriggerRow({ trigger, onToggle }: { trigger: Trigger; onToggle: (on: bo
 
 // ── the run timeline ─────────────────────────────────────────────────────────
 
-/**
- * A run where every step skipped is not a success, whatever status the engine
- * recorded. The invoice-digest simulation skipped three of four steps —
- * `gmail_not_connected` — and still reported `✓ workflow succeeded`, which on a
- * schedule means an automation that looks healthy for a week while doing
- * nothing. The engine's verdict is kept, but the timeline says what happened.
- */
-function effectiveStatus(run: Run, steps: Step[]): { status: Status; note?: string } {
-  if (steps.length > 0 && steps.every((s) => s.status === 'skipped')) {
-    return { status: 'skipped', note: 'every step skipped — nothing ran' };
-  }
-  const skipped = steps.filter((s) => s.status === 'skipped').length;
-  if (run.status === 'success' && skipped > 0) {
-    return { status: 'skipped', note: `${skipped} step${skipped === 1 ? '' : 's'} skipped` };
-  }
-  return { status: run.status as Status };
-}
-
 function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: () => void }) {
   const [steps, setSteps] = useState<Step[]>([]);
 
@@ -1201,7 +1184,7 @@ function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: ()
       .catch(() => undefined);
   }, [run.id]);
 
-  const verdict = useMemo(() => effectiveStatus(run, steps), [run, steps]);
+  const verdict = useMemo(() => runVerdict(run, steps), [run, steps]);
 
   return (
     <Card className="overflow-hidden">
@@ -1218,7 +1201,23 @@ function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: ()
               <span className="ml-2 font-normal text-warning">{verdict.note}</span>
             )}
           </p>
-          <p className="truncate font-mono text-[11px] text-muted-foreground">{run.id}</p>
+          {/* The reason, where the run id used to be.
+
+              A run that went wrong has one useful second line and it is not its
+              own identifier. The reason was recorded on the step and sat one
+              join from every screen while none of them showed it: someone
+              reading "1 step skipped" next to "Gmail not connected" concludes
+              they should connect Gmail, and on these runs that would not have
+              helped — the model had returned prose instead of calling the finish
+              tool. The id is still on the row when it is expanded. */}
+          <p
+            className={cn(
+              'truncate text-[11px]',
+              verdict.reason ? 'text-warning/90' : 'font-mono text-muted-foreground',
+            )}
+          >
+            {verdict.reason ?? run.id}
+          </p>
         </div>
         <Badge>{run.triggeredBy}</Badge>
         <span className="w-16 text-right text-xs tabular-nums text-muted-foreground">
@@ -1980,6 +1979,8 @@ function HomeView({
   onNew: () => void;
 }) {
   const [totals, setTotals] = useState({ runs: 0, tokens: 0, failures: 0 });
+  /** Projects whose latest run was green and produced nothing. */
+  const [unproductive, setUnproductive] = useState<Set<string>>(new Set());
   const [nextRunAt, setNextRunAt] = useState<number | undefined>();
   /** Per project: its most recent run, for the row's status line. */
   const [lastRun, setLastRun] = useState<Record<string, Run | undefined>>({});
@@ -2010,15 +2011,25 @@ function HomeView({
       let failures = 0;
       let soonest: number | undefined;
       const latest: Record<string, Run | undefined> = {};
+      /** Projects whose most recent run finished green having done nothing. */
+      const unproductive = new Set<string>();
 
       for (const project of projects) {
         const list = await api.listRuns(project.id).catch(() => []);
         latest[project.id] = list[0];
+        // A run the engine called successful can still have achieved nothing:
+        // it declares success when ANY step succeeded, so an automation whose
+        // only real step could not run counted as healthy here while four
+        // consecutive runs of it did nothing and spent 8.3k tokens.
+        const blocked = new Set(
+          await api.blockedRunIds(project.id, since).catch(() => []),
+        );
+        if (list[0] && blocked.has(list[0].id)) unproductive.add(project.id);
         for (const run of list) {
           if (run.startedAt < since) continue;
           runs += 1;
           tokens += run.promptTokens + run.completionTokens;
-          if (run.status === 'failed') failures += 1;
+          if (run.status === 'failed' || blocked.has(run.id)) failures += 1;
         }
         // "Is anything going to happen without me" is the question a dashboard
         // for scheduled work has to answer.
@@ -2031,6 +2042,7 @@ function HomeView({
 
       if (cancelled) return;
       setTotals({ runs, tokens, failures });
+      setUnproductive(unproductive);
       setNextRunAt(soonest);
       setLastRun(latest);
     })();
@@ -2045,9 +2057,15 @@ function HomeView({
    */
   const ordered = useMemo(() => {
     const rank = (p: Project) =>
-      p.status === 'crashed' || lastRun[p.id]?.status === 'failed' ? 0 : 1;
+      p.status === 'crashed' ||
+      lastRun[p.id]?.status === 'failed' ||
+      // Green and useless sorts with broken, because it is broken. This is the
+      // state that hides: nothing is red, and nothing is happening.
+      unproductive.has(p.id)
+        ? 0
+        : 1;
     return [...projects].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
-  }, [projects, lastRun]);
+  }, [projects, lastRun, unproductive]);
 
   const running = projects.filter((p) => p.status === 'running').length;
 

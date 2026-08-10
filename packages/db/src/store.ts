@@ -292,6 +292,32 @@ export class Store {
     }));
   }
 
+  /**
+   * Runs since `since` that contain a step which tried and could not.
+   *
+   * A dashboard cannot ask this per run: the engine calls a run successful when
+   * ANY step succeeded, so the only evidence is in the step rows, and fetching
+   * those for every run on the home screen is N queries to answer one question.
+   *
+   * A skip WITH an error is a step that was reached and blocked. A skip with no
+   * error is a conditional gate that correctly did not fire, which is ordinary
+   * and must not be counted — see run-verdict.ts.
+   */
+  blockedRunIds(projectId: string, since: number): string[] {
+    const rows = this.db
+      .prepare(
+        `SELECT DISTINCT s.run_id AS id
+           FROM run_steps s
+           JOIN runs r ON r.id = s.run_id
+          WHERE r.project_id = ?
+            AND r.started_at >= ?
+            AND s.status = 'skipped'
+            AND s.error IS NOT NULL`,
+      )
+      .all(projectId, since) as Record<string, unknown>[];
+    return rows.map((r) => String(r.id));
+  }
+
   getLlmCalls(runId: string) {
     const rows = this.db
       .prepare('SELECT * FROM llm_calls WHERE run_id = ? ORDER BY at')

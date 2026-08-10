@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('studio', {
   listProjects: () => ipcRenderer.invoke('projects:list'),
   listRuns: (projectId: string) => ipcRenderer.invoke('runs:list', projectId),
   listSteps: (runId: string) => ipcRenderer.invoke('steps:list', runId),
+  blockedRunIds: (projectId: string, since: number) =>
+    ipcRenderer.invoke('runs:blocked', projectId, since),
   listTriggers: (projectId: string) => ipcRenderer.invoke('triggers:list', projectId),
   enableTrigger: (triggerId: string, enabled: boolean) =>
     ipcRenderer.invoke('trigger:enable', triggerId, enabled),

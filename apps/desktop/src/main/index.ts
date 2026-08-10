@@ -41,6 +41,7 @@ import { SafeStorageBackend, Vault, VaultUnavailableError, secretKey } from '@cl
 import { safeStorage } from 'electron';
 
 import { deliver, detail, headline, type DeliveryResult, type NotifyPrefs } from './notifier.js';
+import { runVerdict } from '../shared/run-verdict.js';
 import { nextRunAt } from '@clarity-studio/scheduler';
 import { bootLogPath, RuntimeHost } from './runtime.js';
 import { TerminalHost } from './terminal.js';
@@ -271,6 +272,11 @@ async function announce(runId: string): Promise<void> {
       automation: project?.name ?? 'An automation',
       status: run.status,
       error: run.error,
+      // The steps are what say whether the run achieved anything — the run row
+      // alone cannot, because the engine calls a run successful when any single
+      // step succeeded. A local SQLite read on a path that is already about to
+      // make network calls.
+      verdict: runVerdict(run, store.getSteps(runId)),
     };
 
     if (prefs.desktop !== false && Notification.isSupported()) {
@@ -394,6 +400,12 @@ function registerIpc(): void {
   ipcMain.handle('runs:list', (_event, projectId: string) => db().listRuns(String(projectId), 50));
 
   ipcMain.handle('steps:list', (_event, runId: string) => db().getSteps(String(runId)));
+
+  // Which runs achieved nothing, in one query — the home screen asks this for
+  // every project and cannot afford a steps fetch per run.
+  ipcMain.handle('runs:blocked', (_event, projectId: string, since: number) =>
+    db().blockedRunIds(String(projectId), Number(since)),
+  );
 
 /**
  * Make the store's trigger rows match what the manifest declares.

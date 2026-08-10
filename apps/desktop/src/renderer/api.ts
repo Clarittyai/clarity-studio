@@ -147,6 +147,8 @@ export interface StudioApi {
   listProjects(): Promise<Project[]>;
   listRuns(projectId: string): Promise<Run[]>;
   listSteps(runId: string): Promise<Step[]>;
+  /** Ids of runs since `since` that contain a step which tried and could not. */
+  blockedRunIds(projectId: string, since: number): Promise<string[]>;
   listTriggers(projectId: string): Promise<Trigger[]>;
   /** Switch a schedule on. Nothing fires until you do. */
   enableTrigger(triggerId: string, enabled: boolean): Promise<void>;
@@ -440,6 +442,9 @@ const fixtures: StudioApi = {
   },
   async listSteps(runId) {
     return demoSteps[runId] ?? [];
+  },
+  async blockedRunIds() {
+    return [];
   },
   async listTriggers(projectId) {
     return projectId === 'demo-1' ? demoTriggers : [];
