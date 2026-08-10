@@ -17,8 +17,20 @@ export interface ModelPrice {
 }
 
 export const PRICES: Record<string, ModelPrice> = {
-  // Anthropic
+  // Anthropic. Rows are per family and resolve by LONGEST prefix, so a newer
+  // family needs its own row wherever an older, shorter key would swallow it.
+  // Two ways that went wrong, both of them the silent-wrong-number this file's
+  // header warns about: `claude-opus-4` caught 4.6/4.7/4.8 and priced them at
+  // Opus 4.0's $15/$75 — three times their real cost — while the 5 series
+  // matched nothing and reported $0.00.
+  'claude-fable-5': { input: 10, output: 50 },
+  'claude-mythos-5': { input: 10, output: 50 },
+  'claude-opus-5': { input: 5, output: 25 },
+  'claude-opus-4-8': { input: 5, output: 25 },
+  'claude-opus-4-7': { input: 5, output: 25 },
+  'claude-opus-4-6': { input: 5, output: 25 },
   'claude-opus-4': { input: 15, output: 75 },
+  'claude-sonnet-5': { input: 3, output: 15 },
   'claude-sonnet-4': { input: 3, output: 15 },
   'claude-haiku-4': { input: 1, output: 5 },
   'claude-3-5-haiku': { input: 0.8, output: 4 },
