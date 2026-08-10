@@ -42,6 +42,13 @@ jobs:
           python-version: '3.11'
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # Two of the proofs below launch the real Electron window, and a GitHub
+      # runner has no display. Without this they die on "Missing X server or
+      # $DISPLAY" — which they did, on every push from 8 August, and because
+      # the first one sits mid-job everything after it stopped running too.
+      # A gate that is always red gates nothing.
+      - name: A virtual display, for the proofs that drive the real window
+        run: sudo apt-get update && sudo apt-get install -y xvfb
       - name: Install the published SDK (not a checkout — the point is that it is unmodified)
         run: |
           python -m venv .venv-probe
@@ -61,7 +68,7 @@ jobs:
       # where a unit test cannot see: a dialog, a recursive copy, an adopt, and a
       # coding agent handed the request. Any step can half-succeed and leave a
       # folder that looks created and cannot run.
-      - run: pnpm proof:generation
+      - run: xvfb-run -a pnpm proof:generation
       # Every automation runs on `claritty-sdk` from public PyPI and nothing
       # else ships it. This installs the seed's own requirements into a clean
       # venv and strict-validates the shipped manifest with what came back —
@@ -72,7 +79,7 @@ jobs:
       # nothing covered end to end. proof:schedule drives the dispatcher against
       # a stub listener; proof:run presses the button. Neither proves a schedule
       # runs a real automation, which is the whole product.
-      - run: pnpm proof:scheduled-run
+      - run: xvfb-run -a pnpm proof:scheduled-run
       # The seed's catalog describes the hosted platform; Studio brokers a
       # subset. An agent reading a manifest cannot tell the difference unless
       # the annotations are current, and a stale annotation is worse than none —
