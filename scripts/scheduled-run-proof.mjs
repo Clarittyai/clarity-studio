@@ -34,8 +34,114 @@ const check = (name, ok, detail) => {
   if (!ok) failures++;
 };
 
-const SOURCE = process.env.SCHED_PROOF_PROJECT ?? join(process.env.HOME ?? '', 'Automations/downloads-report');
-if (!existsSync(join(SOURCE, 'intelligence.yaml'))) throw new Error(`no automation at ${SOURCE}`);
+/**
+ * A credential-free automation that writes a file, which is all this proof
+ * needs of one.
+ *
+ * It used to be `~/Automations/downloads-report` and nothing else — a folder
+ * the developer had made by hand. That is why this proof had never once run in
+ * CI: the step died with "no automation at /home/runner/Automations/…" before
+ * testing anything, on a runner that has no such folder and never will. A gate
+ * that can only pass on one laptop is not a gate.
+ *
+ * So use the real folder when it is there — it is the closest thing to what a
+ * user actually has — and otherwise build an equivalent from the seed, whose
+ * `main.py` is entirely manifest-driven. Only two things need writing: a tool
+ * that produces a file, and a manifest that calls it.
+ */
+function fixtureFromSeed() {
+  const dir = '/tmp/sched-run-fixture';
+  rmSync(dir, { recursive: true, force: true });
+  cpSync(join(ROOT, 'packages/automation-seed'), dir, {
+    recursive: true,
+    filter: (s) =>
+      !s.includes('__pycache__') && !s.includes('/.studio') && !s.includes('/.spike-data'),
+  });
+
+  writeFileSync(
+    join(dir, 'backend', 'tools', 'write_report.py'),
+    `"""app.write_report — the whole job, in one tool.
+
+No model and no credential, deliberately: this exists so a proof can ask
+whether a SCHEDULE ran an automation without also depending on a key being
+present. The file it leaves behind is the evidence.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict
+
+from claritty_sdk import tool
+from claritty_sdk.context import ToolCtx
+
+APP_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+@tool(id="app.write_report")
+def run(input: Dict[str, Any], ctx: ToolCtx) -> Dict[str, Any]:
+    at = datetime.now(timezone.utc)
+    reports = APP_ROOT / "reports"
+    reports.mkdir(parents=True, exist_ok=True)
+    path = reports / f"report-{at.strftime('%Y%m%dT%H%M%S%f')}.md"
+    path.write_text(f"# Report\\n\\nWritten at {at.isoformat()} by a schedule.\\n", encoding="utf-8")
+    ctx.log("info", f"wrote {path.name}")
+    return {"report_path": str(path)}
+`,
+    'utf8',
+  );
+
+  // `triggers:` MUST stay last: the proof rewrites that section with a regex
+  // that runs to end-of-file.
+  writeFileSync(
+    join(dir, 'intelligence.yaml'),
+    `schemaVersion: 2
+id: downloads-report
+version: 1.0.0
+
+integrations: []
+
+tools:
+  - id: app.write_report
+    handler: backend.tools.write_report:run
+    output:
+      report_path:
+        type: string
+        required: true
+
+agents: []
+
+workflows:
+  - id: downloads-report
+    steps:
+      - id: write
+        tool: app.write_report
+    outputs:
+      report_path: "\${steps.write.output.report_path}"
+
+triggers:
+  - id: placeholder
+    type: SCHEDULE
+    name: Placeholder
+    workflow: downloads-report
+    supportedSchedules: [DAILY]
+    maxInstancesPerUser: 1
+    configFields:
+      - { key: time, type: time, required: true, label: "Run at", default: "09:00" }
+      - { key: timezone, type: timezone, required: true, label: "Timezone" }
+`,
+    'utf8',
+  );
+  return dir;
+}
+
+const LOCAL =
+  process.env.SCHED_PROOF_PROJECT ?? join(process.env.HOME ?? '', 'Automations/downloads-report');
+const SOURCE = existsSync(join(LOCAL, 'intelligence.yaml')) ? LOCAL : fixtureFromSeed();
+console.log(
+  `\nAgainst ${SOURCE === LOCAL ? 'your own downloads-report' : 'a fixture built from the seed'}\n`,
+);
 
 const HOME = '/tmp/sched-run-home';
 const PROJECT = '/tmp/sched-run-project';
