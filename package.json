@@ -21,6 +21,7 @@
     "proof:integrations": "node scripts/m3-integration-proof.mjs",
     "postinstall": "node scripts/fix-pty-permissions.mjs",
     "proof:byom": "node scripts/byom-proof.mjs",
+    "proof:agent-loop": "node scripts/agent-loop-proof.mjs",
     "start": "pnpm --filter @clarity-studio/desktop exec electron .",
     "app": "pnpm start",
     "check:app": "node scripts/full-check.mjs",

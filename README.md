@@ -106,6 +106,13 @@ automation *decide* — which of these emails is a real request, which of these
 results matter, is this the same issue as that one. That judgement is the reason
 to use Studio rather than a cron job.
 
+Each automation names its own model in `intelligence.yaml`. **Settings → Model →
+Run everything on** overrides all of them at once, which is what makes someone
+else's automation runnable on your key: a manifest written against Claude runs on
+`gpt-4o-mini`, or on `ollama/llama3.1:8b`, without editing their file. The model
+id also picks the provider, so it is the same field that moves a run onto your own
+machine. Clear it and every automation goes back to choosing for itself.
+
 Running your own server instead? The exact request Studio sends is written down
 in [docs/model-endpoint.md](docs/model-endpoint.md). Anything OpenAI-compatible
 works, but test it with tools before trusting it with an agent — a server that
@@ -371,12 +378,21 @@ pnpm typecheck && pnpm test && pnpm build
 pnpm spike              # M0: an unmodified automation runs against the local control plane
 pnpm proof:integrations # M3: a real HTTP call through the vault, credential never leaving the host
 pnpm proof:byom         # a configured endpoint actually receives the run's model call
+pnpm proof:agent-loop   # a model picks a tool, reads the result, and finishes — needs a real key
 pnpm check:app          # the window itself
 ```
 
-Those last four are gates rather than niceties. Each one exists because the thing it checks broke
+Those last five are gates rather than niceties. Each one exists because the thing it checks broke
 once and did so **silently** — an endpoint that was stored and ignored, a credential path that only
 worked on the machine that wrote it. If you are changing that area, they are the fastest way to know.
+
+`proof:agent-loop` is the only one that spends money, and it is the only one that runs a model at
+all: every other proof here is tool-only Python or the simulator. It skips loudly without a key so a
+clone still goes green, and is **required** on `main`. It asserts what a simulator cannot fake —
+output tokens above zero — and what a model cannot fake: that the `digest_id` in the run output is
+also a line in `digests.jsonl`, which only the tool can write. Told not to call its tools, the model
+invents a correctly-formatted id and the step still reports success; the disk check is what catches
+it.
 
 Two house rules worth knowing before your first PR:
 

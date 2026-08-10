@@ -197,16 +197,22 @@ Be accurate about this. Do not describe unverified code as working.
 - Connector chain to a real HTTP service — `pnpm proof:integrations`
 - Scheduler firing unattended, webhook delivery and replay — done live
 - Native runtime, store, CLI, renderer, Electron app — 155 tests + screenshots
+- **The agent loop** — `pnpm proof:agent-loop`. A model picks a tool, reads the
+  result and calls `claritty_finish`, against a live Anthropic API with a real
+  key. This also exercises the Anthropic message translation described below,
+  which is why that adapter is no longer on the unproven list.
 
 **Never executed:**
 
 - **The Docker path.** `DockerRunner` is written and its deterministic parts are
   tested, but `docker compose up` has never run — the build container had no
   daemon. Try `clarity-studio run` without `--native` early.
-- **Real provider adapters.** Anthropic, OpenAI and Google have never hit a live
-  API; only the simulator has. The Anthropic message translation is the riskiest
-  code in the repo: OpenAI models tool results as `role: "tool"` messages,
-  Anthropic wants `tool_result` blocks merged into a **single** user turn.
+- **The OpenAI and Google adapters.** Neither has hit a live API; only the
+  simulator and Anthropic have. The message translation is the riskiest code in
+  the repo: OpenAI models tool results as `role: "tool"` messages, Anthropic
+  wants `tool_result` blocks merged into a **single** user turn. The Anthropic
+  side of that is now covered by `pnpm proof:agent-loop`; run it with
+  `OPENAI_API_KEY` set instead to cover the other.
 
 ---
 

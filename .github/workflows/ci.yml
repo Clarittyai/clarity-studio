@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # So the agent-loop proof can be run on demand without waiting for a push.
+  workflow_dispatch:
 
 jobs:
   build:
@@ -83,6 +85,38 @@ jobs:
             git diff --stat -- packages/automation-seed/catalog docs/connectors.md docs/llms.txt
             exit 1
           fi
+
+  # The agent loop: a model picks a tool, reads the result, calls
+  # `claritty_finish`. Every other proof in this file runs tool-only Python or
+  # the simulator, so this is the only one that spends a real token — and the
+  # only evidence that the thing the product is *for* works at all.
+  #
+  # Not on pull_request: fork PRs cannot read secrets, so the job would skip on
+  # exactly the runs where it looks like it passed. On main it is REQUIRED, so a
+  # missing key fails the build rather than quietly turning the proof off.
+  agent-loop:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Install the published SDK (not a checkout — the point is that it is unmodified)
+        run: |
+          python -m venv .venv-probe
+          ./.venv-probe/bin/pip install --quiet "claritty-sdk>=2.11,<3" fastapi "uvicorn[standard]"
+      - run: pnpm proof:agent-loop
+        env:
+          REQUIRE_AGENT_LOOP_PROOF: '1'
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
   # The design system is generated from clarity-platform. If someone edits the
   # generated files by hand, or upstream moves a load-bearing value, this fails
@@ -167,6 +201,9 @@ jobs:
           allowed="$allowed"'|claritty_finish|claritty-seed-verify|claritty-eval'
           allowed="$allowed"'|claritty-proxy|claritty\.(step|workflow|agent|tool|run|user|idempotency)\.'
           allowed="$allowed"'|Clarittyai|claritty\.ai|create-claritty-app|\.claritty-allowlist'
+          # The sibling repo really is spelled with two `t`s. Docs that point at
+          # a path inside it are quoting a name, not choosing a spelling.
+          allowed="$allowed"'|claritty-core'
           allowed="$allowed"'|_claritty_redactor|claritty_user_context'
           # The *brand* is two-`t` and always capitalised — it is what the app
           # calls itself and what the wordmark spells. Repo-owned identifiers are
