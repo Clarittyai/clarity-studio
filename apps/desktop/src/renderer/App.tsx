@@ -1366,6 +1366,10 @@ function ModelBand() {
   const [value, setValue] = useState('');
   const [field, setField] = useState<'api_key' | 'base_url'>('api_key');
   const [error, setError] = useState<string | undefined>();
+  /** What is stored, and what is being typed. Kept apart so the row can say
+   *  whether there are unsaved edits without re-reading settings on every key. */
+  const [override, setOverride] = useState('');
+  const [draft, setDraft] = useState('');
 
   const reload = useCallback(async () => {
     setProviders(await api.listKeys().catch(() => []));
@@ -1374,6 +1378,27 @@ function ModelBand() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    void api
+      .getSettings()
+      .then((s) => {
+        setOverride(s.modelOverride);
+        setDraft(s.modelOverride);
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveOverride = useCallback(async (next: string) => {
+    setError(undefined);
+    try {
+      const stored = await api.setModelOverride(next);
+      setOverride(stored);
+      setDraft(stored);
+    } catch (cause) {
+      setError(humanError(cause));
+    }
+  }, []);
 
   const save = useCallback(
     async (id: string) => {
@@ -1484,6 +1509,56 @@ function ModelBand() {
       <p className="text-xs text-muted-foreground">
         Stored in this machine&rsquo;s keyring. Runs spend it; the Build-it terminal never does.
       </p>
+
+      {/* Without this, the manifest is the only thing that decides, so an
+          automation someone else wrote against Claude cannot be run on your own
+          key or your own machine without editing their file. */}
+      <div className="mt-4 flex flex-col gap-2 border-t border-border/60 pt-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-semibold text-foreground">Run everything on</span>
+          {override ? (
+            <span className="rounded-md bg-accent/10 px-1.5 py-0.5 font-mono text-[11px] text-accent">
+              {override}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">each automation&rsquo;s own model</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void saveOverride(draft);
+              if (e.key === 'Escape') setDraft(override);
+            }}
+            placeholder="claude-haiku-4-5 · gpt-4o-mini · ollama/llama3.1:8b"
+            className="min-w-0 flex-1 rounded-full border border-border bg-background px-3 py-1.5 font-mono text-[12px] text-foreground outline-none focus:border-accent"
+          />
+          <Button
+            size="sm"
+            variant="accent"
+            disabled={draft.trim() === override}
+            onClick={() => void saveOverride(draft)}
+          >
+            Save
+          </Button>
+          {override && (
+            <Button size="sm" variant="ghost" onClick={() => void saveOverride('')}>
+              Clear
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Overrides the model each <code className="font-mono text-[11px]">intelligence.yaml</code>{' '}
+          asks for, from the next run. Leave it empty to let every automation choose its own. The id
+          also picks the provider, so it is how you move a run onto your own machine:{' '}
+          <code className="font-mono text-[11px]">claude…</code> and{' '}
+          <code className="font-mono text-[11px]">gpt-…</code> use the keys above,{' '}
+          <code className="font-mono text-[11px]">ollama/…</code> needs no key at all.
+        </p>
+      </div>
     </div>
   );
 }
@@ -1723,9 +1798,20 @@ Content-Type: application/json
         </pre>
         <p className="mt-2 text-xs text-muted-foreground">
           Set the endpoint above under <span className="text-foreground">Openai → Your own
-          endpoint</span>, and put the model id in your manifest. A server that ignores the
-          Authorization header needs no key at all — the run precheck accepts an endpoint on its
-          own.
+          endpoint</span>, then name the model — either in the automation&rsquo;s manifest, or once
+          for everything in <span className="text-foreground">Run everything on</span> above. The id
+          is also what routes the call, so it needs the provider&rsquo;s prefix:{' '}
+          <code className="font-mono text-[11px]">openai/llama3.1:8b</code> goes to the endpoint you
+          set here, and the prefix is stripped before the request is sent. A bare{' '}
+          <code className="font-mono text-[11px]">llama3.1:8b</code> matches no provider and the run
+          stops before it starts.
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          For Ollama specifically there is nothing to configure: use{' '}
+          <code className="font-mono text-[11px]">ollama/llama3.1:8b</code> and it goes to{' '}
+          <code className="font-mono text-[11px]">127.0.0.1:11434/v1</code> with no key. A server
+          that ignores the Authorization header needs no key either — the run precheck accepts an
+          endpoint on its own.
         </p>
       </div>
     </div>

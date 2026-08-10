@@ -114,6 +114,7 @@ const runtime = new RuntimeHost(
   db,
   (runId) => void announce(runId),
   (event) => void announceScheduleFailure(event),
+  () => modelOverride(),
 );
 /** Holds the coding-agent pty sessions. */
 const terminals = new TerminalHost();
@@ -130,6 +131,9 @@ interface Settings {
   automationsRoot?: string;
   /** Per project: how to be told when a run finishes. */
   notify?: Record<string, NotifyPrefs>;
+  /** Run everything on this model, whatever each manifest asked for. Empty or
+   *  absent means honour the manifest. */
+  modelOverride?: string;
 }
 
 function settingsFile(): string {
@@ -152,6 +156,24 @@ function writeSettings(next: Settings): void {
 /** Where new automations go unless one is chosen for a particular build. */
 function automationsRoot(): string {
   return readSettings().automationsRoot ?? join(app.getPath('home'), 'Automations');
+}
+
+/**
+ * The model every run uses, regardless of what its manifest declares.
+ *
+ * Without this an automation written against Claude cannot be run by someone
+ * holding only an OpenAI key or a local server — the manifest decides, and the
+ * only way to change it is to edit somebody else's file. The model id also
+ * chooses the provider (`claude…` → anthropic, `gpt-…`/`openai/…` → openai,
+ * `ollama/…` → the local default), so this one field is also how you move a run
+ * onto your own machine.
+ *
+ * Blank is not the same as unset here: a stored empty string means "honour the
+ * manifest", so clearing the field is a way back rather than a wedged run.
+ */
+function modelOverride(): string | undefined {
+  const stored = readSettings().modelOverride?.trim();
+  return stored ? stored : undefined;
 }
 
 /**
@@ -945,7 +967,19 @@ function syncTriggers(projectId: string): Array<Record<string, unknown>> {
   /** Build identity, so a stale packaged app can say so. */
   ipcMain.handle('app:version', () => `${app.getVersion()}${app.isPackaged ? '' : ' (dev)'}`);
 
-  ipcMain.handle('settings:get', () => ({ automationsRoot: automationsRoot() }));
+  ipcMain.handle('settings:get', () => ({
+    automationsRoot: automationsRoot(),
+    modelOverride: modelOverride() ?? '',
+  }));
+
+  /** Run everything on one model, or pass '' to go back to what each manifest
+   *  asks for. Takes effect on the next run — the control plane reads this
+   *  through a getter rather than holding a copy. */
+  ipcMain.handle('settings:set-model-override', (_e, model: unknown) => {
+    const next = typeof model === 'string' ? model.trim() : '';
+    writeSettings({ ...readSettings(), modelOverride: next });
+    return next;
+  });
 
   /** Pick the folder new automations go into, and remember it. */
   ipcMain.handle('settings:choose-automations-root', async () => {

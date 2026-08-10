@@ -219,8 +219,12 @@ export interface StudioApi {
   sendTestNotify(projectId: string): Promise<DeliveryResult[]>;
   /** Fire one now, so "did I allow notifications" is answerable. */
   testNotify(title: string, body: string): Promise<void>;
-  /** Window preferences — currently just where new automations go. */
-  getSettings(): Promise<{ automationsRoot: string }>;
+  /** Window preferences — where new automations go, and the model every run is
+   *  forced onto ('' means each manifest decides for itself). */
+  getSettings(): Promise<{ automationsRoot: string; modelOverride: string }>;
+  /** Run everything on one model whatever the manifests declare; '' to undo.
+   *  Returns what was stored. Applies to the next run, not the next launch. */
+  setModelOverride(model: string): Promise<string>;
   chooseAutomationsRoot(): Promise<string | undefined>;
   /** Forget an automation, and optionally erase it. Confirmed in the main process. */
   deleteProject(projectId: string): Promise<{ removed: boolean; deletedFiles?: boolean }>;
@@ -548,7 +552,10 @@ const fixtures: StudioApi = {
     return [];
   },
   async getSettings() {
-    return { automationsRoot: '~/Automations' };
+    return { automationsRoot: '~/Automations', modelOverride: '' };
+  },
+  async setModelOverride(model: string) {
+    return model;
   },
   async chooseAutomationsRoot() {
     return undefined;

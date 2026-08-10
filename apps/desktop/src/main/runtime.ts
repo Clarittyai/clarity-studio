@@ -141,6 +141,11 @@ export class RuntimeHost {
      *  passes through the control plane's completeRun where `onRunComplete`
      *  lives — the runs you most need telling about would be the silent ones. */
     private readonly onScheduleEvent: (event: { runId?: string; error: string }) => void = () => {},
+    /** The model to run everything on, whatever the manifest asked for, or
+     *  undefined to honour the manifest. Read fresh on every model call rather
+     *  than captured, so changing it in Settings takes effect on the next run
+     *  instead of the next launch. */
+    private readonly modelOverride: () => string | undefined = () => undefined,
   ) {}
 
   /**
@@ -193,6 +198,10 @@ export class RuntimeHost {
     const plane = new ControlPlane({
       port,
       secrets: this.secrets,
+      // A function, not a value: this plane is built once and kept for the life
+      // of the window, so a string would pin whatever the setting said when the
+      // first automation started.
+      forceModel: () => this.modelOverride(),
       store: {
         checkpointStep: (cp) => store.checkpointStep(cp),
         completeRun: (rc) => {

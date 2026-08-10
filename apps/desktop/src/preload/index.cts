@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('studio', {
   disconnectIntegration: (projectId: string, id: string) =>
     ipcRenderer.invoke('integrations:disconnect', projectId, id),
   getSettings: () => ipcRenderer.invoke('settings:get'),
+  setModelOverride: (model: string) => ipcRenderer.invoke('settings:set-model-override', model),
   getNotify: (projectId: string) => ipcRenderer.invoke('notify:get', projectId),
   setNotify: (projectId: string, prefs: Record<string, unknown>) =>
     ipcRenderer.invoke('notify:set', projectId, prefs),

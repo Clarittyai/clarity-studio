@@ -136,6 +136,42 @@ describe('model routing', () => {
     expect(body.choices[0]!.finish_reason).toBe('tool_calls');
   });
 
+  it('re-reads forceModel per call, so changing it does not need a restart', async () => {
+    // The desktop app passes `forceModel` as a function over a stored setting,
+    // because the control plane outlives any one run: it is built when the first
+    // project starts and kept for the life of the window. Resolving the option
+    // once — at construction, or by spreading these options into a new object —
+    // would freeze whatever was set at that moment, and the Settings field would
+    // quietly stop working after the first run of the session.
+    let choice: string | undefined;
+    await start({ forceModel: () => choice, secrets: new FakeSecrets() });
+    const id = plane.register('p1');
+    // Which PROVIDER the run is routed to is the observable, because the
+    // simulator reports `model: 'simulator'` whatever it was asked for — so the
+    // response body cannot tell these apart, and an assertion on it passes for
+    // the wrong reason.
+    const ask = async () => {
+      const res = await fetch(`${base}/api/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${id.authToken}` },
+        body: JSON.stringify({ model: 'simulator', messages: [{ role: 'user', content: 'hi' }] }),
+      });
+      const body = (await res.json()) as { provider?: string };
+      return res.status === 200 ? 'simulator' : (body.provider ?? `HTTP ${res.status}`);
+    };
+
+    expect(await ask()).toBe('simulator');
+    // An override routes elsewhere — with no key configured, that surfaces as
+    // the 412 naming the provider the new id belongs to.
+    choice = 'claude-sonnet-4-6';
+    expect(await ask()).toBe('anthropic');
+    choice = 'gpt-4o-mini';
+    expect(await ask()).toBe('openai');
+    // Clearing it hands the decision back to the manifest.
+    choice = undefined;
+    expect(await ask()).toBe('simulator');
+  });
+
   it('refuses to stream rather than half-implementing SSE', async () => {
     await start({ forceModel: 'simulator' });
     const id = plane.register('p1');

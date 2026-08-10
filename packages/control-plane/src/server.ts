@@ -47,8 +47,15 @@ export interface ControlPlaneOptions {
    * user's choice; it is never inferred, because silently rerouting someone's
    * automation to a different model is exactly the kind of surprise that makes
    * a run trace untrustworthy.
+   *
+   * Pass a **function** when the choice can change while the plane is up — the
+   * desktop app keeps one control plane for the life of the window, so a plain
+   * string would pin whatever was set when the first automation started. A
+   * getter would work too, right up until someone spreads these options into a
+   * new object: that evaluates it once and freezes the value with no error
+   * anywhere. A function survives being copied, so it cannot fail that way.
    */
-  forceModel?: string;
+  forceModel?: string | (() => string | undefined);
   /** Narrower form of the above: rewrite specific model ids. Useful for
    *  pinning a family alias to a dated release. */
   modelAliases?: Record<string, string>;
@@ -299,7 +306,11 @@ export class ControlPlane {
       }
 
       const requested = body.model || this.defaultModel;
-      const model = this.opts.forceModel ?? this.opts.modelAliases?.[requested] ?? requested;
+      // Resolved per call, not once at construction: the override is a user
+      // setting that can change between two runs of the same session.
+      const forced =
+        typeof this.opts.forceModel === 'function' ? this.opts.forceModel() : this.opts.forceModel;
+      const model = forced ?? this.opts.modelAliases?.[requested] ?? requested;
       const provider = this.providers.find((p) => p.handles(model));
       if (!provider) {
         throw new HttpError(
