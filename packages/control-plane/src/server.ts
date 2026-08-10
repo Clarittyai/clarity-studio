@@ -16,11 +16,9 @@ import { ConnectorError, executeTool, resolveTool } from '@clarity-studio/connec
 
 import { EnvSecretSource } from './env-secrets.js';
 import { MemoryRunStore } from './memory-store.js';
-import { anthropic, ProviderHttpError } from './providers/anthropic.js';
-import { google } from './providers/google.js';
-import { ollama, openai, openrouter } from './providers/openai.js';
-import { createSimulator } from './providers/simulator.js';
+import { ProviderHttpError } from './providers/anthropic.js';
 import { costMicros, isPriced } from './pricing.js';
+import { builtInProviders } from './routing.js';
 import { Redactor } from './redact.js';
 import type {
   ChatCompletionRequest,
@@ -106,15 +104,10 @@ export class ControlPlane {
     this.defaultModel = opts.defaultModel ?? 'claude-sonnet-4';
     this.masterKey = opts.masterKey ?? randomBytes(32).toString('hex');
     this.blockSecretEgress = opts.blockSecretEgress ?? true;
-    this.providers = [
-      ...(opts.providers ?? []),
-      createSimulator(),
-      anthropic,
-      openai,
-      google,
-      ollama,
-      openrouter,
-    ];
+    // The built-ins live in routing.ts so the desktop app's pre-flight check
+    // can ask the same question this list answers, instead of keeping its own
+    // idea of which models need a key.
+    this.providers = [...(opts.providers ?? []), ...builtInProviders()];
     this.app = Fastify({ logger: opts.logger ?? false });
     this.routes();
   }

@@ -7,6 +7,7 @@ export { createSimulator } from './providers/simulator.js';
 export { anthropic, ProviderHttpError, toAnthropicMessages } from './providers/anthropic.js';
 export { google } from './providers/google.js';
 export { ollama, openai, openrouter } from './providers/openai.js';
+export { builtInProviders, modelNeedsKey, providerIdForModel } from './routing.js';
 export type {
   ChatCompletionRequest,
   ChatCompletionResponse,

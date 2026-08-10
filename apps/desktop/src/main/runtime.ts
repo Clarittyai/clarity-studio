@@ -13,13 +13,19 @@
  * port or a secret — only the plain status the store already exposes.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import { parse as parseYaml } from 'yaml';
 
-import { ControlPlane, EnvSecretSource, type SecretSource } from '@clarity-studio/control-plane';
+import {
+  ControlPlane,
+  EnvSecretSource,
+  modelNeedsKey,
+  providerIdForModel,
+  type SecretSource,
+} from '@clarity-studio/control-plane';
 import { Dispatcher } from '@clarity-studio/scheduler';
 import type { Store } from '@clarity-studio/db';
 import {
@@ -102,6 +108,43 @@ interface Live {
 
 /** Does anything in this automation call a model? A workflow of pure tools does
  *  not, and must not be blocked for want of a key it will never use. */
+/** Where a failed start leaves its full output. Inside `.studio/` so it sits
+ *  with the venv and the generated compose file rather than in the automation's
+ *  own tree, and gets ignored by the same rules. */
+export function bootLogPath(projectPath: string): string {
+  return join(projectPath, '.studio', 'boot.log');
+}
+
+/**
+ * Keep the whole boot output, because the panel only shows its tail.
+ *
+ * Overwrites rather than appends: the question this answers is always "why did
+ * it not start just now", and a growing file would bury that under every
+ * previous attempt. Failing to write is not worth surfacing — the run already
+ * failed for a different reason, and a second error about logging would bury
+ * the first.
+ */
+function writeBootLog(projectPath: string, message: string, output: string): void {
+  try {
+    const dir = join(projectPath, '.studio');
+    mkdirSync(dir, { recursive: true });
+    const at = new Date().toISOString();
+    const body = [
+      `# ${basename(projectPath)} failed to start at ${at}`,
+      '',
+      '## What the app reported',
+      message,
+      '',
+      '## Everything the runtime printed',
+      output.trim() || '(the process produced no output before it failed)',
+      '',
+    ].join('\n');
+    writeFileSync(bootLogPath(projectPath), body, 'utf8');
+  } catch {
+    /* best effort — see above */
+  }
+}
+
 function needsModel(manifest?: {
   agents?: unknown[];
   workflows?: Array<{ steps?: Array<{ agent?: string }> }>;
@@ -115,6 +158,23 @@ function needsModel(manifest?: {
 const MISSING_MODEL_KEY =
   'No model provider key, so the agent steps have nothing to call. ' +
   'Add one in Settings → Model — or set ANTHROPIC_API_KEY / OPENAI_API_KEY.';
+
+/**
+ * Say which key is missing, not which keys exist.
+ *
+ * With an override set, the generic message sends someone to add an Anthropic
+ * key when they have deliberately chosen a different provider — advice for a
+ * decision they already made differently.
+ */
+function missingModelKeyMessage(override?: string): string {
+  if (!override) return MISSING_MODEL_KEY;
+  const providerId = providerIdForModel(override) ?? 'that provider';
+  return (
+    `Settings → Model is set to run everything on "${override}", which needs a ` +
+    `${providerId} key, and none is configured. Add one under Settings → Model, ` +
+    `or clear the override to let each automation use the model it declares.`
+  );
+}
 
 export class RuntimeHost {
   private plane?: ControlPlane;
@@ -292,6 +352,10 @@ export class RuntimeHost {
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause);
         store.setProjectStatus(projectId, 'crashed', message);
+        // Before `runner` goes out of scope and takes its buffer with it. The
+        // panel shows the last 40 lines, which is usually the traceback's tail
+        // and not its cause; this is the only copy of the rest.
+        writeBootLog(project.path, message, runner.output);
         // Leave nothing half-up: a runner that failed its health check may still
         // have a process or a container behind it.
         await runner.stop().catch(() => undefined);
@@ -313,6 +377,36 @@ export class RuntimeHost {
         store.setProjectStatus(projectId, 'stopped');
       }
     });
+  }
+
+  /**
+   * Throw away the Python environment and start again.
+   *
+   * `prepare()` skips creating the venv when one is already there, which is
+   * what makes a second start instant — and what makes a half-installed
+   * environment permanent. Nothing else in the app can get you out of that,
+   * because every later start takes the same shortcut. Deleting the venv is
+   * the whole point of the button, not an implementation detail of it.
+   *
+   * Only the environment goes. The automation's own files are never touched:
+   * a boot failure is usually a manifest that names a file nobody wrote, and
+   * deleting code to fix that would be a catastrophe wearing a helpful label.
+   */
+  async rebuild(projectId: string): Promise<{ baseUrl: string }> {
+    const project = this.store().getProject(projectId);
+    if (!project) throw new Error('That automation is not in the library.');
+
+    await this.stop(projectId).catch(() => undefined);
+    const venv = join(project.path, '.studio', 'venv');
+    if (existsSync(venv)) {
+      try {
+        rmSync(venv, { recursive: true, force: true });
+      } catch (cause) {
+        const why = cause instanceof Error ? cause.message : String(cause);
+        throw new Error(`Could not remove the Python environment at ${venv}: ${why}`);
+      }
+    }
+    return this.start(projectId);
   }
 
   /**
@@ -340,7 +434,7 @@ export class RuntimeHost {
           // Mid-edit. Fall through and let the usual boot error explain it.
         }
         if (onDisk && needsModel(onDisk) && !(await this.hasModelKey())) {
-          throw new Error(MISSING_MODEL_KEY);
+          throw new Error(missingModelKeyMessage(this.modelOverride()));
         }
       }
     }
@@ -399,11 +493,32 @@ export class RuntimeHost {
    */
   private async hasModelKey(): Promise<boolean> {
     if (!this.secrets) return true;
+
+    // An override decides which provider serves every step, so it — not the
+    // manifest, and not "any key at all" — is what the question is about. This
+    // is the whole reason `ollama/…` was being refused a run it could have
+    // completed: the check predates there being a way to choose a model that
+    // needs no key.
+    const override = this.modelOverride();
+    if (override) return this.canServe(override);
+
     for (const provider of ['anthropic', 'openai']) {
       if (await this.secrets.providerKey(provider)) return true;
       if (this.vault?.get({ kind: 'provider', id: provider, field: 'base_url' })) return true;
     }
     return false;
+  }
+
+  /** Whether this exact model could be served right now, by the same rule the
+   *  control plane applies when the call actually happens. */
+  private async canServe(model: string): Promise<boolean> {
+    if (!modelNeedsKey(model)) return true;
+    const providerId = providerIdForModel(model);
+    // Nothing claims it. Not runnable either, but "no provider handles this
+    // model" is the plane's error to give and a truer one than ours.
+    if (!providerId) return true;
+    if (await this.secrets?.providerKey(providerId)) return true;
+    return Boolean(this.vault?.get({ kind: 'provider', id: providerId, field: 'base_url' }));
   }
 
   /** Stop everything. Called on quit so nothing is left holding a port. */

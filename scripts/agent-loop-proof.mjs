@@ -36,7 +36,13 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ControlPlane, formatUsd, isPriced } from '../packages/control-plane/dist/index.js';
+import {
+  ControlPlane,
+  formatUsd,
+  isPriced,
+  modelNeedsKey,
+  providerIdForModel,
+} from '../packages/control-plane/dist/index.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SEED = join(ROOT, 'packages/automation-seed');
@@ -76,9 +82,17 @@ const PROVIDERS = [
 ];
 
 function chooseProvider() {
+  // A local model is the case most worth proving and the one least able to
+  // announce itself: a server that answers prose perfectly can still drive an
+  // agent that never calls a tool, and the run just quietly does nothing. So
+  // naming an `ollama/…` model is enough — there is no key to look for.
+  const named = process.env.AGENT_LOOP_PROOF_MODEL;
+  if (named && !modelNeedsKey(named)) {
+    return { id: providerIdForModel(named) ?? 'ollama', model: named, key: '' };
+  }
   for (const p of PROVIDERS) {
     const key = process.env[p.env];
-    if (key) return { ...p, key, model: process.env.AGENT_LOOP_PROOF_MODEL ?? p.model };
+    if (key) return { ...p, key, model: named ?? p.model };
   }
   return undefined;
 }
@@ -90,7 +104,7 @@ async function main() {
   // that skips by default becomes a proof that never runs, which is the exact
   // failure this script exists to end.
   if (!chosen) {
-    const names = PROVIDERS.map((p) => p.env).join(' or ');
+    const names = `${PROVIDERS.map((p) => p.env).join(' or ')}, or AGENT_LOOP_PROOF_MODEL=ollama/…`;
     if (process.env.REQUIRE_AGENT_LOOP_PROOF === '1') {
       console.log();
       bad(`REQUIRE_AGENT_LOOP_PROOF=1 but no provider key is set — need ${names}.`);

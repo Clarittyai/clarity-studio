@@ -46,6 +46,8 @@ export interface Runner {
    *  output — a boot failure should show you the traceback, not a timeout. */
   waitUntilHealthy(timeoutMs?: number): Promise<Health>;
   get baseUrl(): string;
+  /** Everything captured so far, for persisting before the runner is dropped. */
+  get output(): string;
 }
 
 const STUDIO_DIR = '.studio';
@@ -76,6 +78,19 @@ abstract class BaseRunner implements Runner {
 
   protected get recentOutput(): string {
     return this.tail.slice(-40).join('\n');
+  }
+
+  /**
+   * Everything this runner captured, for writing somewhere durable.
+   *
+   * `recentOutput` is the last 40 lines because it ends up inside an error
+   * message someone reads on screen. A boot failure's actual cause is often
+   * further up than that — a pip resolution error, an import chain — and the
+   * runner is discarded the moment a start fails, taking the buffer with it.
+   * Whatever wants to keep the whole thing has to ask before that happens.
+   */
+  get output(): string {
+    return this.tail.join('\n');
   }
 
   async waitUntilHealthy(timeoutMs = 180_000): Promise<Health> {
