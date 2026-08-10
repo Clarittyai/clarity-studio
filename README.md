@@ -15,10 +15,11 @@
 
 ---
 
-Clarity Studio is an open-source desktop app for agentic automations — the ones that keep working
-after you close the laptop lid. Write them with the coding agent you already use, run them in Docker,
-give them real schedules and webhooks, connect them to real services, and watch every step, token and
-dollar they spend.
+Clarity Studio is an open-source desktop app for building agentic automations you can actually put
+your name to — a git repo rather than a saved prompt, with steps that are code, steps that decide,
+and a dry run that shows you what it would have sent. Write them with the coding agent you already
+use, give them real schedules and webhooks, connect them to real services, and watch every step,
+token and dollar they spend.
 
 > **No accounts. No login. No telemetry. No phoning home.**
 > Studio talks to exactly two kinds of remote host: the LLM provider whose key *you* configured, and
@@ -254,21 +255,35 @@ Other commands: `doctor` (check this machine), `ps` (your automations),
 
 ## Why this exists
 
-Agent harnesses today are development scratchpads — great for running coding agents side by side,
-useless the moment you want something to happen at 9am on Tuesday. Studio is built for the other
-half: automations that run on a schedule, react to webhooks, hold credentials, and need to be
-debugged six weeks after you wrote them.
+The assistants can already do this. Claude Cowork runs scheduled tasks on Anthropic's servers with
+nothing of yours switched on, reaches Slack and Gmail and Drive through MCP connectors, and needs no
+install beyond an app. If what you want is a good assistant doing a job for you every morning, use
+one — it is better at that than this is, and it is not close.
 
-|  | Coding-agent harnesses | **Clarity Studio** |
-|---|---|---|
-| Runs agents in parallel | ✅ | ✅ |
-| Git worktree isolation | ✅ | ✅ |
-| Fires on a schedule | ❌ | ✅ |
-| Survives DST without drifting | ❌ | ✅ |
-| Webhook ingress + **replay** | ❌ | ✅ |
-| Credential vault for third-party APIs | ❌ | ✅ |
-| Per-step run traces, tokens and cost | ❌ | ✅ |
-| Portable artifact you can host anywhere | ❌ | ✅ |
+Studio is for when the job has to be a thing rather than a request. A Cowork task is standing
+instructions re-read in a fresh session; a Studio automation is a git repo you can diff, review in a
+PR, and test before it sends anything. That difference stops mattering the moment nobody would
+notice a bad run, and starts mattering the moment one would — money moved, a customer emailed, an
+auditor asking what ran in March.
+
+Concretely, what you get here and cannot get from a saved prompt:
+
+- **An artifact.** `intelligence.yaml` plus your Python, in version control. `--simulate` exercises
+  the wiring with no key and no spend, and `docker compose up` runs the same thing without Studio at
+  all.
+- **Steps that are code and steps that decide, in one file.** Zapier cannot judge; an assistant
+  judges at every step. Here you write *these six steps are Python, this one decides* — and mark the
+  sending step `mode: write` so a dry run previews the email instead of mailing anyone.
+- **Your keys, and your silicon.** Credentials sit in the OS keyring and are brokered: the
+  automation's own process never sees one. Point it at Ollama and the data never leaves the machine.
+- **A trace you can argue with.** Per-step timings, tokens and cost, and webhook deliveries stored
+  whole before forwarding so you can replay the one that failed at 2am instead of asking the sender
+  to do it again.
+
+And the honest limits, so you find them here rather than three weeks in: **schedules only fire while
+Studio is open** (`clarity-studio serve` keeps one going headless), webhooks are CLI-only, there are
+thirteen connectors rather than a catalogue, and you build it from source because the binaries are
+not signed yet.
 
 ## How it works
 
