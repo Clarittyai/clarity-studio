@@ -108,6 +108,27 @@ interface Live {
 
 /** Does anything in this automation call a model? A workflow of pure tools does
  *  not, and must not be blocked for want of a key it will never use. */
+/**
+ * Give a model running on this machine longer to answer than a hosted one.
+ *
+ * The SDK's request ceiling is tuned for an API that replies in seconds. A
+ * local model can spend longer than that simply loading before its first
+ * token, and the run dies as a read timeout that names nothing useful — the
+ * model is fine, the wait was too short. Since choosing `ollama/…` is an
+ * explicit statement that inference is happening here, the longer wait comes
+ * with it rather than being a setting to discover after the first failure.
+ *
+ * Only ever raises the ceiling, and only when nothing else has spoken: a value
+ * already in the environment is somebody's decision and is left alone. Needs
+ * claritty-sdk 2.12.1+ to have any effect; older ones ignore it, which is the
+ * right way for this to fail.
+ */
+function localModelTimeout(override?: string): Record<string, string> {
+  if (!override || modelNeedsKey(override)) return {};
+  if (process.env.CLARITTY_LLM_TIMEOUT_S) return {};
+  return { CLARITTY_LLM_TIMEOUT_S: '600' };
+}
+
 /** Where a failed start leaves its full output. Inside `.studio/` so it sits
  *  with the venv and the generated compose file rather than in the automation's
  *  own tree, and gets ignored by the same rules. */
@@ -321,7 +342,10 @@ export class RuntimeHost {
         ? this.planeUrl!
         : this.planeUrl!.replace('127.0.0.1', 'host.docker.internal');
       plane.register(projectId);
-      const environment = plane.environmentFor(projectId, { platformUrl });
+      const environment = {
+        ...plane.environmentFor(projectId, { platformUrl }),
+        ...localModelTimeout(this.modelOverride()),
+      };
 
       const runner: Runner = native
         ? new NativeRunner({ projectId, projectPath: project.path, hostPort, environment })
