@@ -240,6 +240,16 @@ interface RunFlags {
   simulate: boolean;
   keep: boolean;
   dir: string;
+  /**
+   * Run every agent on this model, whatever the manifest asked for.
+   *
+   * The app has always been able to do this (Settings → model override) and the
+   * CLI could only force `simulator`, so the one surface you can script was the
+   * one that could not answer "does this automation work on that model". A
+   * manifest that names no model gets `claude-sonnet-4-6` from the SDK, so
+   * without this an unkeyed machine can only ever reach a 412.
+   */
+  model?: string;
 }
 
 async function withRuntime<T>(
@@ -286,7 +296,12 @@ async function withRuntime<T>(
       getSteps: (id) => store.getSteps(id) as never,
       getLlmCalls: (id) => store.getLlmCalls(id) as never,
     },
-    ...(flags.simulate ? { forceModel: 'simulator' } : {}),
+    // --simulate is itself a model choice, and the narrower one, so it wins.
+    ...(flags.simulate
+      ? { forceModel: 'simulator' }
+      : flags.model
+        ? { forceModel: flags.model }
+        : {}),
   });
   const { url: planeUrl } = await plane.listen();
 
@@ -872,6 +887,7 @@ ${c.bold('Options')}
   --dir <path>     the automation directory (default: current directory)
   --native         run with a local Python venv instead of Docker
   --simulate       exercise the wiring with no model, no key and no spend
+  --model <id>     run every agent on this model, e.g. ollama/command-r:latest
   --keep           leave the automation running after the command finishes
 
 ${c.bold('Scheduling')} ${c.dim('(for `trigger add`)')}
@@ -911,6 +927,7 @@ async function main(): Promise<void> {
     simulate: has('--simulate'),
     keep: has('--keep'),
     dir: valueOf('--dir') ?? process.cwd(),
+    model: valueOf('--model'),
   };
 
   const command = positional[0];

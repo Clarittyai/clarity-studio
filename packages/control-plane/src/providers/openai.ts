@@ -12,6 +12,44 @@ import { ProviderHttpError } from './anthropic.js';
 
 const OPENAI = 'https://api.openai.com/v1';
 
+/**
+ * How many extra attempts a local model gets when it answers with nothing.
+ *
+ * Measured, not guessed. `qwen2.5:32b` behind Ollama's OpenAI shim, sent the
+ * SAME request eight times, produced a tool call twice and an empty reply with
+ * `finish_reason: "stop"` six times. The automation is not wrong and the request
+ * is not wrong — the shim is simply unreliable at emitting `tool_calls`, and the
+ * SDK's agent loop raises on the first empty answer, so a run died on a coin
+ * flip. Three attempts turns a 25% chance into roughly 58%, which is the
+ * difference between "this never works" and "this usually works".
+ *
+ * Deliberately ollama-only. Retrying costs nothing locally, whereas doing it to
+ * a metered provider would spend someone's money on a symptom we have only
+ * observed here.
+ */
+const EMPTY_REPLY_RETRIES = 1;
+
+/**
+ * Don't start a retry that will not finish.
+ *
+ * The agent gives a step 120s. Three attempts at ~40s each spent the whole
+ * budget and the step died with "timed out" — a worse answer than the empty
+ * reply it was trying to fix, because it costs two minutes and names nothing.
+ * A 32B model answers here in ~20s and a 59B one in ~55s, so the first attempt's
+ * own duration is the honest predictor of whether a second one fits.
+ */
+const RETRY_IF_FIRST_TOOK_UNDER_MS = 30_000;
+
+/** An answer with neither words nor a tool call is not an answer. */
+function saidNothing(data: ChatCompletionResponse): boolean {
+  const message = (data as { choices?: Array<{ message?: { content?: unknown; tool_calls?: unknown } }> })
+    .choices?.[0]?.message;
+  if (!message) return true;
+  const calls = message.tool_calls;
+  if (Array.isArray(calls) && calls.length > 0) return false;
+  return String(message.content ?? '').trim() === '';
+}
+
 function makeAdapter(id: string, defaultBase: string, matches: (m: string) => boolean): Provider {
   return {
     id,
@@ -44,15 +82,26 @@ function makeAdapter(id: string, defaultBase: string, matches: (m: string) => bo
         headers['X-Title'] = 'Clarity Studio';
       }
 
-      const res = await fetch(`${base}/chat/completions`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-        signal: ctx.signal,
-      });
-      if (!res.ok) throw new ProviderHttpError(id, res.status, await res.text());
+      // A local model that answers with nothing gets another go — see
+      // EMPTY_REPLY_RETRIES. Only when tools were offered: a toolless request
+      // answering with prose is the normal case, and an empty one there is the
+      // model's actual answer rather than a dropped tool call.
+      const attempts = id === 'ollama' && req.tools?.length ? EMPTY_REPLY_RETRIES + 1 : 1;
+      let data!: ChatCompletionResponse;
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        const startedAt = Date.now();
+        const res = await fetch(`${base}/chat/completions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: ctx.signal,
+        });
+        if (!res.ok) throw new ProviderHttpError(id, res.status, await res.text());
 
-      const data = (await res.json()) as ChatCompletionResponse;
+        data = (await res.json()) as ChatCompletionResponse;
+        if (!saidNothing(data) || attempt === attempts) break;
+        if (Date.now() - startedAt > RETRY_IF_FIRST_TOOK_UNDER_MS) break;
+      }
       // Some OpenAI-compatible servers omit usage entirely. Normalise so cost
       // accounting downstream never has to guard.
       data.usage ??= { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
