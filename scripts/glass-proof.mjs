@@ -7,6 +7,7 @@
  * live, that the fill is translucent enough for the blur to show, and that the
  * panel actually moved during its entrance.
  */
+import { existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { _electron as electron } from 'playwright';
@@ -14,11 +15,35 @@ import { _electron as electron } from 'playwright';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = process.env.OUT_DIR ?? '/tmp';
 
+/**
+ * PACKAGED=1 runs the built .app instead of the source tree.
+ *
+ * This distinction has already burned us once. `electron .` loads
+ * `apps/desktop/dist`, which `pnpm build` refreshes in seconds — so the proof
+ * passed against current code while the .app on disk was hours old and had
+ * none of the material in it. What you launch from Finder is the .app. If you
+ * are checking "does it look right in Studio", check the packaged one:
+ *
+ *   pnpm package && PACKAGED=1 pnpm proof:glass
+ */
+const PACKAGED = process.env.PACKAGED === '1';
+const APP_BIN = join(
+  ROOT,
+  'apps/desktop/release/mac-arm64/Claritty Studio.app/Contents/MacOS/Claritty Studio',
+);
+
+if (PACKAGED && !existsSync(APP_BIN)) {
+  console.error(`No packaged app at:\n  ${APP_BIN}\nRun \`pnpm package\` first.`);
+  process.exit(2);
+}
+
 const app = await electron.launch({
-  args: ['.', '--no-sandbox'],
+  ...(PACKAGED ? { executablePath: APP_BIN, args: ['--no-sandbox'] } : { args: ['.', '--no-sandbox'] }),
   cwd: join(ROOT, 'apps/desktop'),
   env: { ...process.env, STUDIO_HOME: process.env.STUDIO_HOME ?? '/tmp/studio-glass-proof' },
 });
+
+console.log(PACKAGED ? 'target: PACKAGED .app' : 'target: source tree (electron .)');
 
 const win = await app.firstWindow();
 await win.waitForSelector('[data-brand]');
