@@ -47,7 +47,8 @@ import {
   type NotifyState,
 } from './api.js';
 import { BrandLockup } from './components/Brand.js';
-import { LiquidGlass } from './components/liquid-glass.js';
+import { AnimatePresence } from 'framer-motion';
+import { GlassModal } from './components/glass-modal.js';
 import { declaredIntegrations, missingRequired, nothingCameBack } from './connections.js';
 import { AutomationFlow, type StepStatus } from './components/flow/AutomationFlow.js';
 import { toFlow, type Flow } from './components/flow/blocks.js';
@@ -177,9 +178,11 @@ export default function App() {
         onSettings={() => setView((v) => (v === 'settings' ? 'home' : 'settings'))}
         settingsOpen={view === 'settings'}
       />
-      {composing && (
-        <NewAutomation onCreate={onNew} onCancel={() => setComposing(false)} />
-      )}
+      <AnimatePresence>
+        {composing && (
+          <NewAutomation onCreate={onNew} onCancel={() => setComposing(false)} />
+        )}
+      </AnimatePresence>
       <div className="flex min-h-0 flex-1">
         <Sidebar
           projects={projects}
@@ -875,24 +878,31 @@ function ProjectView({
         person reading a run does not always want a shell taking a third of the
         window.
       */}
-      {asking && flow && (
-        <RunInputs
-          flow={flow}
-          onCancel={() => setAsking(false)}
-          onRun={(inputs: Record<string, unknown>) => {
-            setAsking(false);
-            void act('run', inputs);
-          }}
-        />
-      )}
+      {/* AnimatePresence keeps the node mounted long enough for GlassModal's
+          exit to play. Without it React unmounts on the state change and the
+          panel vanishes on close, however carefully the entrance is tuned. */}
+      <AnimatePresence>
+        {asking && flow && (
+          <RunInputs
+            flow={flow}
+            onCancel={() => setAsking(false)}
+            onRun={(inputs: Record<string, unknown>) => {
+              setAsking(false);
+              void act('run', inputs);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
-      {inspecting && (
-        <AgentInspector
-          projectId={project.id}
-          agent={inspecting}
-          onClose={() => setInspecting(undefined)}
-        />
-      )}
+      <AnimatePresence>
+        {inspecting && (
+          <AgentInspector
+            projectId={project.id}
+            agent={inspecting}
+            onClose={() => setInspecting(undefined)}
+          />
+        )}
+      </AnimatePresence>
 
       <TerminalDock
         projectId={project.id}
@@ -1743,17 +1753,12 @@ function NewAutomation({
   return (
     // Escape closes; a click on the scrim does not, because a half-typed brief
     // is easy to lose and annoying to retype.
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-background/40 p-10"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onCancel();
-      }}
+    <GlassModal
+      onEscape={onCancel}
+      scrimClassName="p-10"
+      panelClassName="mt-16 w-full max-w-lg shadow-2xl"
+      contentClassName="rounded-3xl border border-border bg-background/80 p-6"
     >
-      <LiquidGlass
-        radius={32}
-        className="mt-16 w-full max-w-lg shadow-2xl"
-        contentClassName="rounded-3xl border border-border bg-background/80 p-6"
-      >
         <h2 className="text-lg font-semibold tracking-tight">New automation</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Say what it should do and Claude Code starts on exactly that.
@@ -1808,8 +1813,7 @@ function NewAutomation({
             {busy ? 'Creating…' : 'Create'}
           </Button>
         </div>
-      </LiquidGlass>
-    </div>
+    </GlassModal>
   );
 }
 
@@ -2867,17 +2871,12 @@ function AgentInspector({
   }, [projectId, path, text]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-background/40 p-8"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape' && !dirty) onClose();
-      }}
+    <GlassModal
+      onEscape={() => { if (!dirty) onClose(); }}
+      scrimClassName="p-8"
+      panelClassName="mt-10 w-full max-w-2xl"
+      contentClassName="flex max-h-[82vh] flex-col rounded-3xl border border-border bg-background/80"
     >
-      <LiquidGlass
-        radius={32}
-        className="mt-10 w-full max-w-2xl"
-        contentClassName="flex max-h-[82vh] flex-col rounded-3xl border border-border bg-background/80"
-      >
         <header className="flex items-center gap-3 border-b border-border px-6 py-4">
           <AgentAvatar seed={agent.id} size={34} />
           <div className="min-w-0 flex-1">
@@ -2999,8 +2998,7 @@ function AgentInspector({
             Save
           </Button>
         </footer>
-      </LiquidGlass>
-    </div>
+    </GlassModal>
   );
 }
 
@@ -3028,17 +3026,12 @@ function RunInputs({
   const missing = flow.inputs.filter((i) => i.required && !values[i.key]?.trim());
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-background/40 p-10"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onCancel();
-      }}
+    <GlassModal
+      onEscape={onCancel}
+      scrimClassName="p-10"
+      panelClassName="mt-20 w-full max-w-md"
+      contentClassName="rounded-3xl border border-border bg-background/80 p-6"
     >
-      <LiquidGlass
-        radius={32}
-        className="mt-20 w-full max-w-md"
-        contentClassName="rounded-3xl border border-border bg-background/80 p-6"
-      >
         <h2 className="text-lg font-semibold tracking-tight">Run {flow.workflowId}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           What this run should work with. Left empty, the workflow uses its own defaults.
@@ -3073,8 +3066,7 @@ function RunInputs({
             Run
           </Button>
         </div>
-      </LiquidGlass>
-    </div>
+    </GlassModal>
   );
 }
 

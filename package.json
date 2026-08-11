@@ -32,7 +32,8 @@
     "proof:sdk": "node scripts/sdk-proof.mjs",
     "sync:catalog": "node scripts/sync-catalog.mjs",
     "proof:run": "node scripts/run-proof.mjs",
-    "proof:scheduled-run": "node scripts/scheduled-run-proof.mjs"
+    "proof:scheduled-run": "node scripts/scheduled-run-proof.mjs",
+    "proof:glass": "node scripts/glass-proof.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
