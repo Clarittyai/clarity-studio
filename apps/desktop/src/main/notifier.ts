@@ -61,6 +61,8 @@ export interface RunSummary {
    * stop looking. Optional so a caller with no steps to hand still works.
    */
   verdict?: RunVerdict;
+  /** Who answered, so the body can say whether the model is the weak link. */
+  who?: { provider?: string; model?: string };
 }
 
 /** One line, because that is what a phone shows. */
@@ -71,7 +73,7 @@ export function headline(run: RunSummary): string {
 }
 
 export function detail(run: RunSummary): string {
-  if (run.verdict) return verdictDetail(run.verdict);
+  if (run.verdict) return verdictDetail(run.verdict, run.who);
   if (run.error) return run.error.slice(0, 500);
   return run.status === 'success' ? 'The run completed.' : `The run ended as ${run.status}.`;
 }

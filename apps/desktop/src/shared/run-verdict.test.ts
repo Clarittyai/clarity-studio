@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { runVerdict, verdictDetail, verdictHeadline } from './run-verdict.js';
+import { reasonHint, runVerdict, verdictDetail, verdictHeadline } from './run-verdict.js';
 
 /**
  * These cases are the four `client-summary` runs that prompted this file.
@@ -86,6 +86,43 @@ describe('run verdict', () => {
 
   it('does not judge a run still in flight', () => {
     expect(runVerdict({ status: 'running' }, []).status).toBe('running');
+  });
+});
+
+describe('the hint', () => {
+  const noToolCall = 'agent raised: empty response and no tool call.';
+
+  it('names the model as the weak link, because nothing else on screen does', () => {
+    // "empty response and no tool call" is accurate and useless: the obvious
+    // reading is that the automation is broken, and it usually is not.
+    const h = reasonHint(noToolCall, { provider: 'ollama', model: 'qwen2.5:32b' });
+    expect(h).toMatch(/qwen2\.5:32b did it here/);
+    expect(h).toMatch(/Vault/);
+    // No success rate: 2-in-8 was measured for one model on one machine, and
+    // quoting it for a model it was never measured on invents precision.
+    expect(h).not.toMatch(/half the time|\d+%/);
+  });
+
+  it('does not blame local models for a hosted one', () => {
+    const h = reasonHint(noToolCall, { provider: 'anthropic', model: 'claude-sonnet-4-6' });
+    expect(h).toMatch(/without calling a tool/);
+    expect(h).not.toMatch(/Local models/);
+  });
+
+  it('stays quiet about failures it has nothing to add to', () => {
+    // A hint that fires on everything is noise, and noise gets skipped past.
+    expect(reasonHint('gmail is not connected', { provider: 'ollama', model: 'qwen2.5:32b' })).toBeUndefined();
+    expect(reasonHint(undefined, { provider: 'ollama', model: 'qwen2.5:32b' })).toBeUndefined();
+  });
+
+  it('rides along in the notification body', () => {
+    const v = runVerdict({ status: 'success', error: null }, [
+      { stepId: 'plan', status: 'success', error: null },
+      { stepId: 'write', status: 'skipped', error: noToolCall },
+    ]);
+    expect(verdictDetail(v, { provider: 'ollama', model: 'qwen2.5:32b' })).toMatch(
+      /qwen2\.5:32b did it here/,
+    );
   });
 });
 

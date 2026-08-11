@@ -55,7 +55,7 @@ import { AutomationGraphScene } from './components/live/AutomationGraphScene.js'
 import { CONTRIBUTE } from './components/cloud-links.js';
 import { CloudShowcase } from './components/CloudShowcase.js';
 import { REQUEST_INTEGRATION, TerminalPanel } from './components/Terminal.js';
-import { runVerdict } from '../shared/run-verdict.js';
+import { reasonHint, runVerdict } from '../shared/run-verdict.js';
 import {
   Badge,
   Button,
@@ -1186,6 +1186,23 @@ function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: ()
 
   const verdict = useMemo(() => runVerdict(run, steps), [run, steps]);
 
+  // Which model answered, so the hint can name it. Only for a run that went
+  // wrong: those are the minority, and every row paying for this would make the
+  // list N queries deep to serve the few that need it.
+  const [who, setWho] = useState<{ provider?: string; model?: string }>();
+  useEffect(() => {
+    if (verdict.status === 'success' || verdict.status === 'running') return;
+    void api
+      .llmCalls(run.id)
+      .then((calls) => {
+        const last = calls.at(-1);
+        if (last) setWho({ provider: last.provider, model: last.model });
+      })
+      .catch(() => undefined);
+  }, [run.id, verdict.status]);
+
+  const hint = useMemo(() => reasonHint(verdict.reason, who), [verdict.reason, who]);
+
   return (
     <Card className="overflow-hidden">
       <button
@@ -1228,6 +1245,15 @@ function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: ()
         </span>
         <span className="w-20 text-right text-xs text-muted-foreground">{timeAgo(run.startedAt)}</span>
       </button>
+
+      {/* The part the recorded reason cannot say: what to do about it. Outside
+          the expanded section, because someone who has to open a row to find out
+          their automation is fine has already concluded it is broken. */}
+      {hint && (
+        <p className="border-t border-border px-2 pb-3 pt-2 text-[11px] leading-relaxed text-muted-foreground">
+          {hint}
+        </p>
+      )}
 
       {open && <Timeline run={run} steps={steps} />}
     </Card>

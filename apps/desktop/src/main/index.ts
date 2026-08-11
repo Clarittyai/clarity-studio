@@ -277,6 +277,10 @@ async function announce(runId: string): Promise<void> {
       // step succeeded. A local SQLite read on a path that is already about to
       // make network calls.
       verdict: runVerdict(run, store.getSteps(runId)),
+      who: (() => {
+        const last = store.getLlmCalls(runId).at(-1);
+        return last ? { provider: last.provider, model: last.model } : undefined;
+      })(),
     };
 
     if (prefs.desktop !== false && Notification.isSupported()) {

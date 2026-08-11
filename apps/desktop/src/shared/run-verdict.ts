@@ -125,6 +125,57 @@ export function tidyReason(raw: string): string {
 }
 
 /**
+ * The part the recorded reason cannot say: what to do about it.
+ *
+ * "empty response and no tool call" is the SDK naming a state. It is accurate
+ * and it is useless — it does not say the model is the weak link, and nothing
+ * else on screen does either, so the obvious reading is that the automation is
+ * broken. It usually is not.
+ *
+ * Measured: `qwen2.5:32b` behind Ollama's OpenAI shim, sent the SAME well-formed
+ * request eight times, emitted a tool call twice. `command-r` intermittently
+ * answers with Cohere's native "Action: ```json```" prose instead. The adapter
+ * already retries one empty local reply, which takes this to roughly even odds
+ * — so the remaining failures need a sentence, not another retry.
+ *
+ * The sentence names no success rate. Two in eight was measured for one model on
+ * one machine, and quoting it back for a model it was never measured on would be
+ * inventing a number to sound precise.
+ *
+ * Returns undefined when there is nothing useful to add, which is most of the
+ * time. A hint that fires on everything is noise, and noise is what people learn
+ * to skip past.
+ */
+export function reasonHint(
+  reason?: string,
+  /**
+   * `provider` decides whether the model is local, NOT the model name. The store
+   * records what was sent to the endpoint, which has the `ollama/` prefix
+   * stripped — so `llama3.1:8b` arrives here looking like any other name and a
+   * prefix test silently took the generic branch for the exact case this hint
+   * exists to explain.
+   */
+  who?: { provider?: string; model?: string },
+): string | undefined {
+  if (!reason) return undefined;
+  const model = who?.model;
+  const localModel = who?.provider === 'ollama';
+  const noToolCall =
+    /empty response and no tool call|without calling the .*finish tool|non-JSON text/i.test(
+      reason,
+    );
+  if (!noToolCall) return undefined;
+
+  return localModel
+    ? `The model answered without calling a tool, which local models do often — ` +
+        `${model ?? 'this one'} did it here. Studio's agent loop is only proven ` +
+        `against Anthropic: add a key in Settings → Vault, or try running it ` +
+        `again or on a larger local model.`
+    : 'The model answered without calling a tool, so the step could not finish. ' +
+        'Running it again often works; a more capable model works more often.';
+}
+
+/**
  * One line for a notification.
  *
  * "finished" for a run that did nothing is the same failure the notifier's own
@@ -139,8 +190,15 @@ export function verdictHeadline(automation: string, v: RunVerdict): string {
 }
 
 /** The body. Says the reason when there is one, because that is the actionable half. */
-export function verdictDetail(v: RunVerdict): string {
-  if (v.reason) return v.reason.slice(0, 500);
+export function verdictDetail(
+  v: RunVerdict,
+  who?: { provider?: string; model?: string },
+): string {
+  if (v.reason) {
+    const hint = reasonHint(v.reason, who);
+    const body = hint ? `${v.reason} ${hint}` : v.reason;
+    return body.slice(0, 500);
+  }
   if (v.status === 'skipped') {
     return 'It ran, but the step that does the work could not, so nothing came of it.';
   }
