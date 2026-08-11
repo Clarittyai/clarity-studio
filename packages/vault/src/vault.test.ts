@@ -191,3 +191,54 @@ describe('key layout', () => {
     );
   });
 });
+
+describe('a secret this process cannot decrypt', () => {
+  // The app and the CLI share one database but encrypt differently: the desktop
+  // uses the OS keyring, a headless run uses a passphrase or nothing. So a row
+  // written by one is unreadable to the other, and that must degrade rather
+  // than mislead.
+  const written = new MemoryStorage();
+  new Vault(new PassphraseBackend('a-passphrase-of-length'), written).set(
+    { kind: 'provider', id: 'anthropic', field: 'api_key' },
+    'sk-ant-the-real-key',
+  );
+
+  const ref = { kind: 'provider' as const, id: 'anthropic', field: 'api_key' };
+
+  it('reads as absent to a backend that cannot decrypt it', () => {
+    const other = new Vault(new PassphraseBackend('a-different-passphrase'), written);
+    expect(other.get(ref)).toBeUndefined();
+  });
+
+  it('is still LISTED, so it is visible rather than pretended away', () => {
+    const other = new Vault(new PassphraseBackend('a-different-passphrase'), written);
+    expect(other.list().map((s) => s.ref.id)).toContain('anthropic');
+    expect(other.readable(ref)).toBe(false);
+  });
+
+  it('is readable to the backend that wrote it', () => {
+    const same = new Vault(new PassphraseBackend('a-passphrase-of-length'), written);
+    expect(same.get(ref)).toBe('sk-ant-the-real-key');
+    expect(same.readable(ref)).toBe(true);
+  });
+
+  it('never hands back the raw ciphertext as if it were the secret', () => {
+    // EnvBackend.decrypt used to return ciphertext.toString('utf8'), so a
+    // keyring-encrypted key came back as mojibake and got sent to the provider
+    // as an API key. The 401 that came back said nothing about a vault.
+    const env = new Vault(new EnvBackend(), written);
+    // There IS a row here — this is not the trivial "nothing stored" case.
+    expect(written.get(secretKey(ref))).toBeDefined();
+    expect(env.get(ref)).toBeUndefined();
+  });
+
+  it('drops only the unreadable field from an integration bundle', () => {
+    const store = new MemoryStorage();
+    new Vault(new PassphraseBackend('passphrase-number-one'), store).set(
+      { kind: 'integration', id: 'gmail', field: 'refresh_token' },
+      'rt-secret',
+    );
+    const other = new Vault(new PassphraseBackend('passphrase-number-two'), store);
+    expect(other.bundle('gmail')).toBeUndefined();
+  });
+});

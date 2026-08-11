@@ -8,7 +8,7 @@
  * behaviour you cannot script is a dead end.
  */
 
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -61,16 +61,65 @@ const fail = (m: string): never => {
 
 // ── paths ────────────────────────────────────────────────────────────────────
 
+/**
+ * Where Studio keeps its database — the SAME directory the desktop app uses.
+ *
+ * These had drifted apart, and the CLI was the one that was wrong: it hardcoded
+ * "ClarityStudio", the pre-rename brand with no space, while the app gets
+ * `app.getPath('userData')`, which Electron derives from productName —
+ * "Claritty Studio". Two directories, two SQLite files, one product.
+ *
+ * That is not a cosmetic split. Everything Studio knows lives in this database,
+ * so the two halves disagreed about all of it: a key added in the app was
+ * invisible to `keys ls`, a schedule added here never fired because the running
+ * app's dispatcher read the other file, and `ps` and the app's library listed
+ * different automations. Each symptom looks like its own bug, and none of them
+ * points here.
+ *
+ * `paths()` returns the current directory first and the legacy one second, so
+ * the migration below can find what an existing CLI user already has.
+ */
+function paths(): { current: string; legacy: string } {
+  if (process.platform === 'darwin') {
+    const support = join(homedir(), 'Library', 'Application Support');
+    return { current: join(support, 'Claritty Studio'), legacy: join(support, 'ClarityStudio') };
+  }
+  if (process.platform === 'win32') {
+    const roaming = process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming');
+    return { current: join(roaming, 'Claritty Studio'), legacy: join(roaming, 'ClarityStudio') };
+  }
+  // Electron's userData on Linux is under XDG_CONFIG_HOME, not XDG_DATA_HOME —
+  // which is the other half of why these two never met.
+  return {
+    current: join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'Claritty Studio'),
+    legacy: join(process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share'), 'clarity-studio'),
+  };
+}
+
 function dataDir(): string {
   const explicit = process.env.STUDIO_HOME;
   if (explicit) return explicit;
-  if (process.platform === 'darwin') {
-    return join(homedir(), 'Library', 'Application Support', 'ClarityStudio');
+  const { current, legacy } = paths();
+
+  // Move a legacy database over exactly once: only when the shared location has
+  // none of its own, so an existing app database is never overwritten by the
+  // CLI's. If both exist the app's wins and the old file is left untouched,
+  // because silently discarding either one is worse than the split was.
+  const from = join(legacy, 'studio.db');
+  const to = join(current, 'studio.db');
+  if (existsSync(from) && !existsSync(to)) {
+    try {
+      mkdirSync(current, { recursive: true });
+      // -wal and -shm carry committed transactions; moving the .db alone can
+      // lose the most recent writes.
+      for (const suffix of ['', '-wal', '-shm']) {
+        if (existsSync(from + suffix)) renameSync(from + suffix, to + suffix);
+      }
+    } catch {
+      // A failed move must not stop the command. Worst case is the old split.
+    }
   }
-  if (process.platform === 'win32') {
-    return join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'ClarityStudio');
-  }
-  return join(process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share'), 'clarity-studio');
+  return current;
 }
 
 function openStore(): Store {
@@ -762,10 +811,24 @@ function cmdKeys(positional: string[], flags: RunFlags): void {
         info(c.dim('  Nothing stored yet.'));
         info(c.dim('  clarity-studio keys set anthropic sk-ant-…'));
       }
+      let unreadable = 0;
       for (const entry of stored) {
         const scope = entry.ref.projectId ? ` (${entry.ref.projectId.slice(0, 8)})` : '';
+        // The app and this share one database but encrypt differently, so a key
+        // stored in the app is present here and still unusable. Saying "····1234"
+        // for something a run cannot read is the kind of half-truth that sends
+        // people looking in the wrong place.
+        const readable = vault.readable(entry.ref);
+        if (!readable) unreadable++;
+        const shown = readable ? `····${entry.last4}` : c.dim('stored in the app — not readable here');
         // Only the last four, ever. There is no command that prints a secret.
-        info(`  ${entry.ref.kind.padEnd(12)} ${entry.ref.id.padEnd(16)} ${entry.ref.field.padEnd(14)} ····${entry.last4}${scope}`);
+        info(`  ${entry.ref.kind.padEnd(12)} ${entry.ref.id.padEnd(16)} ${entry.ref.field.padEnd(14)} ${shown}${scope}`);
+      }
+      if (unreadable > 0) {
+        info();
+        info(c.dim('  Keys added in the Studio app are encrypted with the OS keyring,'));
+        info(c.dim('  which a terminal process cannot open. For the CLI, export the key'));
+        info(c.dim('  (ANTHROPIC_API_KEY=…) or set STUDIO_VAULT_PASSPHRASE and store it here.'));
       }
       info();
       return;
