@@ -25,7 +25,7 @@ request — that is a defined path, and it takes an afternoon.
 | **Notion** (`notion`) | `notion.create_page`<br>`notion.query_database` | `token` |
 | **Outbound webhook** (`outbound-webhook`) | `outbound-webhook.post` | — |
 | **Email (Resend)** (`resend`) | `resend.send` | `api_key` |
-| **Slack** (`slack`) | `slack.post_message` | `bot_token` |
+| **Slack** (`slack`) | `slack.post_message` | `bot_token`, `app_token` |
 | **Stripe** (`stripe`) | `stripe.list_invoices` | `api_key` |
 | **Telegram** (`telegram`) | `telegram.send_message` | `bot_token`, `chat_id` |
 | **WhatsApp** (`whatsapp`) | `whatsapp.send_message` | `access_token`, `phone_number_id`, `to` |

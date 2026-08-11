@@ -109,11 +109,12 @@ Tools an automation can call: `resend.send`
 
 ### Slack
 
-Create an app at https://api.slack.com/apps, add the chat:write scope under OAuth & Permissions, install it to your workspace, and copy the Bot User OAuth Token. Invite the bot to any channel it should post in.
+Create an app at https://api.slack.com/apps, add the chat:write scope under OAuth & Permissions, install it to your workspace, and copy the Bot User OAuth Token. Invite the bot to any channel it should post in. To let it RECEIVE instructions too: turn on Socket Mode, subscribe to the app_mention event, and generate an app-level token with connections:write. Studio dials out to Slack, so nothing needs a public URL and there is no webhook to expose.
 
 | Field | | |
 | --- | --- | --- |
 | `bot_token` | Bot user OAuth token | secret · e.g. `xoxb-…` |
+| `app_token` | App-level token (optional, to receive messages) | secret · e.g. `xapp-…` |
 
 Tools an automation can call: `slack.post_message`
 
@@ -290,13 +291,19 @@ It goes in `packages/connectors/src/catalog.ts`. This is Slack, whole:
 {
   id: "slack",
   name: "Slack",
-  howToConnect: "Create an app at https://api.slack.com/apps, add the chat:write scope under OAuth & Permissions, install it to your workspace, and copy the Bot User OAuth Token. Invite the bot to any channel it should post in.",
+  howToConnect: "Create an app at https://api.slack.com/apps, add the chat:write scope under OAuth & Permissions, install it to your workspace, and copy the Bot User OAuth Token. Invite the bot to any channel it should post in. To let it RECEIVE instructions too: turn on Socket Mode, subscribe to the app_mention event, and generate an app-level token with connections:write. Studio dials out to Slack, so nothing needs a public URL and there is no webhook to expose.",
   fields: [
     {
       key: "bot_token",
       label: "Bot user OAuth token",
       secret: true,
       placeholder: "xoxb-…"
+    },
+    {
+      key: "app_token",
+      label: "App-level token (optional, to receive messages)",
+      secret: true,
+      placeholder: "xapp-…"
     }
   ],
   tools: [
