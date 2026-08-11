@@ -57,7 +57,7 @@ describe('an empty reply from a local model', () => {
 
     await ollama.complete({ model: 'ollama/qwen2.5:32b', messages: [], tools: TOOLS } as never, ctx);
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it('does not start a retry that will not finish', async () => {
@@ -66,13 +66,15 @@ describe('an empty reply from a local model', () => {
     // two minutes and names nothing. A slow first attempt predicts a slow second.
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockImplementation(async () => {
-      vi.advanceTimersByTime(45_000);
+      vi.advanceTimersByTime(50_000);
       return reply(EMPTY);
     });
     vi.stubGlobal('fetch', fetchMock);
 
     await ollama.complete({ model: 'ollama/command-r:latest', messages: [], tools: TOOLS } as never, ctx);
 
+    // 50s each: the first fits, a second would land past the 90s budget and
+    // spend the agent's whole 120s on a timeout that names nothing.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });

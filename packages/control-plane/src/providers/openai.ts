@@ -27,18 +27,26 @@ const OPENAI = 'https://api.openai.com/v1';
  * a metered provider would spend someone's money on a symptom we have only
  * observed here.
  */
-const EMPTY_REPLY_RETRIES = 1;
+const MAX_LOCAL_ATTEMPTS = 5;
 
 /**
- * Don't start a retry that will not finish.
+ * How long all attempts together may take.
  *
- * The agent gives a step 120s. Three attempts at ~40s each spent the whole
- * budget and the step died with "timed out" — a worse answer than the empty
- * reply it was trying to fix, because it costs two minutes and names nothing.
- * A 32B model answers here in ~20s and a 59B one in ~55s, so the first attempt's
- * own duration is the honest predictor of whether a second one fits.
+ * The agent gives a step 120s, and blowing it is worse than the empty reply this
+ * is fixing: the step dies with "timed out", which costs two minutes and names
+ * nothing. So attempts stop while there is still room, and each one's own
+ * duration predicts whether the next fits — a 32B model answers in ~8-20s here,
+ * a 59B one in ~55s, and that spread is far too wide for a fixed count.
+ *
+ * Why bother: every request-side lever was measured and none moved the number.
+ * Temperature 0 was WORSE than the 0.8 default (0/6 vs 1/6), Ollama's native
+ * /api/chat was no better (1/6), `tool_choice: "required"` is not honoured
+ * (2/5), and neither schema flags, tool names, tool descriptions nor the user
+ * message changed anything. Roughly 40% per attempt is simply what this shim
+ * does — so attempts are the only lever, and four or five of them turn a coin
+ * flip into something you can actually schedule.
  */
-const RETRY_IF_FIRST_TOOK_UNDER_MS = 30_000;
+const LOCAL_ATTEMPT_BUDGET_MS = 90_000;
 
 /** An answer with neither words nor a tool call is not an answer. */
 function saidNothing(data: ChatCompletionResponse): boolean {
@@ -86,9 +94,11 @@ function makeAdapter(id: string, defaultBase: string, matches: (m: string) => bo
       // EMPTY_REPLY_RETRIES. Only when tools were offered: a toolless request
       // answering with prose is the normal case, and an empty one there is the
       // model's actual answer rather than a dropped tool call.
-      const attempts = id === 'ollama' && req.tools?.length ? EMPTY_REPLY_RETRIES + 1 : 1;
+      const retrying = id === 'ollama' && !!req.tools?.length;
+      const maxAttempts = retrying ? MAX_LOCAL_ATTEMPTS : 1;
+      const deadline = Date.now() + LOCAL_ATTEMPT_BUDGET_MS;
       let data!: ChatCompletionResponse;
-      for (let attempt = 1; attempt <= attempts; attempt++) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         const startedAt = Date.now();
         const res = await fetch(`${base}/chat/completions`, {
           method: 'POST',
@@ -99,8 +109,10 @@ function makeAdapter(id: string, defaultBase: string, matches: (m: string) => bo
         if (!res.ok) throw new ProviderHttpError(id, res.status, await res.text());
 
         data = (await res.json()) as ChatCompletionResponse;
-        if (!saidNothing(data) || attempt === attempts) break;
-        if (Date.now() - startedAt > RETRY_IF_FIRST_TOOK_UNDER_MS) break;
+        if (!saidNothing(data) || attempt === maxAttempts) break;
+        // Only go again if another attempt of the same length still fits.
+        const took = Date.now() - startedAt;
+        if (Date.now() + took > deadline) break;
       }
       // Some OpenAI-compatible servers omit usage entirely. Normalise so cost
       // accounting downstream never has to guard.
