@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('studio', {
   listSteps: (runId: string) => ipcRenderer.invoke('steps:list', runId),
   blockedRunIds: (projectId: string, since: number) =>
     ipcRenderer.invoke('runs:blocked', projectId, since),
+  slackStatus: () => ipcRenderer.invoke('settings:slack-status'),
+  setSlackAutomation: (projectId: string) =>
+    ipcRenderer.invoke('settings:set-slack-automation', projectId),
   listTriggers: (projectId: string) => ipcRenderer.invoke('triggers:list', projectId),
   enableTrigger: (triggerId: string, enabled: boolean) =>
     ipcRenderer.invoke('trigger:enable', triggerId, enabled),

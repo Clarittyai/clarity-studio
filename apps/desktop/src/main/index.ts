@@ -32,7 +32,7 @@ import { randomUUID } from 'node:crypto';
 import { parse as parseYaml } from 'yaml';
 
 import { detectAgents } from '@clarity-studio/agent-bridge';
-import { CATALOG, findIntegration } from '@clarity-studio/connectors';
+import { CATALOG, findIntegration, executeTool } from '@clarity-studio/connectors';
 import { Store } from '@clarity-studio/db';
 
 import { watch, type FSWatcher } from 'node:fs';
@@ -42,6 +42,8 @@ import { safeStorage } from 'electron';
 
 import { deliver, detail, headline, type DeliveryResult, type NotifyPrefs } from './notifier.js';
 import { runVerdict } from '../shared/run-verdict.js';
+import { SlackSocket } from './slack-socket.js';
+import type { SlackInstruction } from './slack-socket-protocol.js';
 import { nextRunAt } from '@clarity-studio/scheduler';
 import { bootLogPath, RuntimeHost } from './runtime.js';
 import { TerminalHost } from './terminal.js';
@@ -173,6 +175,14 @@ interface Settings {
   /** Run everything on this model, whatever each manifest asked for. Empty or
    *  absent means honour the manifest. */
   modelOverride?: string;
+  /**
+   * The automation an @mention in Slack instructs.
+   *
+   * A single project rather than a per-channel map: an instruction has to reach
+   * exactly one automation, and inferring which from the message is a guess that
+   * spends tokens when it is wrong. Absent means Slack is not listened to at all.
+   */
+  slackAutomation?: string;
 }
 
 function settingsFile(): string {
@@ -261,6 +271,79 @@ const lastDelivery = new Map<string, DeliveryResult[]>();
  * automation was even reached. It must never throw: a notification that fails
  * is not a reason for the run to be recorded differently than it happened.
  */
+/**
+ * Listening to Slack, so an automation can be instructed from a phone.
+ *
+ * Studio runs on 127.0.0.1, so there is no webhook Slack could ever call. Socket
+ * Mode dials OUT instead: nothing is exposed, there is no tunnel, and there is
+ * no request signature to verify because the socket is authenticated by the
+ * app-level token that opened it.
+ *
+ * Lives in the desktop app rather than the CLI's `serve` because that is where
+ * people actually keep Studio open. It listens while the window is open and
+ * stops when it closes, which is the honest promise for a local-first app — a
+ * hosted platform is what you want if it must listen at 3am.
+ */
+let slackSocket: SlackSocket | undefined;
+
+function slackReply(channel: string, threadTs: string, text: string): void {
+  const tool = findIntegration('slack')?.tools.find((t) => t.id === 'slack.post_message');
+  const credentials = vault().bundle('slack');
+  if (!tool || !credentials) return;
+  void executeTool({
+    spec: tool,
+    args: { channel, text, thread_ts: threadTs },
+    credentials,
+  }).catch(() => undefined);
+}
+
+async function onSlackInstruction(instruction: SlackInstruction): Promise<void> {
+  const projectId = readSettings().slackAutomation;
+  if (!projectId) return;
+  const project = db().getProject(projectId);
+  if (!project) return;
+
+  try {
+    // The instruction rides in as workflow input. An automation that declares no
+    // input for it simply ignores it, which is the safe direction: the run still
+    // happens and nothing is fabricated.
+    await runtime.runWorkflow(projectId, undefined, {
+      instruction: instruction.text,
+      slack_channel: instruction.channel,
+      slack_user: instruction.user,
+      slack_thread_ts: instruction.threadTs,
+    });
+    slackReply(
+      instruction.channel,
+      instruction.threadTs,
+      `Running ${project.name}. I'll report back here.`,
+    );
+  } catch (e) {
+    // Say so in the thread. Failing silently is the worst outcome: the person
+    // asked in Slack and would be left watching a channel that never answers.
+    slackReply(
+      instruction.channel,
+      instruction.threadTs,
+      `I couldn't start ${project.name}: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+}
+
+/** Start, restart or stop the connection to match what is configured now. */
+function syncSlackSocket(): void {
+  slackSocket?.stop();
+  slackSocket = undefined;
+
+  const appToken = vault().bundle('slack')?.app_token;
+  if (!appToken || !readSettings().slackAutomation) return;
+
+  slackSocket = new SlackSocket({
+    appToken: String(appToken),
+    onInstruction: onSlackInstruction,
+  });
+  slackSocket.start();
+}
+
 async function announce(runId: string): Promise<void> {
   try {
     const store = db();
@@ -1071,6 +1154,34 @@ function syncTriggers(projectId: string): Array<Record<string, unknown>> {
     return next;
   });
 
+  /** Which automation an @mention in Slack instructs. Empty stops listening. */
+  ipcMain.handle('settings:set-slack-automation', (_e, projectId: unknown) => {
+    const next = typeof projectId === 'string' ? projectId.trim() : '';
+    writeSettings({ ...readSettings(), slackAutomation: next });
+    // Apply now rather than at next launch: a setting that needs a restart to
+    // take effect reads as one that does not work.
+    syncSlackSocket();
+    return next;
+  });
+
+  /** Whether Slack is being listened to, and what would make it start. */
+  ipcMain.handle('settings:slack-status', () => {
+    const automation = readSettings().slackAutomation ?? '';
+    const hasAppToken = !!vault().bundle('slack')?.app_token;
+    return {
+      automation,
+      hasAppToken,
+      listening: !!automation && hasAppToken,
+      // Said as the next action rather than as a state, because this is the
+      // screen where someone finds out why Slack is doing nothing.
+      needed: !hasAppToken
+        ? 'Connect Slack with an app-level token (xapp-…) to receive messages.'
+        : !automation
+          ? 'Pick which automation an @mention should instruct.'
+          : null,
+    };
+  });
+
   /** Pick the folder new automations go into, and remember it. */
   ipcMain.handle('settings:choose-automations-root', async () => {
     const picked = await dialog.showOpenDialog({
@@ -1327,6 +1438,9 @@ void app.whenReady().then(() => {
   }
 
   registerIpc();
+  // Slack listens only while the window is open. That is the honest promise for
+  // a local-first app; a hosted platform is what answers at 3am.
+  syncSlackSocket();
   createWindow();
 
   // Run the schedules. Until now Studio listed triggers and showed a next-run
@@ -1347,6 +1461,10 @@ void app.whenReady().then(() => {
  * the next launch reports the port as taken by nothing visible.
  */
 let shuttingDown = false;
+app.on('before-quit', () => {
+  slackSocket?.stop();
+});
+
 app.on('before-quit', (event) => {
   if (shuttingDown) return;
   event.preventDefault();

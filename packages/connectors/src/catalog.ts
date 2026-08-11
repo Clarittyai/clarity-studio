@@ -183,8 +183,21 @@ export const CATALOG: IntegrationSpec[] = [
     name: 'Slack',
     howToConnect:
       'Create an app at https://api.slack.com/apps, add the chat:write scope under OAuth & Permissions, ' +
-      'install it to your workspace, and copy the Bot User OAuth Token. Invite the bot to any channel it should post in.',
-    fields: [{ key: 'bot_token', label: 'Bot user OAuth token', secret: true, placeholder: 'xoxb-…' }],
+      'install it to your workspace, and copy the Bot User OAuth Token. Invite the bot to any channel it should post in. ' +
+      'To let it RECEIVE instructions too: turn on Socket Mode, subscribe to the app_mention event, ' +
+      'and generate an app-level token with connections:write. Studio dials out to Slack, so nothing needs ' +
+      'a public URL and there is no webhook to expose.',
+    fields: [
+      { key: 'bot_token', label: 'Bot user OAuth token', secret: true, placeholder: 'xoxb-…' },
+      // Optional: posting needs only the bot token. This is what lets Slack
+      // reach an automation running on 127.0.0.1, which no webhook can.
+      {
+        key: 'app_token',
+        label: 'App-level token (optional, to receive messages)',
+        secret: true,
+        placeholder: 'xapp-…',
+      },
+    ],
     tools: [
       {
         id: 'slack.post_message',
