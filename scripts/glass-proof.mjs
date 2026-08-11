@@ -26,14 +26,25 @@ const OUT_DIR = process.env.OUT_DIR ?? '/tmp';
  *
  *   pnpm package && PACKAGED=1 pnpm proof:glass
  */
-const PACKAGED = process.env.PACKAGED === '1';
-const APP_BIN = join(
-  ROOT,
-  'apps/desktop/release/mac-arm64/Claritty Studio.app/Contents/MacOS/Claritty Studio',
-);
+const PACKAGED = process.env.PACKAGED === '1' || Boolean(process.env.APP_PATH);
+
+/**
+ * APP_PATH points at an installed .app — the copy in /Applications that a
+ * person double-clicks. `pnpm package` writes to release/, and installing is a
+ * separate step, so "packaged" and "installed" can disagree just as easily as
+ * "built" and "packaged" already did:
+ *
+ *   APP_PATH="/Applications/Claritty Studio.app" pnpm proof:glass
+ */
+const APP_BUNDLE =
+  process.env.APP_PATH ?? join(ROOT, 'apps/desktop/release/mac-arm64/Claritty Studio.app');
+const APP_BIN = join(APP_BUNDLE, 'Contents/MacOS/Claritty Studio');
 
 if (PACKAGED && !existsSync(APP_BIN)) {
-  console.error(`No packaged app at:\n  ${APP_BIN}\nRun \`pnpm package\` first.`);
+  console.error(
+    `No app binary at:\n  ${APP_BIN}\n` +
+      `Run \`pnpm package\`, or point APP_PATH at an installed .app.`,
+  );
   process.exit(2);
 }
 
@@ -43,7 +54,7 @@ const app = await electron.launch({
   env: { ...process.env, STUDIO_HOME: process.env.STUDIO_HOME ?? '/tmp/studio-glass-proof' },
 });
 
-console.log(PACKAGED ? 'target: PACKAGED .app' : 'target: source tree (electron .)');
+console.log(PACKAGED ? `target: ${APP_BUNDLE}` : 'target: source tree (electron .)');
 
 const win = await app.firstWindow();
 await win.waitForSelector('[data-brand]');
@@ -71,7 +82,19 @@ const early = await win.evaluate(() => {
   return { transform: p ? getComputedStyle(p).transform : 'none', opacity: p ? getComputedStyle(p).opacity : '1' };
 });
 
-await win.waitForTimeout(700); // well past the 220ms curve
+// Wait for the panel to actually stop, rather than guessing a duration. A cold
+// launch from /Applications starts the curve late enough that a fixed 700ms
+// sample caught it mid-flight at opacity 0.5 — which would eventually read as
+// "settled" and make the entrance assertion flaky.
+await win.waitForFunction(
+  () => {
+    const p = document.querySelector('.liquid-glass')?.parentElement;
+    if (!p) return false;
+    const s = getComputedStyle(p);
+    return s.transform === 'none' && Number(s.opacity) === 1;
+  },
+  { timeout: 5000 },
+);
 const settled = await win.evaluate(() => {
   const el = document.querySelector('.liquid-glass');
   const content = el?.querySelector('.liquid-glass__content');
