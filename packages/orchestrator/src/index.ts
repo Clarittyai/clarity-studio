@@ -1,4 +1,10 @@
-export { buildComposeOverride, composeArgs, type OverrideOptions } from './compose.js';
+export {
+  buildComposeOverride,
+  composeArgs,
+  composeSupportsListOverride,
+  MIN_COMPOSE_VERSION,
+  type OverrideOptions,
+} from './compose.js';
 export {
   allocatePort,
   isFree,

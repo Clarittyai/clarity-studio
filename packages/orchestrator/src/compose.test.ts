@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildComposeOverride, composeArgs } from './compose.js';
+import { buildComposeOverride, composeArgs, composeSupportsListOverride } from './compose.js';
 import { allocatePort, MemoryPortRegistry, PORT_RANGE } from './ports.js';
 
 const baseOpts = {
@@ -20,6 +20,17 @@ describe('compose override', () => {
     const yaml = buildComposeOverride(baseOpts);
     expect(yaml).toContain('"127.0.0.1:33001:3200"');
     expect(yaml).not.toContain('"33001:3200"');
+  });
+
+  it('replaces the automation\'s port list instead of adding to it', () => {
+    // The test above asserts what Studio WRITES; this one is about what Compose
+    // then DOES with it. Compose appends list values, so without `!override` the
+    // automation's own `3200:3200` survived next to ours, and three things broke
+    // at once: only one automation could run at a time (every automation ships
+    // that same portable compose file, so the second collided), the failure named
+    // a port Studio never chose, and the inherited mapping published on 0.0.0.0 —
+    // undoing the loopback binding the test above is there to protect.
+    expect(buildComposeOverride(baseOpts)).toContain('ports: !override');
   });
 
   it('disables Docker restart so a crash is visible instead of a loop', () => {
@@ -83,5 +94,30 @@ describe('port allocation', () => {
   it('fails with an actionable message when the range is exhausted', async () => {
     const reg = new MemoryPortRegistry();
     await expect(allocatePort('p', reg, async () => false)).rejects.toThrow(/No free host port/);
+  });
+});
+
+describe('the Compose version gate', () => {
+  // `!override` is not ignored by an old Compose — it fails to parse the file,
+  // so every start dies with a YAML error that says nothing about ports or
+  // versions. `doctor` names the real requirement instead.
+  it('accepts the versions that understand the tag', () => {
+    expect(composeSupportsListOverride('2.24.0')).toBe(true);
+    expect(composeSupportsListOverride('v2.40.2-desktop.1')).toBe(true);
+    expect(composeSupportsListOverride('v3.0.0')).toBe(true);
+    expect(composeSupportsListOverride('2.24.1')).toBe(true);
+  });
+
+  it('rejects the versions that do not', () => {
+    expect(composeSupportsListOverride('2.23.3')).toBe(false);
+    expect(composeSupportsListOverride('v2.5.0')).toBe(false);
+    expect(composeSupportsListOverride('1.29.2')).toBe(false);
+  });
+
+  it('does not block on a version string it cannot read', () => {
+    // Some distributions print something unexpected here. Refusing to run on an
+    // unparseable string would break more people than the bug it guards against.
+    expect(composeSupportsListOverride('')).toBe(true);
+    expect(composeSupportsListOverride('unknown')).toBe(true);
   });
 });

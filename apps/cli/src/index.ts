@@ -20,9 +20,11 @@ import { ControlPlane, EnvSecretSource, formatUsd } from '@clarity-studio/contro
 import { Store } from '@clarity-studio/db';
 import {
   allocatePort,
+  composeSupportsListOverride,
   isFree,
   DockerRunner,
   fireWorkflow,
+  MIN_COMPOSE_VERSION,
   NativeRunner,
   run as spawnRun,
   type Runner,
@@ -176,6 +178,23 @@ async function cmdDoctor(): Promise<void> {
     dockerOk,
     dockerOk ? '' : 'Install Docker Desktop for the real runtime, or use --native for now.',
   ]);
+
+  // Studio's override replaces the automation's published ports with `!override`,
+  // and a Compose too old to understand that tag fails to parse the file at all
+  // — so every start dies with a YAML error rather than anything about ports.
+  if (dockerOk) {
+    const compose = await spawnRun('docker', ['compose', 'version', '--short']);
+    const version = compose.output.trim();
+    const composeOk = compose.code === 0 && composeSupportsListOverride(version);
+    checks.push([
+      compose.code === 0 ? `Docker Compose ${version}` : 'Docker Compose (not available)',
+      composeOk,
+      composeOk
+        ? ''
+        : `Studio needs Compose ${MIN_COMPOSE_VERSION} or newer to publish each ` +
+          `automation on its own port. Update Docker Desktop, or use --native.`,
+    ]);
+  }
 
   const secrets = new EnvSecretSource();
   const configured: string[] = [];

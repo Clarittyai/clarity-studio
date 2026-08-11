@@ -33,6 +33,32 @@ export interface OverrideOptions {
 
 const CONTAINER_PORT = 3200;
 
+/**
+ * The oldest Compose that understands the `!override` tag on a list.
+ *
+ * Below this, Compose does not merely ignore the tag — it fails to parse the
+ * override file at all, so every start dies with a YAML error. `doctor` reports
+ * the version for that reason.
+ */
+export const MIN_COMPOSE_VERSION = '2.24.0';
+
+/** True when `version` (e.g. "v2.40.2-desktop.1") is at least the minimum. */
+export function composeSupportsListOverride(version: string): boolean {
+  const parse = (v: string): number[] => {
+    const m = /(\d+)\.(\d+)(?:\.(\d+))?/.exec(v);
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3] ?? 0)] : [];
+  };
+  const found = parse(version);
+  // An unreadable version string is not evidence of an old Compose, and
+  // refusing to run on it would be worse than the bug this guards.
+  if (found.length === 0) return true;
+  const need = parse(MIN_COMPOSE_VERSION);
+  for (let i = 0; i < 3; i++) {
+    if ((found[i] ?? 0) !== (need[i] ?? 0)) return (found[i] ?? 0) > (need[i] ?? 0);
+  }
+  return true;
+}
+
 export function buildComposeOverride(opts: OverrideOptions): string {
   const service = opts.service ?? 'automation';
   const env = Object.entries(opts.environment)
@@ -46,7 +72,16 @@ export function buildComposeOverride(opts: OverrideOptions): string {
     '# docker-compose.yml. The automation still runs standalone without it.',
     'services:',
     `  ${service}:`,
-    '    ports:',
+    // `!override` — without it Compose APPENDS to the base file's port list
+    // rather than replacing it, and the automation's own `3200:3200` survives
+    // alongside ours. Three things went wrong because of that, none of them
+    // obviously about ports: only one automation could run at a time (they all
+    // ship the same portable compose file, so the second to start collided on
+    // 3200); the failure named a port Studio never chose and shows nowhere in
+    // its UI; and the inherited mapping publishes on 0.0.0.0, quietly undoing
+    // the 127.0.0.1 below and putting the automation on the local network.
+    // Needs Compose >= 2.24, which `doctor` checks for.
+    '    ports: !override',
     `      - "127.0.0.1:${opts.hostPort}:${CONTAINER_PORT}"`,
     '    environment:',
     env,
