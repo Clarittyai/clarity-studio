@@ -7,8 +7,268 @@
 /* The house surface. Floating panels use these; flat opaque fills are the
  * anti-pattern they exist to prevent. */
 
+.liquid-glass {
+    /* Tunables — these are the tonnitools defaults, verbatim. */
+    --lg-corner-radius: 24px;
+
+    /* Per-corner override. Each defaults to the single radius above, so
+       `radius={16}` still does the obvious thing. A bottom sheet needs
+       square bottom corners on mobile while staying a rounded card on
+       desktop, and the material has to follow the content box exactly —
+       otherwise the fill reaches the corner and the blur doesn't. */
+    --lg-radius-tl: var(--lg-corner-radius);
+    --lg-radius-tr: var(--lg-corner-radius);
+    --lg-radius-br: var(--lg-corner-radius);
+    --lg-radius-bl: var(--lg-corner-radius);
+    --lg-radius: var(--lg-radius-tl) var(--lg-radius-tr) var(--lg-radius-br)
+      var(--lg-radius-bl);
+    --lg-base-strength: 14px;
+    --lg-extra-blur: 2px;
+    --lg-softness: 12px;
+    --lg-tint-amount: 0;
+    --lg-tint-saturation: 2;
+    --lg-tint-hue: 180deg;
+    --lg-contrast: 1;
+    --lg-brightness: 1;
+    --lg-invert: 10%;
+    --lg-edge-specularity: 1;
+    --lg-background: rgba(128, 128, 128, 0);
+
+    /* Derived */
+    --lg-total-strength: calc(var(--lg-base-strength) + var(--lg-extra-blur));
+    --lg-edge-width: calc(0.3px + (var(--lg-softness) * 0.1));
+    --lg-emboss-width: calc(var(--lg-softness) * 0.38);
+    --lg-refraction-width: calc(var(--lg-softness) * 0.3);
+
+    position: relative;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+.liquid-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: block;
+    border-radius: var(--lg-radius);
+    backdrop-filter: invert(var(--lg-invert));
+    -webkit-backdrop-filter: invert(var(--lg-invert));
+  }
+
+.liquid-glass__content {
+    position: relative;
+    display: block;
+    z-index: 100;
+    overflow: hidden;
+    border-radius: var(--lg-radius);
+    pointer-events: auto;
+  }
+
+.liquid-glass__material {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+.liquid-glass__material::after {
+    content: '';
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    overflow: hidden;
+    border-radius: var(--lg-radius);
+    background-color: var(--lg-background);
+  }
+
+.liquid-glass__material::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 11;
+    display: block;
+    border-radius: var(--lg-radius);
+    padding: 1px;
+    border: 0 solid transparent;
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.15) 0%,
+      rgba(0, 0, 0, 0.2) 50%,
+      rgba(255, 255, 255, 0.15) 100%
+    );
+    backdrop-filter: invert(0.15) opacity(var(--lg-edge-specularity));
+    -webkit-backdrop-filter: invert(0.15) opacity(var(--lg-edge-specularity));
+    -webkit-mask:
+      linear-gradient(white 0 0) padding-box,
+      linear-gradient(white 0 0) content-box;
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(white 0 0) padding-box exclude,
+      linear-gradient(white 0 0) content-box exclude;
+  }
+
+.liquid-glass__material > div {
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    border-radius: var(--lg-radius);
+    z-index: 2;
+    overflow: hidden;
+  }
+
+.liquid-glass__material > .lg-highlight {
+    -webkit-mask:
+      linear-gradient(white 0 0) padding-box,
+      linear-gradient(white 0 0) content-box;
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(white 0 0) padding-box exclude,
+      linear-gradient(white 0 0) content-box exclude;
+  }
+
+.liquid-glass__material > .lg-edge-reflection {
+    z-index: 4;
+    margin: calc(var(--lg-total-strength) * -1);
+    /* This layer is inflated by --lg-total-strength on every side, so each
+       corner grows by the same amount to stay concentric with the content. */
+    border-radius: calc(var(--lg-radius-tl) + var(--lg-total-strength))
+      calc(var(--lg-radius-tr) + var(--lg-total-strength))
+      calc(var(--lg-radius-br) + var(--lg-total-strength))
+      calc(var(--lg-radius-bl) + var(--lg-total-strength));
+    backdrop-filter: blur(var(--lg-total-strength)) brightness(1.2) saturate(1.2);
+    -webkit-backdrop-filter: blur(var(--lg-total-strength)) brightness(1.2) saturate(1.2);
+    padding: var(--lg-edge-width);
+    border: var(--lg-total-strength) solid transparent;
+  }
+
+.liquid-glass__material > .lg-emboss-reflection {
+    backdrop-filter: blur(calc(var(--lg-total-strength) * 1.5)) invert(0.25) brightness(1.11)
+      saturate(1.2) hue-rotate(-10deg) contrast(2.3);
+    -webkit-backdrop-filter: blur(calc(var(--lg-total-strength) * 1.5)) invert(0.25)
+      brightness(1.11) saturate(1.2) hue-rotate(-10deg) contrast(2.3);
+    padding: var(--lg-emboss-width);
+    border: 0 solid transparent;
+  }
+
+.liquid-glass__material > .lg-refraction {
+    backdrop-filter: invert(0.1) brightness(1.2) contrast(1.5);
+    -webkit-backdrop-filter: invert(0.1) brightness(1.2) contrast(1.5);
+    padding: var(--lg-refraction-width);
+    border: var(--lg-emboss-width) solid transparent;
+  }
+
+.liquid-glass__material > .lg-blur {
+    backdrop-filter: blur(var(--lg-extra-blur)) brightness(1.25);
+    -webkit-backdrop-filter: blur(var(--lg-extra-blur)) brightness(1.25);
+    /* Inset from the content box, so each corner shrinks by the same amount.
+       `max(0px, …)` because a small radius minus the inset would otherwise go
+       negative — which is invalid and drops the whole declaration. */
+    border-radius: max(
+        0px,
+        calc(var(--lg-radius-tl) - (var(--lg-emboss-width) + var(--lg-refraction-width)))
+      )
+      max(0px, calc(var(--lg-radius-tr) - (var(--lg-emboss-width) + var(--lg-refraction-width))))
+      max(0px, calc(var(--lg-radius-br) - (var(--lg-emboss-width) + var(--lg-refraction-width))))
+      max(0px, calc(var(--lg-radius-bl) - (var(--lg-emboss-width) + var(--lg-refraction-width))));
+    margin: calc(var(--lg-emboss-width) + var(--lg-refraction-width));
+  }
+
+.liquid-glass__material > .lg-blend-layers {
+    z-index: 3;
+    backdrop-filter: blur(calc((var(--lg-softness) * 0.2) + (var(--lg-extra-blur) * 0.2)));
+    -webkit-backdrop-filter: blur(calc((var(--lg-softness) * 0.2) + (var(--lg-extra-blur) * 0.2)));
+  }
+
+.liquid-glass__material > .lg-blend-edge {
+    z-index: 8;
+    backdrop-filter: blur(calc(var(--lg-edge-width) * 0.4)) contrast(1.6) saturate(1.5);
+    -webkit-backdrop-filter: blur(calc(var(--lg-edge-width) * 0.4)) contrast(1.6) saturate(1.5);
+  }
+
+.liquid-glass__material > .lg-tint {
+    backdrop-filter: sepia(var(--lg-tint-amount))
+      saturate(calc(1 + (var(--lg-tint-saturation) - 1) * var(--lg-tint-amount)))
+      hue-rotate(calc(var(--lg-tint-hue) * var(--lg-tint-amount)));
+    -webkit-backdrop-filter: sepia(var(--lg-tint-amount))
+      saturate(calc(1 + (var(--lg-tint-saturation) - 1) * var(--lg-tint-amount)))
+      hue-rotate(calc(var(--lg-tint-hue) * var(--lg-tint-amount)));
+  }
+
+.liquid-glass__material > .lg-contrast {
+    backdrop-filter: contrast(var(--lg-contrast));
+    -webkit-backdrop-filter: contrast(var(--lg-contrast));
+  }
+
+.liquid-glass__material > .lg-brightness {
+    backdrop-filter: brightness(var(--lg-brightness));
+    -webkit-backdrop-filter: brightness(var(--lg-brightness));
+  }
+
+.lg-sheet {
+    --lg-radius-br: 0px;
+    --lg-radius-bl: 0px;
+  }
+
+@media (min-width: 768px) {
+    .lg-sheet {
+      --lg-radius-br: var(--lg-corner-radius);
+      --lg-radius-bl: var(--lg-corner-radius);
+    }
+  }
+
+@media (prefers-reduced-transparency: reduce) {
+    .liquid-glass__material,
+    .liquid-glass::before {
+      display: none;
+    }
+    .liquid-glass__content {
+      background-color: rgb(255 255 255 / 0.85);
+    }
+    .dark .liquid-glass__content {
+      background-color: rgb(23 23 23 / 0.85);
+    }
+  }
+
+.glass-backdrop-only {
+    position: relative;
+    backdrop-filter: var(--glass-backdrop);
+    -webkit-backdrop-filter: var(--glass-backdrop);
+  }
+
+.glass-material {
+    @apply glass-backdrop-only;
+  }
+
+.glass-input::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    display: block;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.15) 0%,
+      rgba(0, 0, 0, 0.2) 50%,
+      rgba(255, 255, 255, 0.15) 100%
+    );
+    pointer-events: none;
+    -webkit-mask:
+      linear-gradient(white 0 0) padding-box,
+      linear-gradient(white 0 0) content-box;
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(white 0 0) padding-box exclude,
+      linear-gradient(white 0 0) content-box exclude;
+  }
+
 .glass-card {
-    @apply bg-white/60 dark:bg-white/[0.05] backdrop-blur-2xl backdrop-saturate-150;
+    @apply glass-material;
+    border-radius: 1.5rem;
+    @apply bg-white/60 dark:bg-white/[0.05];
     @apply border border-slate-900/[0.08] dark:border-white/10;
     @apply ring-1 ring-inset ring-slate-900/[0.06] dark:ring-white/[0.08];
   }
@@ -18,15 +278,20 @@
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -2px rgba(15, 23, 42, 0.08);
   }
 
+.dark .glass-card-elevated {
+    box-shadow: 0 10px 40px -12px rgba(0, 0, 0, 0.5);
+  }
+
 .glass-button {
+    @apply glass-material;
     @apply bg-white/60 dark:bg-white/[0.05] hover:bg-white/80 dark:hover:bg-white/[0.08];
-    @apply backdrop-blur-xl backdrop-saturate-150;
     @apply ring-1 ring-inset ring-slate-900/[0.06] dark:ring-white/[0.08];
     @apply transition-colors;
   }
 
 .glass-input {
-    @apply bg-white/60 dark:bg-white/[0.05] backdrop-blur-xl backdrop-saturate-150;
+    @apply glass-material;
+    @apply bg-white/60 dark:bg-white/[0.05];
     @apply border border-slate-900/[0.08] dark:border-white/10;
     @apply focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40;
     @apply outline-none transition-all;
@@ -35,11 +300,44 @@
 .glass-card-marketplace {
     /* Opaque white in light mode so the card reads crisply against the soft
        off-white page (a translucent tint vanishes on white); frosted in dark. */
-    @apply relative bg-white dark:bg-white/[0.05] backdrop-blur-2xl backdrop-saturate-150;
+    /* Deliberately NOT `@apply glass-material`: Tailwind propagates the
+       applied class's ::before rule too, and this card has its own
+       top-hairline ::before. Inheriting the ring's 1px padding + exclude
+       mask onto a 1px-tall pseudo-element masks it out of existence. */
+    @apply glass-backdrop-only bg-white dark:bg-white/[0.05];
     @apply rounded-3xl border border-slate-900/[0.08] dark:border-white/10;
     @apply ring-1 ring-inset ring-slate-900/[0.06] dark:ring-white/[0.08];
     @apply transition-all duration-300;
     /* Border-only separation in light mode — no box shadow (the hairline border +
        inset ring against the off-white page is the separator). */
     box-shadow: none;
+  }
+
+.dark .glass-card-marketplace {
+    box-shadow: 0 10px 40px -12px rgba(0, 0, 0, 0.5);
+  }
+
+.glass-card-marketplace::before {
+    content: '';
+    position: absolute;
+    left: 1.5rem;
+    right: 1.5rem;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(15, 23, 42, 0.18), transparent);
+    pointer-events: none;
+  }
+
+.dark .glass-card-marketplace::before {
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.25), transparent);
+  }
+
+.glass-card-marketplace.group:hover {
+    @apply bg-white dark:bg-white/[0.08];
+    @apply border-slate-900/[0.15] dark:border-white/20;
+    box-shadow: none;
+  }
+
+.dark .glass-card-marketplace.group:hover {
+    box-shadow: 0 16px 50px -12px rgba(0, 0, 0, 0.6);
   }

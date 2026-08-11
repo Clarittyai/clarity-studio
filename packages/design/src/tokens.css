@@ -58,9 +58,17 @@
     --swimlane-bg: 222 47% 11%;        /* foreground; used at low alpha */
 
     --radius: 0.5rem;
+
+    /* The liquid-glass backdrop pass. A TOKEN, and it lives here with the other
+       tokens for two reasons: `@apply glass-material` copies declarations but
+       not the `.dark` rule, so a hardcoded dark value would never reach
+       `.glass-card`; and Clarity Studio's design sync lifts this block verbatim,
+       so anything defined elsewhere silently fails to reach Studio. */
+    --glass-backdrop: blur(16px) saturate(1.2) brightness(1.08);
   }
 
 .dark {
+    --glass-backdrop: blur(16px) saturate(1.2) brightness(1.2) invert(0.04);
     --background: 240 6% 6%;           /* #0F0F10 - near black */
     --foreground: 210 40% 98%;         /* #F8FAFC */
  

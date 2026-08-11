@@ -42,8 +42,11 @@ export function cn(...parts: Array<string | false | null | undefined>): string {
 type Variant = 'accent' | 'outline' | 'ghost' | 'destructive';
 
 const VARIANTS: Record<Variant, string> = {
+  // `glass-material`, not a hand-written blur: the recipe is synced from the
+  // platform (packages/design/src/glass.css) so Studio's accent button is the
+  // same material as the platform's, and cannot drift from it.
   accent:
-    'bg-accent/90 text-white ring-1 ring-inset ring-white/20 backdrop-blur-xl ' +
+    'bg-accent/90 text-white ring-1 ring-inset ring-white/20 glass-material ' +
     'hover:bg-accent active:bg-accent active:brightness-95',
   outline:
     'bg-transparent text-foreground ring-1 ring-inset ring-border ' +

@@ -90,16 +90,69 @@ function block(css, selector) {
   return undefined;
 }
 
-/** Every `.glass-*` rule, in source order. */
+/**
+ * Every rule whose selector mentions `glass`, in source order.
+ *
+ * Deliberately selector-shaped rather than class-shaped. The earlier version
+ * only matched a bare `.glass-foo` (optionally followed by more bare classes),
+ * which silently dropped three kinds of rule that carry the recipe:
+ *
+ *   .glass-material::before, .glass-card::before, …   the 155° edge hairline
+ *   .dark .glass-card-elevated                        the dark-mode variant
+ *   .liquid-glass__material > .lg-edge-reflection     the ten-layer material
+ *
+ * Silently is the problem: Studio would take the fill and the blur but not the
+ * edge, and look almost right. A partial copy is exactly the drift this script
+ * exists to prevent.
+ *
+ * The ten-layer `.liquid-glass*` rules come across too. Studio has no
+ * <LiquidGlass> component yet, so they are inert — but they are part of the
+ * recipe, and shipping them means the day Studio grows one, the material is
+ * already correct rather than half-copied.
+ */
 function glassRules(css) {
   const out = [];
-  const re = /^\s*(\.[a-zA-Z0-9_-]*glass[a-zA-Z0-9_-]*(?:\s*,\s*\.[a-zA-Z0-9_-]+)*)\s*\{/gm;
-  let match;
-  while ((match = re.exec(css)) !== null) {
-    const rule = block(css, match[1].trim());
-    if (rule) out.push(rule.trim());
+  const seen = new Set();
+
+  // Media-wrapped rules first, and taken WHOLE. Two of them carry real
+  // behaviour: `.lg-sheet` flips a sheet's bottom corners back at the md
+  // breakpoint, and `prefers-reduced-transparency` drops the ten-layer stack
+  // for users who ask for it. Both live inside `@media`, so a selector-only
+  // pass silently loses them — and losing the second one is an accessibility
+  // regression, not a cosmetic one.
+  const consumed = []; // [start, end) source ranges already taken by a @media
+  const media = /^[ \t]*(@media[^{]+)\{/gm;
+  let m;
+  while ((m = media.exec(css)) !== null) {
+    const rule = block(css, m[1].trim());
+    if (!rule) continue;
+    if (!/glass|\.lg-/i.test(rule)) continue;
+    if (seen.has(rule)) continue;
+    seen.add(rule);
+    const start = css.indexOf(rule);
+    consumed.push([start, start + rule.length]);
+    out.push({ at: m.index, text: rule.trim() });
   }
-  return out;
+
+  // Then plain rules. A selector list at the start of a line, ending in `{`;
+  // selectors may hold classes, descendants, `>` combinators and pseudo-
+  // elements. `.lg-*` counts as glass — those are the material's layers.
+  const re = /^[ \t]*([.#:a-zA-Z][^{}\n;]*?)\s*\{/gm;
+  while ((m = re.exec(css)) !== null) {
+    const selector = m[1].trim();
+    if (selector.startsWith('@')) continue;
+    if (!/glass/i.test(selector) && !/(^|[\s,>])\.lg-/.test(selector)) continue;
+    if (seen.has(selector)) continue;
+    // Skip only rules that physically sit INSIDE a @media block already taken.
+    // Matching on selector text would wrongly drop the base `.lg-sheet` rule,
+    // whose selector also appears inside the md override.
+    if (consumed.some(([s, e]) => m.index >= s && m.index < e)) continue;
+    seen.add(selector);
+    const rule = block(css, selector);
+    if (rule) out.push({ at: m.index, text: rule.trim() });
+  }
+
+  return out.sort((a, b) => a.at - b.at).map((r) => r.text);
 }
 
 const globals = read('src/app/globals.css');
