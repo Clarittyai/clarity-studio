@@ -1233,8 +1233,18 @@ function syncTriggers(projectId: string): Array<Record<string, unknown>> {
     if (response === 0) return { removed: false };
 
     // Stop it before forgetting it, or a runner keeps a port for something the
-    // library no longer lists.
-    await runtime.stop(id).catch(() => undefined);
+    // library no longer lists. Swallowing a failure here is how an unreapable
+    // container gets made: the record goes, and with "Delete folder too" the
+    // compose file that could have torn it down goes with it. Removal is still
+    // what was asked for, so do it — but say what was left behind and how to
+    // clear it, naming the container rather than a compose command that would
+    // need the folder we may be about to erase.
+    let orphaned: string | undefined;
+    try {
+      await runtime.stop(id);
+    } catch (err) {
+      orphaned = err instanceof Error ? err.message : String(err);
+    }
     terminals.close(id);
     watchers.get(id)?.close();
     watchers.delete(id);
@@ -1243,7 +1253,19 @@ function syncTriggers(projectId: string): Array<Record<string, unknown>> {
       rmSync(project.path, { recursive: true, force: true });
     }
     db().deleteProject(id);
-    return { removed: true, deletedFiles: response === 2 };
+
+    if (orphaned) {
+      await dialog.showMessageBox({
+        type: 'warning',
+        buttons: ['OK'],
+        title: 'Removed, but its container is still running',
+        message: `“${project.name}” was removed from Studio, but Docker would not stop it.`,
+        detail:
+          `It is still running and still holding its port, and Studio no longer ` +
+          `tracks it. Clear it with:\n\n    docker rm -f studio-${id}-automation-1\n\n${orphaned}`,
+      });
+    }
+    return { removed: true, deletedFiles: response === 2, orphaned: Boolean(orphaned) };
   });
 }
 

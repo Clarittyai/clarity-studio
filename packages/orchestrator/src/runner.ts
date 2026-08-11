@@ -172,11 +172,28 @@ export class DockerRunner extends BaseRunner {
     this.logProc.stderr?.on('data', (d) => this.record(String(d), 'stderr'));
   }
 
+  /**
+   * Throws when the container is still up.
+   *
+   * `start()` has always checked its exit code and this did not, so a failed
+   * `compose down` resolved as success — and the caller then recorded the
+   * project as "stopped" while its container kept running and kept holding its
+   * host port. The next start of that automation then failed to bind, hours
+   * later, with an error about a port rather than about a teardown. Silence is
+   * the wrong answer here: the caller cannot report an honest status without
+   * knowing.
+   */
   async stop(): Promise<void> {
     this.logProc?.kill('SIGTERM');
-    await run('docker', [...this.args(), 'down', '--remove-orphans'], {
+    const { code, output } = await run('docker', [...this.args(), 'down', '--remove-orphans'], {
       cwd: this.opts.projectPath,
     });
+    if (code !== 0) {
+      throw new Error(
+        `docker compose down failed (exit ${code}) — the container may still be ` +
+          `running and holding its port.\n\n${output.slice(-2000)}`,
+      );
+    }
   }
 }
 

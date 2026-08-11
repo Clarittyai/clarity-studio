@@ -407,11 +407,16 @@ export class RuntimeHost {
     return this.serialise(projectId, async () => {
       const entry = this.live.get(projectId);
       if (!entry) return;
-      this.live.delete(projectId);
       await entry.runner.stop();
+      // Only forget the runner once it is actually down. Deleting first meant a
+      // failed teardown left a container running that the app no longer knew
+      // about, so nothing could stop it or report it.
+      this.live.delete(projectId);
       const store = this.store();
       // Only overwrite a healthy status — a recorded crash must survive
       // teardown, or the UI would report "stopped" for something that fell over.
+      // A teardown that FAILS throws out of here with the status left at
+      // "running", which is the truth: the container is still up.
       if (store.getProject(projectId)?.status === 'running') {
         store.setProjectStatus(projectId, 'stopped');
       }

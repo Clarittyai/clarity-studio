@@ -378,12 +378,20 @@ async function withRuntime<T>(
     throw err;
   } finally {
     if (!flags.keep) {
-      await runner.stop();
-      // Only overwrite a healthy status. A crash recorded above must survive
-      // teardown, or `ps` would quietly report "stopped" for something that
-      // actually fell over.
-      if (store.getProject(projectId)?.status === 'running') {
-        store.setProjectStatus(projectId, 'stopped');
+      try {
+        await runner.stop();
+        // Only overwrite a healthy status. A crash recorded above must survive
+        // teardown, or `ps` would quietly report "stopped" for something that
+        // actually fell over.
+        if (store.getProject(projectId)?.status === 'running') {
+          store.setProjectStatus(projectId, 'stopped');
+        }
+      } catch (stopErr) {
+        // The container is probably still up, so leaving the status at
+        // "running" is the true answer, not a stale one. Warn rather than
+        // throw: this runs in a `finally`, and throwing here would replace
+        // whatever real error sent us into it.
+        warn(stopErr instanceof Error ? stopErr.message : String(stopErr));
       }
     }
     await plane.close();
