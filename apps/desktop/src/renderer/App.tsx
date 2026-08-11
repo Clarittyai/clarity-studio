@@ -47,6 +47,7 @@ import {
   type NotifyState,
 } from './api.js';
 import { BrandLockup } from './components/Brand.js';
+import { LiquidGlass } from './components/liquid-glass.js';
 import { declaredIntegrations, missingRequired, nothingCameBack } from './connections.js';
 import { AutomationFlow, type StepStatus } from './components/flow/AutomationFlow.js';
 import { toFlow, type Flow } from './components/flow/blocks.js';
@@ -1743,12 +1744,16 @@ function NewAutomation({
     // Escape closes; a click on the scrim does not, because a half-typed brief
     // is easy to lose and annoying to retype.
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-background/70 p-10 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-background/40 p-10"
       onKeyDown={(e) => {
         if (e.key === 'Escape') onCancel();
       }}
     >
-      <div className="mt-16 w-full max-w-lg rounded-3xl border border-border bg-background p-6 shadow-2xl">
+      <LiquidGlass
+        radius={32}
+        className="mt-16 w-full max-w-lg shadow-2xl"
+        contentClassName="rounded-3xl border border-border bg-background/80 p-6"
+      >
         <h2 className="text-lg font-semibold tracking-tight">New automation</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Say what it should do and Claude Code starts on exactly that.
@@ -1803,7 +1808,7 @@ function NewAutomation({
             {busy ? 'Creating…' : 'Create'}
           </Button>
         </div>
-      </div>
+      </LiquidGlass>
     </div>
   );
 }
@@ -2863,12 +2868,16 @@ function AgentInspector({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-background/70 p-8 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-background/40 p-8"
       onKeyDown={(e) => {
         if (e.key === 'Escape' && !dirty) onClose();
       }}
     >
-      <div className="mt-10 flex max-h-[82vh] w-full max-w-2xl flex-col rounded-3xl border border-border bg-background">
+      <LiquidGlass
+        radius={32}
+        className="mt-10 w-full max-w-2xl"
+        contentClassName="flex max-h-[82vh] flex-col rounded-3xl border border-border bg-background/80"
+      >
         <header className="flex items-center gap-3 border-b border-border px-6 py-4">
           <AgentAvatar seed={agent.id} size={34} />
           <div className="min-w-0 flex-1">
@@ -2990,7 +2999,7 @@ function AgentInspector({
             Save
           </Button>
         </footer>
-      </div>
+      </LiquidGlass>
     </div>
   );
 }
@@ -3020,12 +3029,16 @@ function RunInputs({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-background/70 p-10 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-background/40 p-10"
       onKeyDown={(e) => {
         if (e.key === 'Escape') onCancel();
       }}
     >
-      <div className="mt-20 w-full max-w-md rounded-3xl border border-border bg-background p-6">
+      <LiquidGlass
+        radius={32}
+        className="mt-20 w-full max-w-md"
+        contentClassName="rounded-3xl border border-border bg-background/80 p-6"
+      >
         <h2 className="text-lg font-semibold tracking-tight">Run {flow.workflowId}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           What this run should work with. Left empty, the workflow uses its own defaults.
@@ -3060,7 +3073,7 @@ function RunInputs({
             Run
           </Button>
         </div>
-      </div>
+      </LiquidGlass>
     </div>
   );
 }
