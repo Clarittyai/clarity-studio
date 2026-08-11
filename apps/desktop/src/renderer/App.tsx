@@ -57,7 +57,7 @@ import { AutomationGraphScene } from './components/live/AutomationGraphScene.js'
 import { CONTRIBUTE } from './components/cloud-links.js';
 import { CloudShowcase } from './components/CloudShowcase.js';
 import { REQUEST_INTEGRATION, TerminalPanel } from './components/Terminal.js';
-import { reasonHint, runVerdict } from '../shared/run-verdict.js';
+import { reasonHint, runVerdict, tidyReason } from '../shared/run-verdict.js';
 import {
   Badge,
   Button,
@@ -1238,23 +1238,47 @@ function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: ()
               they should connect Gmail, and on these runs that would not have
               helped — the model had returned prose instead of calling the finish
               tool. The id is still on the row when it is expanded. */}
+          {/* Two lines, not one truncated one.
+              `truncate` cut every reason at roughly the width of the phrase
+              "model returned non-JSON text without c…" — which is the half that
+              names a symptom, ending exactly before the half that says what to
+              do. The row is the only place most people read, so it was
+              truncating away the entire point of showing the reason at all. An
+              id still gets one line: there is nothing to learn from its tail. */}
           <p
             className={cn(
-              'truncate text-[11px]',
-              verdict.reason ? 'text-warning/90' : 'font-mono text-muted-foreground',
+              'text-[11px]',
+              verdict.reason
+                ? 'line-clamp-2 leading-snug text-warning/90'
+                : 'truncate font-mono text-muted-foreground',
             )}
           >
             {verdict.reason ?? run.id}
           </p>
         </div>
         <Badge>{run.triggeredBy}</Badge>
-        <span className="w-16 text-right text-xs tabular-nums text-muted-foreground">
+        {/* Three bare numbers in a row read as one unlabelled table: "6.2s 1.4k
+            21h ago" gives no clue that the middle one is tokens. There is no
+            room for headers on a row this dense, so each carries its own name
+            on hover — and the token one spells out the split it is summing. */}
+        <span
+          className="w-16 text-right text-xs tabular-nums text-muted-foreground"
+          title="How long the run took"
+        >
           {duration(run.startedAt, run.endedAt)}
         </span>
-        <span className="w-16 text-right text-xs tabular-nums text-muted-foreground">
+        <span
+          className="w-16 text-right text-xs tabular-nums text-muted-foreground"
+          title={`Tokens: ${run.promptTokens.toLocaleString()} in / ${run.completionTokens.toLocaleString()} out`}
+        >
           {formatTokens(run.promptTokens + run.completionTokens)}
         </span>
-        <span className="w-20 text-right text-xs text-muted-foreground">{timeAgo(run.startedAt)}</span>
+        <span
+          className="w-20 text-right text-xs text-muted-foreground"
+          title={new Date(run.startedAt).toLocaleString()}
+        >
+          {timeAgo(run.startedAt)}
+        </span>
       </button>
 
       {/* The part the recorded reason cannot say: what to do about it. Outside
@@ -1284,6 +1308,14 @@ function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
     return Math.max(1, end - run.startedAt);
   }, [run]);
 
+  // Suppress the run-level error when a step already said it. See below.
+  const runError = useMemo(() => {
+    if (!run.error) return undefined;
+    const tidied = tidyReason(run.error);
+    const saidByAStep = steps.some((s) => s.error && tidyReason(s.error) === tidied);
+    return saidByAStep ? undefined : tidied;
+  }, [run.error, steps]);
+
   return (
     <div className="border-t border-border bg-foreground/[0.02] px-4 py-4">
       {steps.length === 0 ? (
@@ -1291,8 +1323,19 @@ function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
       ) : (
         <div className="flex flex-col gap-2">
           {steps.map((step) => {
-            const offset = ((step.startedAt - run.startedAt) / span) * 100;
-            const width = step.endedAt ? Math.max(1.5, ((step.endedAt - step.startedAt) / span) * 100) : 3;
+            // Clamped to the track. A bar is positioned from the RUN's clock,
+            // so any disagreement between the two — a step recorded before the
+            // run's own start, a missing end, a clock that moved — put the fill
+            // outside its container, where `overflow-hidden` silently ate it.
+            // The failure mode is the worst kind: an empty grey rail that looks
+            // like a rendered bar of zero, so the waterfall reads as "no time
+            // was spent" rather than "this could not be drawn".
+            const rawOffset = ((step.startedAt - run.startedAt) / span) * 100;
+            const offset = Math.min(98.5, Math.max(0, rawOffset));
+            const rawWidth = step.endedAt
+              ? ((step.endedAt - step.startedAt) / span) * 100
+              : 3;
+            const width = Math.min(100 - offset, Math.max(1.5, rawWidth));
             const failed = step.status !== 'success';
             return (
               <div key={step.stepId} className="flex flex-col gap-1">
@@ -1327,11 +1370,18 @@ function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
                     when the WORKFLOW failed, and a workflow that carried on
                     past a failed step under the skip strategy has none. */}
                 {step.error && (
+                  /* `tidyReason`, not the raw field. It exists precisely because
+                     the SDK stamps "agent 'x' raised: agent 'x':" on twice, and
+                     it was applied to the row's summary line while this one
+                     printed the raw string — so the sixty characters of repeated
+                     name its docstring describes were still on screen, just in a
+                     different element. Monospace made it worse: the wrapping
+                     turned one sentence into three lines of shouting. */
                   <p
-                    className="ml-[6.75rem] font-mono text-[11px] leading-snug text-destructive"
+                    className="ml-[6.75rem] text-[11px] leading-snug text-destructive"
                     data-selectable
                   >
-                    {step.error}
+                    {tidyReason(step.error)}
                   </p>
                 )}
               </div>
@@ -1340,9 +1390,14 @@ function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
         </div>
       )}
 
-      {run.error && (
-        <p className="mt-3 font-mono text-[11px] text-destructive" data-selectable>
-          {run.error}
+      {/* The run's own error, and ONLY when it says something a step did not.
+          A workflow that failed because one step failed records the same
+          sentence in both places, so printing both stated one fact twice, in
+          the same colour, six lines apart — the reader's job became working out
+          whether they were looking at two problems or one. */}
+      {runError && (
+        <p className="mt-3 text-[11px] text-destructive" data-selectable>
+          {runError}
         </p>
       )}
       {run.outputs != null &&

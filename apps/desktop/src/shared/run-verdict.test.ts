@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { reasonHint, runVerdict, verdictDetail, verdictHeadline } from './run-verdict.js';
+import {
+  reasonHint,
+  runVerdict,
+  tidyReason,
+  verdictDetail,
+  verdictHeadline,
+} from './run-verdict.js';
 
 /**
  * These cases are the four `client-summary` runs that prompted this file.
@@ -143,5 +149,51 @@ describe('what a notification says', () => {
     const v = runVerdict({ status: 'success', error: null }, []);
     expect(verdictHeadline('client-summary', v)).toBe('client-summary finished');
     expect(verdictDetail(v)).toBe('The run completed.');
+  });
+});
+
+/**
+ * The doubled prefix, as it actually reaches the screen.
+ *
+ * `tidyReason` existed and was applied to the row's summary line — while the
+ * expanded timeline printed the raw field. So the sixty characters of repeated
+ * agent name its docstring describes were still on screen, in monospace, one
+ * sentence wrapped into three red lines. Same string, two elements, one tidied.
+ */
+describe('tidyReason on the string the SDK really produces', () => {
+  const DOUBLED =
+    "agent 'client-summarizer' raised: agent 'client-summarizer': model returned " +
+    'non-JSON text without calling the __finish tool — refusing to guess output shape.';
+
+  it('strips BOTH levels of the prefix, not just the outer one', () => {
+    const out = tidyReason(DOUBLED);
+    expect(out).toBe(
+      'model returned non-JSON text without calling the __finish tool — refusing to guess output shape.',
+    );
+    expect(out).not.toContain('client-summarizer');
+    expect(out).not.toContain('raised');
+  });
+
+  it('leaves a reason that never had the prefix alone', () => {
+    const plain = 'Gmail is not connected.';
+    expect(tidyReason(plain)).toBe(plain);
+  });
+
+  it('is idempotent, so applying it in two places cannot double-strip meaning', () => {
+    // The row and the timeline both call it now. Tidying a tidied string must
+    // not start eating the sentence.
+    expect(tidyReason(tidyReason(DOUBLED))).toBe(tidyReason(DOUBLED));
+  });
+
+  it('lets a caller tell "the run said it too" from "the run said something new"', () => {
+    // What the timeline uses to suppress a run-level error that merely repeats
+    // the step's. Equality has to hold AFTER tidying, because the two fields
+    // carry different numbers of prefixes.
+    const stepSaid = DOUBLED;
+    const runSaid = "agent 'client-summarizer': " + tidyReason(DOUBLED);
+    expect(tidyReason(runSaid)).toBe(tidyReason(stepSaid));
+
+    const different = 'The workflow timed out.';
+    expect(tidyReason(different)).not.toBe(tidyReason(stepSaid));
   });
 });
