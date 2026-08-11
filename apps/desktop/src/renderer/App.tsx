@@ -57,7 +57,7 @@ import { AutomationGraphScene } from './components/live/AutomationGraphScene.js'
 import { CONTRIBUTE } from './components/cloud-links.js';
 import { CloudShowcase } from './components/CloudShowcase.js';
 import { REQUEST_INTEGRATION, TerminalPanel } from './components/Terminal.js';
-import { reasonHint, runVerdict, tidyReason } from '../shared/run-verdict.js';
+import { reasonHint, runVerdict, stepOutcome, tidyReason } from '../shared/run-verdict.js';
 import {
   Badge,
   Button,
@@ -419,16 +419,13 @@ function ProjectView({
    * the platform's page cannot do, because there the flow is a preview.
    */
   const flowStatus = useMemo(() => {
+    // `stepOutcome` rather than a local map: this used to send everything that
+    // was not success/failed/running to `idle`, so a step that tried and could
+    // not was drawn as one that had not started — on a run that had finished.
+    // The rule belongs with the rest of the run verdict, not in two places.
     const map: Record<string, StepStatus> = {};
     for (const step of latestSteps) {
-      map[step.stepId] =
-        step.status === 'success'
-          ? 'ok'
-          : step.status === 'failed'
-            ? 'failed'
-            : step.status === 'running'
-              ? 'running'
-              : 'idle';
+      map[step.stepId] = stepOutcome(step);
     }
     return map;
   }, [latestSteps]);

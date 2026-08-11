@@ -19,14 +19,26 @@
  * than from a preview.
  */
 
-import { Check, Clock, Globe, Loader2, Sparkles, Webhook, X } from 'lucide-react';
+import { Ban, Check, Clock, Globe, Loader2, Sparkles, Webhook, X } from 'lucide-react';
 
 import { cn } from '../ui.js';
 import type { Flow, FlowStep, Tier } from './blocks.js';
 
-/** Includes `failed`, which the platform's union has no need for: its page is a
- *  preview/approval surface, whereas a Studio run genuinely fails. */
-export type StepStatus = 'idle' | 'running' | 'ok' | 'failed';
+/**
+ * Includes `failed`, which the platform's union has no need for: its page is a
+ * preview/approval surface, whereas a Studio run genuinely fails.
+ *
+ * And `blocked` — a step the engine recorded as SKIPPED but carrying an error,
+ * which means it tried and could not. That is not the same as a step that has
+ * not run, and drawing it as `idle` claimed the run had not reached it when in
+ * fact it had reached it and stopped there. It is almost always the step that
+ * does the actual work, so the diagram showed a plain numbered circle for the
+ * exact failure someone opened it to find.
+ *
+ * Same rule as `run-verdict.ts`: a skip with NO error is a conditional gate
+ * that correctly did not fire, and stays `idle`.
+ */
+export type StepStatus = 'idle' | 'running' | 'ok' | 'failed' | 'blocked';
 
 /** Provider tier → the word shown on the badge. */
 const TIER_WORD: Record<Tier, string> = {
@@ -127,6 +139,9 @@ function Node({
         !ring && status === 'ok' && 'bg-accent text-accent-foreground',
         !ring && status === 'running' && 'bg-accent/15 text-accent',
         !ring && status === 'failed' && 'bg-destructive text-white',
+        // Amber, not red: the step did not fail, it never got to run. Red would
+        // send someone hunting for a bug inside a step that never executed.
+        !ring && status === 'blocked' && 'bg-amber-500 text-white',
         !ring && status === 'idle' && 'border border-border bg-background text-muted-foreground',
       )}
     >
@@ -136,6 +151,8 @@ function Node({
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : status === 'failed' ? (
         <X className="h-4 w-4" strokeWidth={3} />
+      ) : status === 'blocked' ? (
+        <Ban className="h-4 w-4" strokeWidth={2.5} />
       ) : (
         children
       )}
@@ -153,9 +170,11 @@ function StepCard({ step, status }: { step: FlowStep; status: StepStatus }) {
         'relative z-[1] w-full overflow-hidden rounded-2xl border bg-background py-3 pl-4 pr-3.5 transition-colors',
         status === 'failed'
           ? 'border-destructive/40'
-          : violet
-            ? 'border-violet-500/25'
-            : 'border-border',
+          : status === 'blocked'
+            ? 'border-amber-500/40'
+            : violet
+              ? 'border-violet-500/25'
+              : 'border-border',
       )}
     >
       <span
@@ -164,15 +183,23 @@ function StepCard({ step, status }: { step: FlowStep; status: StepStatus }) {
           'absolute inset-0',
           status === 'failed'
             ? 'bg-destructive/[0.06]'
-            : violet
-              ? 'bg-violet-500/[0.05]'
-              : 'bg-foreground/[0.02]',
+            : status === 'blocked'
+              ? 'bg-amber-500/[0.06]'
+              : violet
+                ? 'bg-violet-500/[0.05]'
+                : 'bg-foreground/[0.02]',
         )}
       />
       <span
         className={cn(
           'absolute inset-y-0 left-0 w-[3px]',
-          status === 'failed' ? 'bg-destructive' : violet ? 'bg-violet-500' : 'bg-accent',
+          status === 'failed'
+            ? 'bg-destructive'
+            : status === 'blocked'
+              ? 'bg-amber-500'
+              : violet
+                ? 'bg-violet-500'
+                : 'bg-accent',
         )}
       />
 

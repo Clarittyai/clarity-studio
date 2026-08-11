@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   reasonHint,
   runVerdict,
+  stepOutcome,
   tidyReason,
   verdictDetail,
   verdictHeadline,
@@ -195,5 +196,44 @@ describe('tidyReason on the string the SDK really produces', () => {
 
     const different = 'The workflow timed out.';
     expect(tidyReason(different)).not.toBe(tidyReason(stepSaid));
+  });
+});
+
+describe('one step, as the flow diagram draws it', () => {
+  // The diagram had its own mapping: success/failed/running, and everything
+  // else to `idle`. So the step that tried and could not was drawn identically
+  // to one that had not started — on a run that had already finished.
+  const step = (status: string, error?: string | null) => ({ stepId: 's', status, error });
+
+  it('calls a skip carrying an error blocked, not idle', () => {
+    // The whole point. This is the step that does the work; the run is stored
+    // as success because a deterministic prep step in front of it succeeded.
+    expect(stepOutcome(step('skipped', "agent 'client-summarizer' raised: …"))).toBe('blocked');
+  });
+
+  it('leaves a plain skip idle — a gate that correctly did not fire', () => {
+    // Flagging these would put a warning on every run of a working automation
+    // that happens to contain an `if`.
+    expect(stepOutcome(step('skipped'))).toBe('idle');
+    expect(stepOutcome(step('skipped', null))).toBe('idle');
+    expect(stepOutcome(step('skipped', ''))).toBe('idle');
+  });
+
+  it('passes the ordinary outcomes straight through', () => {
+    expect(stepOutcome(step('success'))).toBe('ok');
+    expect(stepOutcome(step('failed', 'boom'))).toBe('failed');
+    expect(stepOutcome(step('running'))).toBe('running');
+  });
+
+  it('treats a status it does not recognise as idle rather than guessing', () => {
+    expect(stepOutcome(step('queued'))).toBe('idle');
+  });
+
+  it('agrees with the run verdict — the two must not drift', () => {
+    // A run whose only real step was blocked is "did nothing", and the diagram
+    // must not show that same run as still in progress.
+    const steps = [step('success'), { stepId: 'work', status: 'skipped', error: 'no key' }];
+    expect(runVerdict({ status: 'success' }, steps).status).toBe('skipped');
+    expect(stepOutcome(steps[1]!)).toBe('blocked');
   });
 });

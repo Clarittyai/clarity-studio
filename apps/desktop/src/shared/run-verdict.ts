@@ -62,7 +62,30 @@ export interface RunVerdict {
  * "1 step skipped" on every run it ever made, for as long as it worked properly.
  */
 function blockedSteps(steps: VerdictStep[]): VerdictStep[] {
-  return steps.filter((s) => s.status === 'skipped' && !!s.error);
+  return steps.filter((s) => s.status === 'blocked' || (s.status === 'skipped' && !!s.error));
+}
+
+/**
+ * One step's outcome, for anything that draws a step rather than a run.
+ *
+ * Same rule as `blockedSteps`, exported because the flow diagram needs it too
+ * and was quietly using a different one: it mapped success/failed/running and
+ * sent everything else to `idle`, so a step that tried and could not appeared
+ * as a step that had not started. On a finished run that reads as "still going"
+ * — and it is nearly always the step doing the real work, since a deterministic
+ * prep step in front of it is what let the run be called a success at all.
+ *
+ * Keeping this next to `blockedSteps` rather than in the component is the point:
+ * the same distinction now has one definition instead of two that can drift.
+ */
+export function stepOutcome(step: VerdictStep): 'ok' | 'failed' | 'running' | 'blocked' | 'idle' {
+  if (step.status === 'success') return 'ok';
+  if (step.status === 'failed') return 'failed';
+  if (step.status === 'running') return 'running';
+  if (step.status === 'blocked') return 'blocked';
+  // A skip with NO error is a conditional gate that correctly did not fire.
+  if (step.status === 'skipped' && step.error) return 'blocked';
+  return 'idle';
 }
 
 export function runVerdict(run: VerdictRun, steps: VerdictStep[]): RunVerdict {
