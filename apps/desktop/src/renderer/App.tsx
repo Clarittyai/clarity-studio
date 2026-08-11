@@ -398,7 +398,6 @@ function ProjectView({
   const [runs, setRuns] = useState<Run[]>([]);
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [spend, setSpend] = useState({ costMicros: 0, calls: 0 });
-  const [openRunId, setOpenRunId] = useState<string | undefined>();
   const [manifest, setManifest] = useState<Record<string, unknown> | undefined>();
   const [codingAgents, setAgents] = useState<AgentInfo[]>([]);
   const [asking, setAsking] = useState(false);
@@ -480,7 +479,10 @@ function ProjectView({
     ]);
     if (r.status === 'fulfilled') {
       setRuns(r.value);
-      setOpenRunId((current) => current ?? r.value[0]?.id);
+      // The newest run used to be expanded on load, which was a guess at what
+      // someone wanted to see. A row now opens on whether it has anything to
+      // explain (see RunRow), so a healthy list stays shut and a broken one
+      // shows its reasons without being asked.
       // The newest run drives the pipeline's lit state.
       const newest = r.value[0];
       setLatestSteps(newest ? await api.listSteps(newest.id).catch(() => []) : []);
@@ -810,14 +812,24 @@ function ProjectView({
             body="Press Run now to see what this automation does."
           />
         ) : (
-          <div className="flex flex-col gap-2">
+          /* A ledger, not a stack of cards.
+             Every run used to be its own bordered card containing a bordered
+             hint containing a bordered timeline — three nested surfaces to say
+             one thing, repeated down the page. Runs are a list of the same
+             shape, so they get one set of column names and hairlines between
+             them; the space that framing used to take now goes to the trace,
+             which is the part worth looking at. */
+          <div>
+            <div className="flex items-center gap-3 border-b border-border px-2 pb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span className="w-2 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1">Run</span>
+              <span className="w-16 shrink-0">Trigger</span>
+              <span className="w-16 shrink-0 text-right">Took</span>
+              <span className="w-16 shrink-0 text-right">Tokens</span>
+              <span className="w-20 shrink-0 text-right">When</span>
+            </div>
             {runs.map((run) => (
-              <RunRow
-                key={run.id}
-                run={run}
-                open={run.id === openRunId}
-                onToggle={() => setOpenRunId(run.id === openRunId ? undefined : run.id)}
-              />
+              <RunRow key={run.id} run={run} />
             ))}
           </div>
         )}
@@ -1183,7 +1195,7 @@ function TriggerRow({ trigger, onToggle }: { trigger: Trigger; onToggle: (on: bo
 
 // ── the run timeline ─────────────────────────────────────────────────────────
 
-function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: () => void }) {
+function RunRow({ run }: { run: Run }) {
   const [steps, setSteps] = useState<Step[]>([]);
 
   // Loaded whether or not the row is open: the row's own status depends on the
@@ -1214,84 +1226,80 @@ function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: ()
 
   const hint = useMemo(() => reasonHint(verdict.reason, who), [verdict.reason, who]);
 
+  /* A run that did not do its job opens itself.
+     Its explanation is the reason anyone is on this screen, and it sat behind a
+     click that gave no sign there was anything worth clicking for — while the
+     healthy runs, which need no explanation at all, looked exactly the same.
+     The list's SHAPE now reports the health: quiet lines mean fine, and
+     anything with prose under it needs you.
+
+     `undefined` means "nobody has said", so the default keeps applying as the
+     steps arrive; an explicit toggle wins from then on. */
+  const [toggled, setToggled] = useState<boolean | undefined>(undefined);
+  const open = toggled ?? !verdict.didItsJob;
+
   return (
-    <Card className="overflow-hidden">
+    <div className="border-b border-border last:border-b-0">
       <button
         type="button"
-        onClick={onToggle}
-        className="-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
+        onClick={() => setToggled(!open)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-2 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
       >
         <StatusDot status={verdict.status} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">
-            {run.workflowId ?? 'workflow'}
-            {verdict.note && (
-              <span className="ml-2 font-normal text-warning">{verdict.note}</span>
-            )}
-          </p>
-          {/* The reason, where the run id used to be.
-
-              A run that went wrong has one useful second line and it is not its
-              own identifier. The reason was recorded on the step and sat one
-              join from every screen while none of them showed it: someone
-              reading "1 step skipped" next to "Gmail not connected" concludes
-              they should connect Gmail, and on these runs that would not have
-              helped — the model had returned prose instead of calling the finish
-              tool. The id is still on the row when it is expanded. */}
-          {/* Two lines, not one truncated one.
-              `truncate` cut every reason at roughly the width of the phrase
-              "model returned non-JSON text without c…" — which is the half that
-              names a symptom, ending exactly before the half that says what to
-              do. The row is the only place most people read, so it was
-              truncating away the entire point of showing the reason at all. An
-              id still gets one line: there is nothing to learn from its tail. */}
-          <p
-            className={cn(
-              'text-[11px]',
-              verdict.reason
-                ? 'line-clamp-2 leading-snug text-warning/90'
-                : 'truncate font-mono text-muted-foreground',
-            )}
-          >
-            {verdict.reason ?? run.id}
-          </p>
-        </div>
-        <Badge>{run.triggeredBy}</Badge>
-        {/* Three bare numbers in a row read as one unlabelled table: "6.2s 1.4k
-            21h ago" gives no clue that the middle one is tokens. There is no
-            room for headers on a row this dense, so each carries its own name
-            on hover — and the token one spells out the split it is summing. */}
-        <span
-          className="w-16 text-right text-xs tabular-nums text-muted-foreground"
-          title="How long the run took"
-        >
+        {/* ONE line, under the column that names it.
+            The reason used to live here as a second line, where it had to be
+            truncated to fit and still pushed every row to double height — so a
+            list of healthy runs paid, in vertical space, for the explanation of
+            the broken ones. It reads in full below now, where there is a whole
+            width for it. */}
+        <p className="min-w-0 flex-1 truncate text-sm font-medium">
+          {run.workflowId ?? 'workflow'}
+          {verdict.note && <span className="ml-2 font-normal text-warning">{verdict.note}</span>}
+        </p>
+        <span className="w-16 shrink-0">
+          <Badge>{run.triggeredBy}</Badge>
+        </span>
+        <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
           {duration(run.startedAt, run.endedAt)}
         </span>
         <span
-          className="w-16 text-right text-xs tabular-nums text-muted-foreground"
-          title={`Tokens: ${run.promptTokens.toLocaleString()} in / ${run.completionTokens.toLocaleString()} out`}
+          className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground"
+          title={`${run.promptTokens.toLocaleString()} in / ${run.completionTokens.toLocaleString()} out`}
         >
           {formatTokens(run.promptTokens + run.completionTokens)}
         </span>
         <span
-          className="w-20 text-right text-xs text-muted-foreground"
+          className="w-20 shrink-0 text-right text-xs text-muted-foreground"
           title={new Date(run.startedAt).toLocaleString()}
         >
           {timeAgo(run.startedAt)}
         </span>
       </button>
 
-      {/* The part the recorded reason cannot say: what to do about it. Outside
-          the expanded section, because someone who has to open a row to find out
-          their automation is fine has already concluded it is broken. */}
-      {hint && (
-        <p className="border-t border-border px-2 pb-3 pt-2 text-[11px] leading-relaxed text-muted-foreground">
-          {hint}
-        </p>
+      {open && (
+        <div className="px-2 pb-4">
+          {/* What happened and what to do about it, as one paragraph.
+              These were two blocks in two colours in two boxes — the recorded
+              reason above a border, the advice below it — which asked the
+              reader to work out that they were halves of a single thought. The
+              reason names the symptom and the hint names the remedy; a sentence
+              followed by a sentence is how that is normally written down. */}
+          {verdict.reason && (
+            <p className="pb-3 text-xs leading-relaxed text-warning/90" data-selectable>
+              {verdict.reason}
+              {hint && <span className="text-muted-foreground"> {hint}</span>}
+            </p>
+          )}
+          <Timeline run={run} steps={steps} alreadySaid={verdict.reason} />
+          {/* Last, and quietly: the id matters only once you are looking hard
+              enough to quote it to someone else. */}
+          <p className="pt-3 font-mono text-[10px] text-muted-foreground/70" data-selectable>
+            {run.id}
+          </p>
+        </div>
       )}
-
-      {open && <Timeline run={run} steps={steps} />}
-    </Card>
+    </div>
   );
 }
 
@@ -1302,7 +1310,21 @@ function RunRow({ run, open, onToggle }: { run: Run; open: boolean; onToggle: ()
  * actually went is visible at a glance — which is the whole reason to look at a
  * trace rather than read a log.
  */
-function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
+function Timeline({
+  run,
+  steps,
+  /**
+   * The reason the caller has ALREADY printed above the trace. A step's error is
+   * usually where that sentence came from, so printing it again put the same
+   * words twice on one screen, in two colours, six lines apart — which reads as
+   * two problems until you compare them word by word.
+   */
+  alreadySaid,
+}: {
+  run: Run;
+  steps: Step[];
+  alreadySaid?: string;
+}) {
   const span = useMemo(() => {
     const end = run.endedAt ?? Date.now();
     return Math.max(1, end - run.startedAt);
@@ -1312,12 +1334,17 @@ function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
   const runError = useMemo(() => {
     if (!run.error) return undefined;
     const tidied = tidyReason(run.error);
+    if (tidied === alreadySaid) return undefined;
     const saidByAStep = steps.some((s) => s.error && tidyReason(s.error) === tidied);
     return saidByAStep ? undefined : tidied;
-  }, [run.error, steps]);
+  }, [run.error, steps, alreadySaid]);
 
   return (
-    <div className="border-t border-border bg-foreground/[0.02] px-4 py-4">
+    /* No border, no tint, no padding of its own. This was a third nested
+       surface inside a card inside a list; the trace does not need a box drawn
+       round it to be legible, and the box was most of what made a run look
+       heavy. */
+    <div>
       {steps.length === 0 ? (
         <p className="text-xs text-muted-foreground">No steps were reported for this run.</p>
       ) : (
@@ -1369,7 +1396,7 @@ function Timeline({ run, steps }: { run: Run; steps: Step[] }) {
                     The run-level error below is a different thing — it is set
                     when the WORKFLOW failed, and a workflow that carried on
                     past a failed step under the skip strategy has none. */}
-                {step.error && (
+                {step.error && tidyReason(step.error) !== alreadySaid && (
                   /* `tidyReason`, not the raw field. It exists precisely because
                      the SDK stamps "agent 'x' raised: agent 'x':" on twice, and
                      it was applied to the row's summary line while this one
